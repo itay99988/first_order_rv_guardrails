@@ -1,0 +1,931 @@
+2026-04-14 14:23:36,421 | INFO | Starting generation
+2026-04-14 14:23:36,422 | INFO | Target length=10, output_dir=data, model=openai/gpt-5.4
+2026-04-14 14:23:36,422 | INFO | Batch attempt 1/40 | current_candidates=0
+2026-04-14 14:23:40,832 | INFO | Received 3 predicate specs
+2026-04-14 14:23:40,832 | INFO | Generating examples for p00002 | domain=ecommerce | arity=1
+2026-04-14 14:23:48,608 | INFO | Accepted 10 examples for p00002 | total_candidates=10
+2026-04-14 14:23:48,608 | INFO | Generating examples for p00001 | domain=medicine | arity=1
+2026-04-14 14:23:56,793 | INFO | Accepted 10 examples for p00001 | total_candidates=20
+2026-04-14 14:23:56,795 | INFO | Generating examples for p00003 | domain=law | arity=1
+2026-04-14 14:24:08,003 | INFO | Accepted 10 examples for p00003 | total_candidates=30
+2026-04-14 14:24:08,003 | INFO | Batch attempt 2/40 | current_candidates=30
+2026-04-14 14:24:14,017 | INFO | Received 3 predicate specs
+2026-04-14 14:24:14,017 | INFO | Generating examples for p00006 | domain=law | arity=1
+2026-04-14 14:24:23,316 | INFO | Accepted 10 examples for p00006 | total_candidates=40
+2026-04-14 14:24:23,316 | INFO | Generating examples for p00004 | domain=medicine | arity=1
+2026-04-14 14:24:31,882 | INFO | Accepted 10 examples for p00004 | total_candidates=50
+2026-04-14 14:24:31,882 | INFO | Generating examples for p00005 | domain=ecommerce | arity=1
+2026-04-14 14:24:43,446 | INFO | Accepted 10 examples for p00005 | total_candidates=60
+2026-04-14 14:24:43,447 | INFO | Batch attempt 3/40 | current_candidates=60
+2026-04-14 14:24:48,452 | INFO | Received 3 predicate specs
+2026-04-14 14:24:48,453 | INFO | Generating examples for p00007 | domain=medicine | arity=2
+2026-04-14 14:25:01,078 | INFO | Accepted 10 examples for p00007 | total_candidates=70
+2026-04-14 14:25:01,082 | INFO | Wrote 10 rows to data\dataset.jsonl
+2026-04-14 14:25:01,082 | INFO | Coverage: {"has_user": true, "has_assistant": true, "has_true": true, "has_false": true, "has_unary": true, "has_binary": true}
+2026-04-14 14:32:55,840 | INFO | Starting generation
+2026-04-14 14:32:55,840 | INFO | Target length=10, output_dir=data, model=openai/gpt-5.4
+2026-04-14 14:32:55,841 | INFO | Batch attempt 1/40 | current_candidates=0
+2026-04-14 14:33:00,626 | INFO | Received 3 predicate specs
+2026-04-14 14:33:00,626 | INFO | Generating examples for p00002 | domain=ecommerce | arity=2
+2026-04-14 14:33:12,987 | INFO | Accepted 10 examples for p00002 | total_candidates=10
+2026-04-14 14:33:12,987 | INFO | Generating examples for p00003 | domain=law | arity=1
+2026-04-14 14:33:26,677 | INFO | Accepted 10 examples for p00003 | total_candidates=20
+2026-04-14 14:33:26,678 | INFO | Wrote 10 rows to data\dataset.jsonl
+2026-04-14 14:33:26,679 | INFO | Coverage: {"has_user": true, "has_assistant": true, "has_true": true, "has_false": true, "has_unary": true, "has_binary": true}
+2026-04-14 16:22:58,724 | INFO | Starting generation
+2026-04-14 16:22:58,724 | INFO | Target length=500, output_dir=data, model=openai/gpt-5.4
+2026-04-14 16:22:58,725 | INFO | Batch attempt 1/2000 | current_candidates=0
+2026-04-14 16:23:03,313 | INFO | Received 3 predicate specs
+2026-04-14 16:23:03,313 | INFO | Generating examples for p00001 | domain=medicine | arity=2
+2026-04-14 16:23:17,490 | WARNING | Skipping bad example in p00001: missing object mention
+2026-04-14 16:23:17,490 | WARNING | Skipping bad example in p00001: missing object mention
+2026-04-14 16:23:17,490 | WARNING | Skipping bad example in p00001: missing object mention
+2026-04-14 16:23:17,490 | WARNING | Skipping bad example in p00001: missing object mention
+2026-04-14 16:23:17,490 | WARNING | Skipping bad example in p00001: missing object mention
+2026-04-14 16:23:17,490 | INFO | Accepted 5 examples for p00001 | total_candidates=5
+2026-04-14 16:23:17,490 | INFO | Generating examples for p00002 | domain=ecommerce | arity=2
+2026-04-14 16:23:30,329 | WARNING | Skipping bad example in p00002: missing object mention
+2026-04-14 16:23:30,329 | WARNING | Skipping bad example in p00002: missing object mention
+2026-04-14 16:23:30,331 | WARNING | Skipping bad example in p00002: missing object mention
+2026-04-14 16:23:30,332 | WARNING | Skipping bad example in p00002: missing object mention
+2026-04-14 16:23:30,332 | WARNING | Skipping bad example in p00002: missing object mention
+2026-04-14 16:23:30,332 | INFO | Accepted 5 examples for p00002 | total_candidates=10
+2026-04-14 16:23:30,333 | INFO | Generating examples for p00003 | domain=law | arity=2
+2026-04-14 16:23:42,348 | WARNING | Skipping bad example in p00003: missing object mention
+2026-04-14 16:23:42,349 | WARNING | Skipping bad example in p00003: missing object mention
+2026-04-14 16:23:42,349 | WARNING | Skipping bad example in p00003: missing object mention
+2026-04-14 16:23:42,349 | WARNING | Skipping bad example in p00003: missing object mention
+2026-04-14 16:23:42,349 | WARNING | Skipping bad example in p00003: missing object mention
+2026-04-14 16:23:42,349 | INFO | Accepted 5 examples for p00003 | total_candidates=15
+2026-04-14 16:23:42,349 | INFO | Batch attempt 2/2000 | current_candidates=15
+2026-04-14 16:23:50,124 | INFO | Received 3 predicate specs
+2026-04-14 16:23:50,124 | INFO | Generating examples for p00005 | domain=software development | arity=1
+2026-04-14 16:24:00,380 | WARNING | Skipping bad example in p00005: missing object mention
+2026-04-14 16:24:00,380 | WARNING | Skipping bad example in p00005: missing object mention
+2026-04-14 16:24:00,382 | WARNING | Skipping bad example in p00005: missing object mention
+2026-04-14 16:24:00,382 | WARNING | Skipping bad example in p00005: missing object mention
+2026-04-14 16:24:00,382 | WARNING | Skipping bad example in p00005: missing object mention
+2026-04-14 16:24:00,382 | INFO | Accepted 5 examples for p00005 | total_candidates=20
+2026-04-14 16:24:00,382 | INFO | Generating examples for p00004 | domain=medicine | arity=2
+2026-04-14 16:24:12,417 | WARNING | Skipping bad example in p00004: missing object mention
+2026-04-14 16:24:12,417 | WARNING | Skipping bad example in p00004: missing object mention
+2026-04-14 16:24:12,417 | WARNING | Skipping bad example in p00004: missing object mention
+2026-04-14 16:24:12,418 | WARNING | Skipping bad example in p00004: missing object mention
+2026-04-14 16:24:12,418 | WARNING | Skipping bad example in p00004: missing object mention
+2026-04-14 16:24:12,418 | INFO | Accepted 5 examples for p00004 | total_candidates=25
+2026-04-14 16:24:12,418 | INFO | Generating examples for p00006 | domain=law | arity=1
+2026-04-14 16:26:57,665 | INFO | Starting generation
+2026-04-14 16:26:57,668 | INFO | Target length=500, output_dir=data, model=openai/gpt-5.4
+2026-04-14 16:26:57,668 | INFO | Batch attempt 1/2000 | current_candidates=0
+2026-04-14 16:27:03,428 | INFO | Received 3 predicate specs
+2026-04-14 16:27:03,429 | INFO | Generating examples for p00001 | domain=medicine | arity=2
+2026-04-14 16:27:14,324 | INFO | Accepted 10 examples for p00001 | total_candidates=10
+2026-04-14 16:27:14,324 | INFO | Generating examples for p00002 | domain=software development | arity=1
+2026-04-14 16:27:25,963 | INFO | Accepted 10 examples for p00002 | total_candidates=20
+2026-04-14 16:27:25,964 | INFO | Generating examples for p00003 | domain=tourism | arity=1
+2026-04-14 16:27:33,428 | INFO | Accepted 10 examples for p00003 | total_candidates=30
+2026-04-14 16:27:33,428 | INFO | Batch attempt 2/2000 | current_candidates=30
+2026-04-14 16:27:39,068 | INFO | Received 3 predicate specs
+2026-04-14 16:27:39,068 | INFO | Generating examples for p00006 | domain=law | arity=2
+2026-04-14 16:27:51,986 | INFO | Accepted 10 examples for p00006 | total_candidates=40
+2026-04-14 16:27:51,986 | INFO | Generating examples for p00005 | domain=ecommerce | arity=2
+2026-04-14 16:28:03,301 | INFO | Accepted 10 examples for p00005 | total_candidates=50
+2026-04-14 16:28:03,301 | INFO | Generating examples for p00004 | domain=medicine | arity=2
+2026-04-14 16:28:12,103 | INFO | Accepted 10 examples for p00004 | total_candidates=60
+2026-04-14 16:28:12,104 | INFO | Batch attempt 3/2000 | current_candidates=60
+2026-04-14 16:28:16,496 | INFO | Received 3 predicate specs
+2026-04-14 16:28:16,496 | INFO | Generating examples for p00008 | domain=software development | arity=2
+2026-04-14 16:28:24,263 | INFO | Accepted 10 examples for p00008 | total_candidates=70
+2026-04-14 16:28:24,263 | INFO | Generating examples for p00007 | domain=medicine | arity=2
+2026-04-14 16:28:38,318 | INFO | Accepted 10 examples for p00007 | total_candidates=80
+2026-04-14 16:28:38,318 | INFO | Generating examples for p00009 | domain=tourism | arity=2
+2026-04-14 16:28:49,175 | INFO | Accepted 10 examples for p00009 | total_candidates=90
+2026-04-14 16:28:49,175 | INFO | Batch attempt 4/2000 | current_candidates=90
+2026-04-14 16:28:53,716 | INFO | Received 3 predicate specs
+2026-04-14 16:28:53,716 | INFO | Generating examples for p00010 | domain=medicine | arity=2
+2026-04-14 16:29:04,514 | INFO | Accepted 10 examples for p00010 | total_candidates=100
+2026-04-14 16:29:04,514 | INFO | Generating examples for p00012 | domain=law | arity=1
+2026-04-14 16:29:16,461 | INFO | Accepted 10 examples for p00012 | total_candidates=110
+2026-04-14 16:29:16,467 | INFO | Generating examples for p00011 | domain=software development | arity=2
+2026-04-14 16:29:25,930 | INFO | Accepted 10 examples for p00011 | total_candidates=120
+2026-04-14 16:29:25,930 | INFO | Batch attempt 5/2000 | current_candidates=120
+2026-04-14 16:29:29,727 | INFO | Received 3 predicate specs
+2026-04-14 16:29:29,727 | INFO | Generating examples for p00015 | domain=law | arity=1
+2026-04-14 16:29:42,246 | INFO | Accepted 10 examples for p00015 | total_candidates=130
+2026-04-14 16:29:42,247 | INFO | Generating examples for p00014 | domain=software development | arity=1
+2026-04-14 16:29:52,510 | INFO | Accepted 10 examples for p00014 | total_candidates=140
+2026-04-14 16:29:52,511 | INFO | Generating examples for p00013 | domain=medicine | arity=1
+2026-04-14 16:30:05,308 | INFO | Accepted 10 examples for p00013 | total_candidates=150
+2026-04-14 16:30:05,308 | INFO | Batch attempt 6/2000 | current_candidates=150
+2026-04-14 16:30:10,869 | INFO | Received 3 predicate specs
+2026-04-14 16:30:10,869 | INFO | Generating examples for p00017 | domain=ecommerce | arity=1
+2026-04-14 16:30:24,478 | INFO | Accepted 10 examples for p00017 | total_candidates=160
+2026-04-14 16:30:24,479 | INFO | Generating examples for p00018 | domain=law | arity=2
+2026-04-14 16:30:35,819 | INFO | Accepted 10 examples for p00018 | total_candidates=170
+2026-04-14 16:30:35,819 | INFO | Generating examples for p00016 | domain=medicine | arity=1
+2026-04-14 16:30:43,566 | INFO | Accepted 10 examples for p00016 | total_candidates=180
+2026-04-14 16:30:43,567 | INFO | Batch attempt 7/2000 | current_candidates=180
+2026-04-14 16:30:48,043 | INFO | Received 3 predicate specs
+2026-04-14 16:30:48,044 | INFO | Generating examples for p00020 | domain=ecommerce | arity=2
+2026-04-14 16:31:00,719 | INFO | Accepted 10 examples for p00020 | total_candidates=190
+2026-04-14 16:31:00,720 | INFO | Generating examples for p00019 | domain=medicine | arity=1
+2026-04-14 16:31:08,824 | INFO | Accepted 10 examples for p00019 | total_candidates=200
+2026-04-14 16:31:08,824 | INFO | Generating examples for p00021 | domain=law | arity=2
+2026-04-14 16:31:22,193 | INFO | Accepted 10 examples for p00021 | total_candidates=210
+2026-04-14 16:31:22,194 | INFO | Batch attempt 8/2000 | current_candidates=210
+2026-04-14 16:31:26,724 | INFO | Received 3 predicate specs
+2026-04-14 16:31:26,726 | INFO | Generating examples for p00024 | domain=tourism | arity=2
+2026-04-14 16:31:41,603 | INFO | Accepted 10 examples for p00024 | total_candidates=220
+2026-04-14 16:31:41,604 | INFO | Generating examples for p00023 | domain=software development | arity=1
+2026-04-14 16:31:53,271 | INFO | Accepted 10 examples for p00023 | total_candidates=230
+2026-04-14 16:31:53,271 | INFO | Generating examples for p00022 | domain=medicine | arity=1
+2026-04-14 16:32:03,061 | INFO | Accepted 10 examples for p00022 | total_candidates=240
+2026-04-14 16:32:03,061 | INFO | Batch attempt 9/2000 | current_candidates=240
+2026-04-14 16:32:07,214 | INFO | Received 3 predicate specs
+2026-04-14 16:32:07,220 | INFO | Generating examples for p00026 | domain=ecommerce | arity=1
+2026-04-14 16:32:19,177 | INFO | Accepted 10 examples for p00026 | total_candidates=250
+2026-04-14 16:32:19,177 | INFO | Generating examples for p00025 | domain=medicine | arity=1
+2026-04-14 16:32:29,757 | INFO | Accepted 10 examples for p00025 | total_candidates=260
+2026-04-14 16:32:29,758 | INFO | Generating examples for p00027 | domain=law | arity=2
+2026-04-14 16:32:47,507 | INFO | Accepted 10 examples for p00027 | total_candidates=270
+2026-04-14 16:32:47,507 | INFO | Batch attempt 10/2000 | current_candidates=270
+2026-04-14 16:32:53,843 | INFO | Received 3 predicate specs
+2026-04-14 16:32:53,845 | INFO | Generating examples for p00028 | domain=medicine | arity=2
+2026-04-14 16:33:05,613 | INFO | Accepted 10 examples for p00028 | total_candidates=280
+2026-04-14 16:33:05,613 | INFO | Generating examples for p00030 | domain=tourism | arity=2
+2026-04-14 16:33:15,450 | INFO | Accepted 10 examples for p00030 | total_candidates=290
+2026-04-14 16:33:15,450 | INFO | Generating examples for p00029 | domain=software development | arity=2
+2026-04-14 16:33:29,776 | INFO | Accepted 10 examples for p00029 | total_candidates=300
+2026-04-14 16:33:29,777 | INFO | Batch attempt 11/2000 | current_candidates=300
+2026-04-14 16:35:08,264 | INFO | Received 3 predicate specs
+2026-04-14 16:35:08,264 | INFO | Generating examples for p00033 | domain=tourism | arity=1
+2026-04-14 16:35:15,595 | INFO | Accepted 10 examples for p00033 | total_candidates=310
+2026-04-14 16:35:15,595 | INFO | Generating examples for p00031 | domain=medicine | arity=2
+2026-04-14 16:35:28,576 | INFO | Accepted 10 examples for p00031 | total_candidates=320
+2026-04-14 16:35:28,576 | INFO | Generating examples for p00032 | domain=software development | arity=1
+2026-04-14 16:35:41,045 | INFO | Accepted 10 examples for p00032 | total_candidates=330
+2026-04-14 16:35:41,045 | INFO | Batch attempt 12/2000 | current_candidates=330
+2026-04-14 16:35:45,343 | INFO | Received 3 predicate specs
+2026-04-14 16:35:45,343 | INFO | Generating examples for p00034 | domain=medicine | arity=2
+2026-04-14 16:35:57,300 | INFO | Accepted 10 examples for p00034 | total_candidates=340
+2026-04-14 16:35:57,300 | INFO | Generating examples for p00035 | domain=ecommerce | arity=1
+2026-04-14 16:36:04,812 | INFO | Accepted 10 examples for p00035 | total_candidates=350
+2026-04-14 16:36:04,813 | INFO | Generating examples for p00036 | domain=law | arity=2
+2026-04-14 16:36:16,045 | INFO | Accepted 10 examples for p00036 | total_candidates=360
+2026-04-14 16:36:16,045 | INFO | Batch attempt 13/2000 | current_candidates=360
+2026-04-14 16:36:20,311 | INFO | Received 3 predicate specs
+2026-04-14 16:36:20,311 | INFO | Generating examples for p00039 | domain=tourism | arity=2
+2026-04-14 16:36:31,733 | INFO | Accepted 10 examples for p00039 | total_candidates=370
+2026-04-14 16:36:31,733 | INFO | Generating examples for p00037 | domain=medicine | arity=1
+2026-04-14 16:36:43,279 | INFO | Accepted 10 examples for p00037 | total_candidates=380
+2026-04-14 16:36:43,279 | INFO | Generating examples for p00038 | domain=software development | arity=1
+2026-04-14 16:36:53,107 | INFO | Accepted 10 examples for p00038 | total_candidates=390
+2026-04-14 16:36:53,107 | INFO | Batch attempt 14/2000 | current_candidates=390
+2026-04-14 16:36:57,412 | INFO | Received 3 predicate specs
+2026-04-14 16:36:57,412 | INFO | Generating examples for p00040 | domain=medicine | arity=1
+2026-04-14 16:37:08,434 | INFO | Accepted 10 examples for p00040 | total_candidates=400
+2026-04-14 16:37:08,435 | INFO | Generating examples for p00041 | domain=ecommerce | arity=1
+2026-04-14 16:37:18,828 | INFO | Accepted 10 examples for p00041 | total_candidates=410
+2026-04-14 16:37:18,828 | INFO | Generating examples for p00042 | domain=law | arity=2
+2026-04-14 16:37:30,858 | INFO | Accepted 10 examples for p00042 | total_candidates=420
+2026-04-14 16:37:30,858 | INFO | Batch attempt 15/2000 | current_candidates=420
+2026-04-14 16:37:35,488 | INFO | Received 3 predicate specs
+2026-04-14 16:37:35,488 | INFO | Generating examples for p00045 | domain=law | arity=2
+2026-04-14 16:37:49,215 | INFO | Accepted 10 examples for p00045 | total_candidates=430
+2026-04-14 16:37:49,216 | INFO | Generating examples for p00044 | domain=software development | arity=2
+2026-04-14 16:38:07,271 | INFO | Accepted 10 examples for p00044 | total_candidates=440
+2026-04-14 16:38:07,271 | INFO | Generating examples for p00043 | domain=medicine | arity=2
+2026-04-14 16:38:18,100 | INFO | Accepted 10 examples for p00043 | total_candidates=450
+2026-04-14 16:38:18,100 | INFO | Batch attempt 16/2000 | current_candidates=450
+2026-04-14 16:38:23,022 | INFO | Received 3 predicate specs
+2026-04-14 16:38:23,022 | INFO | Generating examples for p00047 | domain=software development | arity=2
+2026-04-14 16:38:33,935 | INFO | Accepted 10 examples for p00047 | total_candidates=460
+2026-04-14 16:38:33,935 | INFO | Generating examples for p00048 | domain=tourism | arity=2
+2026-04-14 16:38:47,167 | INFO | Accepted 10 examples for p00048 | total_candidates=470
+2026-04-14 16:38:47,167 | INFO | Generating examples for p00046 | domain=medicine | arity=2
+2026-04-14 16:38:59,808 | INFO | Accepted 9 examples for p00046 | total_candidates=479
+2026-04-14 16:38:59,808 | INFO | Batch attempt 17/2000 | current_candidates=479
+2026-04-14 16:39:03,983 | INFO | Received 3 predicate specs
+2026-04-14 16:39:03,983 | INFO | Generating examples for p00049 | domain=medicine | arity=1
+2026-04-14 16:39:15,803 | INFO | Accepted 10 examples for p00049 | total_candidates=489
+2026-04-14 16:39:15,803 | INFO | Generating examples for p00051 | domain=law | arity=2
+2026-04-14 16:39:25,812 | INFO | Accepted 10 examples for p00051 | total_candidates=499
+2026-04-14 16:39:25,812 | INFO | Generating examples for p00050 | domain=ecommerce | arity=1
+2026-04-14 16:39:34,660 | INFO | Accepted 10 examples for p00050 | total_candidates=509
+2026-04-14 16:39:34,675 | INFO | Wrote 500 rows to data\dataset.jsonl
+2026-04-14 16:39:34,675 | INFO | Coverage: {"has_user": true, "has_assistant": true, "has_true": true, "has_false": true, "has_unary": true, "has_binary": true}
+2026-04-14 18:56:07,595 | INFO | Starting generation
+2026-04-14 18:56:07,595 | INFO | Target length=30, output_dir=data, model=openai/gpt-5.4
+2026-04-14 18:56:07,595 | INFO | Batch attempt 1/120 | current_candidates=0
+2026-04-14 18:56:12,905 | INFO | Received 3 predicate specs
+2026-04-14 18:56:12,906 | INFO | Generating examples for p00001 | role=assistant | domain=medicine | arity=2
+2026-04-14 18:56:22,642 | INFO | Accepted 10 examples for p00001 | total_candidates=10
+2026-04-14 18:56:22,642 | INFO | Generating examples for p00003 | role=assistant | domain=law | arity=2
+2026-04-14 18:56:37,113 | INFO | Accepted 10 examples for p00003 | total_candidates=20
+2026-04-14 18:56:37,113 | INFO | Generating examples for p00002 | role=user | domain=ecommerce | arity=2
+2026-04-14 18:56:44,713 | INFO | Accepted 10 examples for p00002 | total_candidates=30
+2026-04-14 18:56:44,713 | INFO | Batch attempt 2/120 | current_candidates=30
+2026-04-14 18:56:49,513 | INFO | Received 3 predicate specs
+2026-04-14 18:56:49,513 | INFO | Generating examples for p00006 | role=assistant | domain=law | arity=2
+2026-04-14 18:57:03,317 | INFO | Accepted 10 examples for p00006 | total_candidates=40
+2026-04-14 18:57:03,317 | INFO | Generating examples for p00004 | role=assistant | domain=medicine | arity=2
+2026-04-14 18:57:12,746 | INFO | Accepted 10 examples for p00004 | total_candidates=50
+2026-04-14 18:57:12,746 | INFO | Generating examples for p00005 | role=user | domain=ecommerce | arity=2
+2026-04-14 18:57:23,613 | INFO | Accepted 10 examples for p00005 | total_candidates=60
+2026-04-14 18:57:23,613 | INFO | Batch attempt 3/120 | current_candidates=60
+2026-04-14 18:57:28,413 | INFO | Received 3 predicate specs
+2026-04-14 18:57:28,413 | INFO | Generating examples for p00008 | role=user | domain=ecommerce | arity=2
+2026-04-14 18:57:38,898 | INFO | Accepted 10 examples for p00008 | total_candidates=70
+2026-04-14 18:57:38,899 | INFO | Generating examples for p00007 | role=assistant | domain=medicine | arity=2
+2026-04-14 18:57:50,596 | INFO | Accepted 10 examples for p00007 | total_candidates=80
+2026-04-14 18:57:50,596 | INFO | Generating examples for p00009 | role=assistant | domain=law | arity=2
+2026-04-14 18:58:05,322 | INFO | Accepted 10 examples for p00009 | total_candidates=90
+2026-04-14 18:58:05,322 | INFO | Batch attempt 4/120 | current_candidates=90
+2026-04-14 18:58:09,998 | INFO | Received 3 predicate specs
+2026-04-14 18:58:09,998 | INFO | Generating examples for p00012 | role=assistant | domain=law | arity=2
+2026-04-14 18:58:24,981 | INFO | Accepted 10 examples for p00012 | total_candidates=100
+2026-04-14 18:58:24,981 | INFO | Generating examples for p00011 | role=user | domain=ecommerce | arity=2
+2026-04-14 18:58:35,248 | INFO | Accepted 9 examples for p00011 | total_candidates=109
+2026-04-14 18:58:35,248 | INFO | Generating examples for p00010 | role=assistant | domain=medicine | arity=2
+2026-04-14 18:58:46,580 | INFO | Accepted 10 examples for p00010 | total_candidates=119
+2026-04-14 18:58:46,581 | INFO | Batch attempt 5/120 | current_candidates=119
+2026-04-14 18:58:51,616 | INFO | Received 3 predicate specs
+2026-04-14 18:58:51,617 | INFO | Generating examples for p00014 | role=user | domain=software development | arity=2
+2026-04-14 18:59:01,169 | INFO | Accepted 10 examples for p00014 | total_candidates=129
+2026-04-14 18:59:01,169 | INFO | Generating examples for p00013 | role=assistant | domain=medicine | arity=2
+2026-04-14 18:59:12,878 | INFO | Accepted 10 examples for p00013 | total_candidates=139
+2026-04-14 18:59:12,878 | INFO | Generating examples for p00015 | role=assistant | domain=law | arity=2
+2026-04-14 18:59:24,019 | INFO | Accepted 10 examples for p00015 | total_candidates=149
+2026-04-14 18:59:24,020 | INFO | Batch attempt 6/120 | current_candidates=149
+2026-04-14 18:59:28,723 | INFO | Received 3 predicate specs
+2026-04-14 18:59:28,727 | INFO | Generating examples for p00017 | role=user | domain=software development | arity=2
+2026-04-14 18:59:38,314 | INFO | Accepted 10 examples for p00017 | total_candidates=159
+2026-04-14 18:59:38,315 | INFO | Generating examples for p00016 | role=assistant | domain=medicine | arity=2
+2026-04-14 18:59:50,446 | INFO | Accepted 10 examples for p00016 | total_candidates=169
+2026-04-14 18:59:50,446 | INFO | Generating examples for p00018 | role=assistant | domain=law | arity=2
+2026-04-14 19:00:02,496 | INFO | Accepted 10 examples for p00018 | total_candidates=179
+2026-04-14 19:00:02,496 | INFO | Batch attempt 7/120 | current_candidates=179
+2026-04-14 19:00:07,469 | INFO | Received 3 predicate specs
+2026-04-14 19:00:07,474 | INFO | Generating examples for p00020 | role=user | domain=ecommerce | arity=2
+2026-04-14 19:00:18,713 | INFO | Accepted 10 examples for p00020 | total_candidates=189
+2026-04-14 19:00:18,713 | INFO | Generating examples for p00021 | role=assistant | domain=law | arity=2
+2026-04-14 19:00:28,879 | INFO | Accepted 10 examples for p00021 | total_candidates=199
+2026-04-14 19:00:28,879 | INFO | Generating examples for p00019 | role=assistant | domain=medicine | arity=2
+2026-04-14 19:00:41,215 | INFO | Accepted 10 examples for p00019 | total_candidates=209
+2026-04-14 19:00:41,219 | INFO | Batch attempt 8/120 | current_candidates=209
+2026-04-14 19:00:46,179 | INFO | Received 3 predicate specs
+2026-04-14 19:00:46,179 | INFO | Generating examples for p00023 | role=assistant | domain=software development | arity=2
+2026-04-14 19:00:55,396 | INFO | Accepted 10 examples for p00023 | total_candidates=219
+2026-04-14 19:00:55,396 | INFO | Generating examples for p00022 | role=user | domain=medicine | arity=2
+2026-04-14 19:01:08,737 | INFO | Accepted 10 examples for p00022 | total_candidates=229
+2026-04-14 19:01:08,738 | INFO | Generating examples for p00024 | role=user | domain=law | arity=2
+2026-04-14 19:01:22,739 | INFO | Accepted 10 examples for p00024 | total_candidates=239
+2026-04-14 19:01:22,740 | INFO | Batch attempt 9/120 | current_candidates=239
+2026-04-14 19:01:27,890 | INFO | Received 3 predicate specs
+2026-04-14 19:01:27,891 | INFO | Generating examples for p00027 | role=assistant | domain=law | arity=2
+2026-04-14 19:01:40,396 | INFO | Accepted 10 examples for p00027 | total_candidates=249
+2026-04-14 19:01:40,411 | INFO | Generating examples for p00025 | role=assistant | domain=medicine | arity=2
+2026-04-14 19:01:54,166 | INFO | Accepted 10 examples for p00025 | total_candidates=259
+2026-04-14 19:01:54,170 | INFO | Generating examples for p00026 | role=user | domain=ecommerce | arity=2
+2026-04-14 19:02:04,646 | INFO | Accepted 10 examples for p00026 | total_candidates=269
+2026-04-14 19:02:04,652 | INFO | Batch attempt 10/120 | current_candidates=269
+2026-04-14 19:02:09,578 | INFO | Received 3 predicate specs
+2026-04-14 19:02:09,579 | INFO | Generating examples for p00030 | role=assistant | domain=law | arity=2
+2026-04-14 19:02:24,066 | INFO | Accepted 10 examples for p00030 | total_candidates=279
+2026-04-14 19:02:24,067 | INFO | Generating examples for p00028 | role=assistant | domain=medicine | arity=2
+2026-04-14 19:02:35,698 | INFO | Accepted 10 examples for p00028 | total_candidates=289
+2026-04-14 19:02:35,698 | INFO | Generating examples for p00029 | role=user | domain=software development | arity=2
+2026-04-14 19:02:47,439 | INFO | Accepted 10 examples for p00029 | total_candidates=299
+2026-04-14 19:02:47,439 | INFO | Batch attempt 11/120 | current_candidates=299
+2026-04-14 19:02:52,551 | INFO | Received 3 predicate specs
+2026-04-14 19:02:52,552 | INFO | Generating examples for p00032 | role=user | domain=ecommerce | arity=2
+2026-04-14 19:03:03,013 | INFO | Accepted 10 examples for p00032 | total_candidates=309
+2026-04-14 19:03:03,013 | INFO | Generating examples for p00031 | role=assistant | domain=medicine | arity=2
+2026-04-14 19:03:11,305 | INFO | Accepted 10 examples for p00031 | total_candidates=319
+2026-04-14 19:03:11,306 | INFO | Generating examples for p00033 | role=assistant | domain=law | arity=2
+2026-04-14 19:03:20,862 | INFO | Accepted 10 examples for p00033 | total_candidates=329
+2026-04-14 19:03:20,862 | INFO | Batch attempt 12/120 | current_candidates=329
+2026-04-14 19:03:26,178 | INFO | Received 3 predicate specs
+2026-04-14 19:03:26,178 | INFO | Generating examples for p00034 | role=user | domain=medicine | arity=2
+2026-04-14 19:03:39,391 | INFO | Accepted 9 examples for p00034 | total_candidates=338
+2026-04-14 19:03:39,391 | INFO | Generating examples for p00036 | role=user | domain=law | arity=2
+2026-04-14 19:03:53,080 | INFO | Accepted 10 examples for p00036 | total_candidates=348
+2026-04-14 19:03:53,081 | INFO | Generating examples for p00035 | role=assistant | domain=ecommerce | arity=2
+2026-04-14 19:04:01,190 | INFO | Accepted 10 examples for p00035 | total_candidates=358
+2026-04-14 19:04:01,191 | INFO | Batch attempt 13/120 | current_candidates=358
+2026-04-14 19:04:06,240 | INFO | Received 3 predicate specs
+2026-04-14 19:04:06,240 | INFO | Generating examples for p00039 | role=assistant | domain=law | arity=2
+2026-04-14 19:04:17,839 | INFO | Accepted 10 examples for p00039 | total_candidates=368
+2026-04-14 19:04:17,839 | INFO | Generating examples for p00038 | role=user | domain=ecommerce | arity=2
+2026-04-14 19:04:28,234 | INFO | Accepted 8 examples for p00038 | total_candidates=376
+2026-04-14 19:04:28,235 | INFO | Generating examples for p00037 | role=assistant | domain=medicine | arity=2
+2026-04-14 19:04:39,378 | INFO | Accepted 10 examples for p00037 | total_candidates=386
+2026-04-14 19:04:39,378 | INFO | Batch attempt 14/120 | current_candidates=386
+2026-04-14 19:04:44,406 | INFO | Received 3 predicate specs
+2026-04-14 19:04:44,407 | INFO | Generating examples for p00042 | role=assistant | domain=software development | arity=2
+2026-04-14 19:04:52,308 | INFO | Accepted 10 examples for p00042 | total_candidates=396
+2026-04-14 19:04:52,308 | INFO | Generating examples for p00041 | role=user | domain=ecommerce | arity=2
+2026-04-14 19:05:03,813 | INFO | Accepted 10 examples for p00041 | total_candidates=406
+2026-04-14 19:05:03,814 | INFO | Generating examples for p00040 | role=assistant | domain=medicine | arity=2
+2026-04-14 19:05:17,709 | INFO | Accepted 10 examples for p00040 | total_candidates=416
+2026-04-14 19:05:17,713 | INFO | Batch attempt 15/120 | current_candidates=416
+2026-04-14 19:05:22,848 | INFO | Received 3 predicate specs
+2026-04-14 19:05:22,849 | INFO | Generating examples for p00044 | role=user | domain=ecommerce | arity=1
+2026-04-14 19:05:34,329 | INFO | Accepted 10 examples for p00044 | total_candidates=426
+2026-04-14 19:05:34,336 | INFO | Wrote 30 rows to data\dataset.jsonl
+2026-04-14 19:05:34,336 | INFO | Coverage: {"has_user": true, "has_assistant": true, "has_true": true, "has_false": true, "has_unary": true, "has_binary": true}
+2026-04-15 12:12:43,991 | INFO | Starting generation
+2026-04-15 12:12:43,991 | INFO | Target length=20, output_dir=data, model=openai/gpt-5.4
+2026-04-15 12:12:43,991 | INFO | Batch attempt 1/80 | current_candidates=0
+2026-04-15 12:12:49,701 | INFO | Received 3 predicate specs
+2026-04-15 12:12:49,701 | INFO | Generating examples for p00002 | role=assistant | domain=software development | arity=2
+2026-04-15 12:13:00,551 | INFO | Accepted 10 examples for p00002 | total_candidates=10
+2026-04-15 12:13:00,553 | INFO | Generating examples for p00003 | role=user | domain=law | arity=2
+2026-04-15 12:13:10,037 | INFO | Accepted 10 examples for p00003 | total_candidates=20
+2026-04-15 12:13:10,037 | INFO | Generating examples for p00001 | role=user | domain=medicine | arity=2
+2026-04-15 12:13:19,023 | INFO | Accepted 10 examples for p00001 | total_candidates=30
+2026-04-15 12:13:19,023 | INFO | Batch attempt 2/80 | current_candidates=30
+2026-04-15 12:13:26,940 | INFO | Received 3 predicate specs
+2026-04-15 12:13:26,940 | INFO | Generating examples for p00004 | role=user | domain=medicine | arity=2
+2026-04-15 12:13:36,834 | INFO | Accepted 10 examples for p00004 | total_candidates=40
+2026-04-15 12:13:36,834 | INFO | Generating examples for p00005 | role=assistant | domain=software development | arity=2
+2026-04-15 12:13:47,736 | INFO | Accepted 10 examples for p00005 | total_candidates=50
+2026-04-15 12:13:47,736 | INFO | Generating examples for p00006 | role=user | domain=tourism | arity=2
+2026-04-15 12:13:54,268 | INFO | Accepted 10 examples for p00006 | total_candidates=60
+2026-04-15 12:13:54,271 | INFO | Batch attempt 3/80 | current_candidates=60
+2026-04-15 12:13:59,522 | INFO | Received 3 predicate specs
+2026-04-15 12:13:59,522 | INFO | Generating examples for p00007 | role=user | domain=medicine | arity=2
+2026-04-15 12:14:09,262 | INFO | Accepted 10 examples for p00007 | total_candidates=70
+2026-04-15 12:14:09,262 | INFO | Generating examples for p00009 | role=user | domain=tourism | arity=2
+2026-04-15 12:14:17,822 | INFO | Accepted 10 examples for p00009 | total_candidates=80
+2026-04-15 12:14:17,822 | INFO | Generating examples for p00008 | role=assistant | domain=software development | arity=2
+2026-04-15 12:14:30,744 | INFO | Accepted 10 examples for p00008 | total_candidates=90
+2026-04-15 12:14:30,744 | INFO | Batch attempt 4/80 | current_candidates=90
+2026-04-15 12:14:38,830 | INFO | Received 3 predicate specs
+2026-04-15 12:14:38,831 | INFO | Generating examples for p00012 | role=user | domain=law | arity=1
+2026-04-15 12:14:45,166 | INFO | Accepted 10 examples for p00012 | total_candidates=100
+2026-04-15 12:14:45,168 | INFO | Wrote 20 rows to data\dataset.jsonl
+2026-04-15 12:14:45,168 | INFO | Coverage: {"has_user": true, "has_assistant": true, "has_true": true, "has_false": true, "has_unary": true, "has_binary": true}
+2026-04-15 12:31:28,536 | INFO | Starting generation
+2026-04-15 12:31:28,536 | INFO | Target length=20, output_dir=data, model=openai/gpt-5.4
+2026-04-15 12:31:28,536 | INFO | Batch attempt 1/80 | current_candidates=0
+2026-04-15 12:31:32,980 | INFO | Received 3 predicate specs
+2026-04-15 12:31:32,980 | INFO | Generating examples for p00002 | role=assistant | domain=software development | arity=1
+2026-04-15 12:31:41,240 | INFO | Accepted 10 examples for p00002 | total_candidates=10
+2026-04-15 12:31:41,240 | INFO | Generating examples for p00003 | role=user | domain=tourism | arity=1
+2026-04-15 12:31:48,909 | INFO | Accepted 10 examples for p00003 | total_candidates=20
+2026-04-15 12:31:48,909 | INFO | Generating examples for p00001 | role=user | domain=medicine | arity=1
+2026-04-15 12:31:58,549 | INFO | Accepted 10 examples for p00001 | total_candidates=30
+2026-04-15 12:31:58,549 | INFO | Batch attempt 2/80 | current_candidates=30
+2026-04-15 12:32:02,829 | INFO | Received 3 predicate specs
+2026-04-15 12:32:02,829 | INFO | Generating examples for p00005 | role=assistant | domain=software development | arity=1
+2026-04-15 12:32:10,481 | INFO | Accepted 10 examples for p00005 | total_candidates=40
+2026-04-15 12:32:10,481 | INFO | Generating examples for p00004 | role=user | domain=medicine | arity=1
+2026-04-15 12:32:18,561 | INFO | Accepted 9 examples for p00004 | total_candidates=49
+2026-04-15 12:32:18,561 | INFO | Generating examples for p00006 | role=user | domain=tourism | arity=2
+2026-04-15 12:32:27,419 | INFO | Accepted 10 examples for p00006 | total_candidates=59
+2026-04-15 12:32:27,423 | INFO | Wrote 20 rows to data\dataset.jsonl
+2026-04-15 12:32:27,425 | INFO | Coverage: {"has_user": true, "has_assistant": true, "has_true": true, "has_false": true, "has_unary": true, "has_binary": true}
+2026-04-15 13:36:12,191 | INFO | Starting validate-only mode
+2026-04-15 13:36:12,192 | INFO | Input=data\dataset.jsonl | Output=data\dataset.validated.jsonl | ValidatorModel=anthropic/claude-sonnet-4.6 | BatchSize=10
+2026-04-15 13:36:20,879 | INFO | Validator batch 1/2 | checked=10 | flagged=1
+2026-04-15 13:36:27,606 | INFO | Validator batch 2/2 | checked=10 | flagged=1
+2026-04-15 13:36:27,606 | INFO | Validator removed 2 rows
+2026-04-15 13:36:27,606 | INFO | Wrote 18 rows to data\dataset.validated.jsonl
+2026-04-15 13:41:32,634 | INFO | Starting generation
+2026-04-15 13:41:32,634 | INFO | Target length=1100, output_dir=data, model=openai/gpt-5.4
+2026-04-15 13:41:32,634 | INFO | Batch attempt 1/4400 | current_candidates=0
+2026-04-15 13:41:37,142 | INFO | Received 3 predicate specs
+2026-04-15 13:41:37,142 | INFO | Generating examples for p00002 | role=assistant | domain=software development | arity=1
+2026-04-15 13:41:44,619 | INFO | Accepted 10 examples for p00002 | total_candidates=10
+2026-04-15 13:41:44,619 | INFO | Generating examples for p00003 | role=assistant | domain=finance | arity=2
+2026-04-15 13:41:54,783 | INFO | Accepted 10 examples for p00003 | total_candidates=20
+2026-04-15 13:41:54,783 | INFO | Generating examples for p00001 | role=user | domain=medicine | arity=1
+2026-04-15 13:42:03,238 | INFO | Accepted 10 examples for p00001 | total_candidates=30
+2026-04-15 13:42:03,239 | INFO | Batch attempt 2/4400 | current_candidates=30
+2026-04-15 13:42:09,065 | INFO | Received 3 predicate specs
+2026-04-15 13:42:09,065 | INFO | Generating examples for p00005 | role=assistant | domain=software development | arity=2
+2026-04-15 13:42:17,418 | INFO | Accepted 10 examples for p00005 | total_candidates=40
+2026-04-15 13:42:17,419 | INFO | Generating examples for p00004 | role=user | domain=medicine | arity=1
+2026-04-15 13:42:25,420 | INFO | Accepted 10 examples for p00004 | total_candidates=50
+2026-04-15 13:42:25,420 | INFO | Generating examples for p00006 | role=assistant | domain=finance | arity=2
+2026-04-15 13:42:34,851 | INFO | Accepted 10 examples for p00006 | total_candidates=60
+2026-04-15 13:42:34,851 | INFO | Batch attempt 3/4400 | current_candidates=60
+2026-04-15 13:42:39,210 | INFO | Received 3 predicate specs
+2026-04-15 13:42:39,210 | INFO | Generating examples for p00007 | role=user | domain=medicine | arity=1
+2026-04-15 13:42:49,311 | INFO | Accepted 10 examples for p00007 | total_candidates=70
+2026-04-15 13:42:49,312 | INFO | Generating examples for p00009 | role=assistant | domain=tourism | arity=2
+2026-04-15 13:42:59,986 | INFO | Accepted 10 examples for p00009 | total_candidates=80
+2026-04-15 13:42:59,986 | INFO | Generating examples for p00008 | role=assistant | domain=software development | arity=2
+2026-04-15 13:43:10,544 | INFO | Accepted 10 examples for p00008 | total_candidates=90
+2026-04-15 13:43:10,544 | INFO | Batch attempt 4/4400 | current_candidates=90
+2026-04-15 13:43:14,787 | INFO | Received 3 predicate specs
+2026-04-15 13:43:14,788 | INFO | Generating examples for p00012 | role=assistant | domain=software development | arity=2
+2026-04-15 13:43:29,014 | INFO | Accepted 10 examples for p00012 | total_candidates=100
+2026-04-15 13:43:29,014 | INFO | Generating examples for p00010 | role=user | domain=medicine | arity=1
+2026-04-15 13:43:37,305 | INFO | Accepted 10 examples for p00010 | total_candidates=110
+2026-04-15 13:43:37,305 | INFO | Generating examples for p00011 | role=assistant | domain=ecommerce | arity=2
+2026-04-15 13:43:47,702 | INFO | Accepted 10 examples for p00011 | total_candidates=120
+2026-04-15 13:43:47,702 | INFO | Batch attempt 5/4400 | current_candidates=120
+2026-04-15 13:43:51,889 | INFO | Received 3 predicate specs
+2026-04-15 13:43:51,889 | INFO | Generating examples for p00015 | role=assistant | domain=software development | arity=2
+2026-04-15 13:44:01,695 | INFO | Accepted 10 examples for p00015 | total_candidates=130
+2026-04-15 13:44:01,700 | INFO | Generating examples for p00014 | role=assistant | domain=ecommerce | arity=2
+2026-04-15 13:44:11,057 | INFO | Accepted 10 examples for p00014 | total_candidates=140
+2026-04-15 13:44:11,057 | INFO | Generating examples for p00013 | role=user | domain=medicine | arity=1
+2026-04-15 13:44:18,742 | INFO | Accepted 10 examples for p00013 | total_candidates=150
+2026-04-15 13:44:18,742 | INFO | Batch attempt 6/4400 | current_candidates=150
+2026-04-15 13:44:22,719 | INFO | Received 3 predicate specs
+2026-04-15 13:44:22,719 | INFO | Generating examples for p00016 | role=user | domain=medicine | arity=2
+2026-04-15 13:44:31,717 | INFO | Accepted 10 examples for p00016 | total_candidates=160
+2026-04-15 13:44:31,719 | INFO | Generating examples for p00018 | role=user | domain=tourism | arity=1
+2026-04-15 13:44:39,103 | INFO | Accepted 10 examples for p00018 | total_candidates=170
+2026-04-15 13:44:39,103 | INFO | Generating examples for p00017 | role=assistant | domain=software development | arity=1
+2026-04-15 13:44:47,287 | INFO | Accepted 10 examples for p00017 | total_candidates=180
+2026-04-15 13:44:47,287 | INFO | Batch attempt 7/4400 | current_candidates=180
+2026-04-15 13:44:51,367 | INFO | Received 3 predicate specs
+2026-04-15 13:44:51,367 | INFO | Generating examples for p00020 | role=assistant | domain=software development | arity=1
+2026-04-15 13:44:58,545 | INFO | Accepted 10 examples for p00020 | total_candidates=190
+2026-04-15 13:44:58,551 | INFO | Generating examples for p00019 | role=user | domain=medicine | arity=1
+2026-04-15 13:45:08,255 | INFO | Accepted 9 examples for p00019 | total_candidates=199
+2026-04-15 13:45:08,255 | INFO | Generating examples for p00021 | role=user | domain=tourism | arity=2
+2026-04-15 13:45:18,336 | INFO | Accepted 10 examples for p00021 | total_candidates=209
+2026-04-15 13:45:18,336 | INFO | Batch attempt 8/4400 | current_candidates=209
+2026-04-15 13:45:23,219 | INFO | Received 3 predicate specs
+2026-04-15 13:45:23,219 | INFO | Generating examples for p00024 | role=user | domain=software development | arity=1
+2026-04-15 13:45:35,191 | INFO | Accepted 10 examples for p00024 | total_candidates=219
+2026-04-15 13:45:35,193 | INFO | Generating examples for p00023 | role=assistant | domain=ecommerce | arity=2
+2026-04-15 13:45:42,319 | INFO | Accepted 10 examples for p00023 | total_candidates=229
+2026-04-15 13:45:42,319 | INFO | Generating examples for p00022 | role=user | domain=medicine | arity=1
+2026-04-15 13:45:49,982 | INFO | Accepted 10 examples for p00022 | total_candidates=239
+2026-04-15 13:45:49,982 | INFO | Batch attempt 9/4400 | current_candidates=239
+2026-04-15 13:45:54,226 | INFO | Received 3 predicate specs
+2026-04-15 13:45:54,226 | INFO | Generating examples for p00025 | role=user | domain=medicine | arity=2
+2026-04-15 13:46:05,808 | INFO | Accepted 10 examples for p00025 | total_candidates=249
+2026-04-15 13:46:05,808 | INFO | Generating examples for p00027 | role=user | domain=tourism | arity=2
+2026-04-15 13:46:16,834 | INFO | Accepted 10 examples for p00027 | total_candidates=259
+2026-04-15 13:46:16,834 | INFO | Generating examples for p00026 | role=assistant | domain=software development | arity=1
+2026-04-15 13:46:26,112 | INFO | Accepted 10 examples for p00026 | total_candidates=269
+2026-04-15 13:46:26,112 | INFO | Batch attempt 10/4400 | current_candidates=269
+2026-04-15 13:46:30,622 | INFO | Received 3 predicate specs
+2026-04-15 13:46:30,622 | INFO | Generating examples for p00029 | role=assistant | domain=software development | arity=1
+2026-04-15 13:46:45,428 | INFO | Accepted 10 examples for p00029 | total_candidates=279
+2026-04-15 13:46:45,428 | INFO | Generating examples for p00030 | role=user | domain=finance | arity=2
+2026-04-15 13:46:53,872 | INFO | Accepted 10 examples for p00030 | total_candidates=289
+2026-04-15 13:46:53,873 | INFO | Generating examples for p00028 | role=user | domain=medicine | arity=1
+2026-04-15 13:47:01,718 | INFO | Accepted 9 examples for p00028 | total_candidates=298
+2026-04-15 13:47:01,718 | INFO | Batch attempt 11/4400 | current_candidates=298
+2026-04-15 13:47:06,851 | INFO | Received 3 predicate specs
+2026-04-15 13:47:06,851 | INFO | Generating examples for p00033 | role=assistant | domain=finance | arity=2
+2026-04-15 13:47:19,003 | INFO | Accepted 10 examples for p00033 | total_candidates=308
+2026-04-15 13:47:19,008 | INFO | Generating examples for p00031 | role=user | domain=medicine | arity=1
+2026-04-15 13:47:27,648 | INFO | Accepted 9 examples for p00031 | total_candidates=317
+2026-04-15 13:47:27,648 | INFO | Generating examples for p00032 | role=assistant | domain=software development | arity=1
+2026-04-15 13:47:36,401 | INFO | Accepted 10 examples for p00032 | total_candidates=327
+2026-04-15 13:47:36,401 | INFO | Batch attempt 12/4400 | current_candidates=327
+2026-04-15 13:47:40,546 | INFO | Received 3 predicate specs
+2026-04-15 13:47:40,546 | INFO | Generating examples for p00036 | role=user | domain=transportation | arity=2
+2026-04-15 13:47:50,892 | INFO | Accepted 10 examples for p00036 | total_candidates=337
+2026-04-15 13:47:50,892 | INFO | Generating examples for p00035 | role=assistant | domain=software development | arity=1
+2026-04-15 13:47:58,811 | INFO | Accepted 10 examples for p00035 | total_candidates=347
+2026-04-15 13:47:58,811 | INFO | Generating examples for p00034 | role=user | domain=medicine | arity=1
+2026-04-15 13:48:06,808 | INFO | Accepted 6 examples for p00034 | total_candidates=353
+2026-04-15 13:48:06,808 | INFO | Batch attempt 13/4400 | current_candidates=353
+2026-04-15 13:48:10,883 | INFO | Received 3 predicate specs
+2026-04-15 13:48:10,884 | INFO | Generating examples for p00039 | role=user | domain=tourism | arity=1
+2026-04-15 13:48:19,204 | INFO | Accepted 10 examples for p00039 | total_candidates=363
+2026-04-15 13:48:19,204 | INFO | Generating examples for p00038 | role=assistant | domain=software development | arity=2
+2026-04-15 13:48:32,884 | INFO | Accepted 10 examples for p00038 | total_candidates=373
+2026-04-15 13:48:32,886 | INFO | Generating examples for p00037 | role=user | domain=medicine | arity=1
+2026-04-15 13:48:40,962 | INFO | Accepted 9 examples for p00037 | total_candidates=382
+2026-04-15 13:48:40,962 | INFO | Batch attempt 14/4400 | current_candidates=382
+2026-04-15 13:48:46,984 | INFO | Received 3 predicate specs
+2026-04-15 13:48:46,984 | INFO | Generating examples for p00042 | role=user | domain=tourism | arity=1
+2026-04-15 13:48:55,182 | INFO | Accepted 10 examples for p00042 | total_candidates=392
+2026-04-15 13:48:55,182 | INFO | Generating examples for p00041 | role=assistant | domain=software development | arity=1
+2026-04-15 13:49:07,371 | INFO | Accepted 10 examples for p00041 | total_candidates=402
+2026-04-15 13:49:07,374 | INFO | Generating examples for p00040 | role=user | domain=medicine | arity=1
+2026-04-15 13:49:13,955 | INFO | Accepted 7 examples for p00040 | total_candidates=409
+2026-04-15 13:49:13,955 | INFO | Batch attempt 15/4400 | current_candidates=409
+2026-04-15 13:49:18,834 | INFO | Received 3 predicate specs
+2026-04-15 13:49:18,834 | INFO | Generating examples for p00044 | role=assistant | domain=software development | arity=1
+2026-04-15 13:49:28,334 | INFO | Accepted 10 examples for p00044 | total_candidates=419
+2026-04-15 13:49:28,334 | INFO | Generating examples for p00043 | role=user | domain=medicine | arity=2
+2026-04-15 13:49:38,053 | INFO | Accepted 9 examples for p00043 | total_candidates=428
+2026-04-15 13:49:38,053 | INFO | Generating examples for p00045 | role=user | domain=tourism | arity=1
+2026-04-15 13:49:46,036 | INFO | Accepted 10 examples for p00045 | total_candidates=438
+2026-04-15 13:49:46,036 | INFO | Batch attempt 16/4400 | current_candidates=438
+2026-04-15 13:49:51,791 | INFO | Received 3 predicate specs
+2026-04-15 13:49:51,791 | INFO | Generating examples for p00048 | role=assistant | domain=tourism | arity=2
+2026-04-15 13:50:04,164 | INFO | Accepted 10 examples for p00048 | total_candidates=448
+2026-04-15 13:50:04,164 | INFO | Generating examples for p00047 | role=assistant | domain=software development | arity=1
+2026-04-15 13:50:18,353 | INFO | Accepted 10 examples for p00047 | total_candidates=458
+2026-04-15 13:50:18,353 | INFO | Generating examples for p00046 | role=user | domain=medicine | arity=2
+2026-04-15 13:50:28,203 | INFO | Accepted 10 examples for p00046 | total_candidates=468
+2026-04-15 13:50:28,204 | INFO | Batch attempt 17/4400 | current_candidates=468
+2026-04-15 13:50:32,330 | INFO | Received 3 predicate specs
+2026-04-15 13:50:32,331 | INFO | Generating examples for p00051 | role=assistant | domain=finance | arity=2
+2026-04-15 13:50:44,789 | INFO | Accepted 10 examples for p00051 | total_candidates=478
+2026-04-15 13:50:44,789 | INFO | Generating examples for p00049 | role=user | domain=medicine | arity=1
+2026-04-15 13:50:52,985 | INFO | Accepted 9 examples for p00049 | total_candidates=487
+2026-04-15 13:50:52,985 | INFO | Generating examples for p00050 | role=assistant | domain=software development | arity=1
+2026-04-15 13:51:01,468 | INFO | Accepted 10 examples for p00050 | total_candidates=497
+2026-04-15 13:51:01,468 | INFO | Batch attempt 18/4400 | current_candidates=497
+2026-04-15 13:51:05,291 | INFO | Received 3 predicate specs
+2026-04-15 13:51:05,296 | INFO | Generating examples for p00052 | role=user | domain=medicine | arity=1
+2026-04-15 13:51:14,694 | INFO | Accepted 7 examples for p00052 | total_candidates=504
+2026-04-15 13:51:14,694 | INFO | Generating examples for p00054 | role=user | domain=tourism | arity=1
+2026-04-15 13:51:20,585 | INFO | Accepted 10 examples for p00054 | total_candidates=514
+2026-04-15 13:51:20,585 | INFO | Generating examples for p00053 | role=assistant | domain=software development | arity=2
+2026-04-15 13:51:31,218 | INFO | Accepted 10 examples for p00053 | total_candidates=524
+2026-04-15 13:51:31,218 | INFO | Batch attempt 19/4400 | current_candidates=524
+2026-04-15 13:51:35,239 | INFO | Received 3 predicate specs
+2026-04-15 13:51:35,251 | INFO | Generating examples for p00056 | role=assistant | domain=software development | arity=2
+2026-04-15 13:51:46,019 | INFO | Accepted 10 examples for p00056 | total_candidates=534
+2026-04-15 13:51:46,019 | INFO | Generating examples for p00055 | role=user | domain=medicine | arity=1
+2026-04-15 13:51:57,076 | INFO | Accepted 6 examples for p00055 | total_candidates=540
+2026-04-15 13:51:57,076 | INFO | Generating examples for p00057 | role=user | domain=tourism | arity=1
+2026-04-15 13:52:06,584 | INFO | Accepted 10 examples for p00057 | total_candidates=550
+2026-04-15 13:52:06,585 | INFO | Batch attempt 20/4400 | current_candidates=550
+2026-04-15 13:52:10,787 | INFO | Received 3 predicate specs
+2026-04-15 13:52:10,787 | INFO | Generating examples for p00060 | role=user | domain=tourism | arity=1
+2026-04-15 13:52:19,474 | INFO | Accepted 10 examples for p00060 | total_candidates=560
+2026-04-15 13:52:19,475 | INFO | Generating examples for p00058 | role=user | domain=medicine | arity=1
+2026-04-15 13:52:28,623 | INFO | Accepted 10 examples for p00058 | total_candidates=570
+2026-04-15 13:52:28,624 | INFO | Generating examples for p00059 | role=assistant | domain=software development | arity=2
+2026-04-15 13:52:37,942 | INFO | Accepted 10 examples for p00059 | total_candidates=580
+2026-04-15 13:52:37,942 | INFO | Batch attempt 21/4400 | current_candidates=580
+2026-04-15 13:52:43,670 | INFO | Received 3 predicate specs
+2026-04-15 13:52:43,671 | INFO | Generating examples for p00063 | role=assistant | domain=tourism | arity=2
+2026-04-15 13:52:56,396 | INFO | Accepted 10 examples for p00063 | total_candidates=590
+2026-04-15 13:52:56,399 | INFO | Generating examples for p00062 | role=assistant | domain=software development | arity=1
+2026-04-15 13:53:04,309 | INFO | Accepted 10 examples for p00062 | total_candidates=600
+2026-04-15 13:53:04,309 | INFO | Generating examples for p00061 | role=user | domain=medicine | arity=1
+2026-04-15 13:53:13,047 | INFO | Accepted 10 examples for p00061 | total_candidates=610
+2026-04-15 13:53:13,048 | INFO | Batch attempt 22/4400 | current_candidates=610
+2026-04-15 13:53:17,002 | INFO | Received 3 predicate specs
+2026-04-15 13:53:17,003 | INFO | Generating examples for p00065 | role=assistant | domain=software development | arity=1
+2026-04-15 13:53:28,584 | INFO | Accepted 10 examples for p00065 | total_candidates=620
+2026-04-15 13:53:28,588 | INFO | Generating examples for p00066 | role=assistant | domain=finance | arity=2
+2026-04-15 13:53:38,817 | INFO | Accepted 10 examples for p00066 | total_candidates=630
+2026-04-15 13:53:38,818 | INFO | Generating examples for p00064 | role=user | domain=medicine | arity=1
+2026-04-15 13:53:47,466 | INFO | Accepted 9 examples for p00064 | total_candidates=639
+2026-04-15 13:53:47,468 | INFO | Batch attempt 23/4400 | current_candidates=639
+2026-04-15 13:53:52,746 | INFO | Received 3 predicate specs
+2026-04-15 13:53:52,746 | INFO | Generating examples for p00068 | role=assistant | domain=software development | arity=1
+2026-04-15 13:54:02,557 | INFO | Accepted 10 examples for p00068 | total_candidates=649
+2026-04-15 13:54:02,559 | INFO | Generating examples for p00069 | role=user | domain=transportation | arity=2
+2026-04-15 13:54:10,669 | INFO | Accepted 10 examples for p00069 | total_candidates=659
+2026-04-15 13:54:10,669 | INFO | Generating examples for p00067 | role=user | domain=medicine | arity=1
+2026-04-15 13:54:17,006 | INFO | Accepted 7 examples for p00067 | total_candidates=666
+2026-04-15 13:54:17,007 | INFO | Batch attempt 24/4400 | current_candidates=666
+2026-04-15 13:54:20,940 | INFO | Received 3 predicate specs
+2026-04-15 13:54:20,941 | INFO | Generating examples for p00070 | role=user | domain=medicine | arity=1
+2026-04-15 13:54:29,461 | INFO | Accepted 9 examples for p00070 | total_candidates=675
+2026-04-15 13:54:29,461 | INFO | Generating examples for p00071 | role=assistant | domain=software development | arity=1
+2026-04-15 13:54:40,635 | INFO | Accepted 10 examples for p00071 | total_candidates=685
+2026-04-15 13:54:40,635 | INFO | Generating examples for p00072 | role=user | domain=tourism | arity=2
+2026-04-15 13:54:50,751 | INFO | Accepted 10 examples for p00072 | total_candidates=695
+2026-04-15 13:54:50,751 | INFO | Batch attempt 25/4400 | current_candidates=695
+2026-04-15 13:54:55,449 | INFO | Received 3 predicate specs
+2026-04-15 13:54:55,449 | INFO | Generating examples for p00074 | role=assistant | domain=software development | arity=1
+2026-04-15 13:55:08,736 | INFO | Accepted 10 examples for p00074 | total_candidates=705
+2026-04-15 13:55:08,738 | INFO | Generating examples for p00073 | role=user | domain=medicine | arity=1
+2026-04-15 13:55:17,031 | INFO | Accepted 8 examples for p00073 | total_candidates=713
+2026-04-15 13:55:17,031 | INFO | Generating examples for p00075 | role=assistant | domain=transportation | arity=2
+2026-04-15 13:55:24,928 | INFO | Accepted 10 examples for p00075 | total_candidates=723
+2026-04-15 13:55:24,932 | INFO | Batch attempt 26/4400 | current_candidates=723
+2026-04-15 13:55:29,071 | INFO | Received 3 predicate specs
+2026-04-15 13:55:29,071 | INFO | Generating examples for p00077 | role=assistant | domain=software development | arity=1
+2026-04-15 13:55:39,229 | INFO | Accepted 10 examples for p00077 | total_candidates=733
+2026-04-15 13:55:39,229 | INFO | Generating examples for p00078 | role=user | domain=transportation | arity=1
+2026-04-15 13:55:46,576 | INFO | Accepted 10 examples for p00078 | total_candidates=743
+2026-04-15 13:55:46,576 | INFO | Generating examples for p00076 | role=user | domain=medicine | arity=1
+2026-04-15 13:55:54,195 | INFO | Accepted 9 examples for p00076 | total_candidates=752
+2026-04-15 13:55:54,195 | INFO | Batch attempt 27/4400 | current_candidates=752
+2026-04-15 13:55:59,227 | INFO | Received 3 predicate specs
+2026-04-15 13:55:59,227 | INFO | Generating examples for p00079 | role=user | domain=medicine | arity=2
+2026-04-15 13:56:07,867 | INFO | Accepted 8 examples for p00079 | total_candidates=760
+2026-04-15 13:56:07,867 | INFO | Generating examples for p00081 | role=assistant | domain=finance | arity=2
+2026-04-15 13:56:16,382 | INFO | Accepted 10 examples for p00081 | total_candidates=770
+2026-04-15 13:56:16,382 | INFO | Generating examples for p00080 | role=assistant | domain=software development | arity=1
+2026-04-15 13:56:25,798 | INFO | Accepted 10 examples for p00080 | total_candidates=780
+2026-04-15 13:56:25,798 | INFO | Batch attempt 28/4400 | current_candidates=780
+2026-04-15 13:56:29,958 | INFO | Received 3 predicate specs
+2026-04-15 13:56:29,958 | INFO | Generating examples for p00082 | role=user | domain=medicine | arity=1
+2026-04-15 13:56:36,797 | INFO | Accepted 8 examples for p00082 | total_candidates=788
+2026-04-15 13:56:36,801 | INFO | Generating examples for p00083 | role=assistant | domain=software development | arity=1
+2026-04-15 13:56:44,440 | INFO | Accepted 10 examples for p00083 | total_candidates=798
+2026-04-15 13:56:44,440 | INFO | Generating examples for p00084 | role=assistant | domain=finance | arity=2
+2026-04-15 13:56:55,347 | INFO | Accepted 10 examples for p00084 | total_candidates=808
+2026-04-15 13:56:55,349 | INFO | Batch attempt 29/4400 | current_candidates=808
+2026-04-15 13:56:59,283 | INFO | Received 3 predicate specs
+2026-04-15 13:56:59,283 | INFO | Generating examples for p00086 | role=assistant | domain=software development | arity=1
+2026-04-15 13:57:09,112 | INFO | Accepted 10 examples for p00086 | total_candidates=818
+2026-04-15 13:57:09,113 | INFO | Generating examples for p00085 | role=user | domain=medicine | arity=1
+2026-04-15 13:57:17,052 | INFO | Accepted 9 examples for p00085 | total_candidates=827
+2026-04-15 13:57:17,052 | INFO | Generating examples for p00087 | role=user | domain=transportation | arity=2
+2026-04-15 13:57:28,670 | INFO | Accepted 10 examples for p00087 | total_candidates=837
+2026-04-15 13:57:28,670 | INFO | Batch attempt 30/4400 | current_candidates=837
+2026-04-15 13:57:33,687 | INFO | Received 3 predicate specs
+2026-04-15 13:57:33,687 | INFO | Generating examples for p00089 | role=assistant | domain=software development | arity=2
+2026-04-15 13:57:46,671 | INFO | Accepted 10 examples for p00089 | total_candidates=847
+2026-04-15 13:57:46,671 | INFO | Generating examples for p00090 | role=assistant | domain=tourism | arity=2
+2026-04-15 13:57:54,193 | INFO | Accepted 10 examples for p00090 | total_candidates=857
+2026-04-15 13:57:54,194 | INFO | Generating examples for p00088 | role=user | domain=medicine | arity=2
+2026-04-15 13:58:02,027 | INFO | Accepted 8 examples for p00088 | total_candidates=865
+2026-04-15 13:58:02,027 | INFO | Batch attempt 31/4400 | current_candidates=865
+2026-04-15 13:58:07,055 | INFO | Received 3 predicate specs
+2026-04-15 13:58:07,056 | INFO | Generating examples for p00092 | role=assistant | domain=software development | arity=1
+2026-04-15 13:58:19,895 | INFO | Accepted 10 examples for p00092 | total_candidates=875
+2026-04-15 13:58:19,896 | INFO | Generating examples for p00091 | role=user | domain=medicine | arity=1
+2026-04-15 13:58:27,601 | INFO | Accepted 8 examples for p00091 | total_candidates=883
+2026-04-15 13:58:27,602 | INFO | Generating examples for p00093 | role=user | domain=tourism | arity=2
+2026-04-15 13:58:36,224 | INFO | Accepted 10 examples for p00093 | total_candidates=893
+2026-04-15 13:58:36,224 | INFO | Batch attempt 32/4400 | current_candidates=893
+2026-04-15 13:58:41,303 | INFO | Received 3 predicate specs
+2026-04-15 13:58:41,303 | INFO | Generating examples for p00095 | role=assistant | domain=software development | arity=1
+2026-04-15 13:58:49,724 | INFO | Accepted 10 examples for p00095 | total_candidates=903
+2026-04-15 13:58:49,724 | INFO | Generating examples for p00094 | role=user | domain=medicine | arity=2
+2026-04-15 13:59:00,556 | INFO | Accepted 10 examples for p00094 | total_candidates=913
+2026-04-15 13:59:00,556 | INFO | Generating examples for p00096 | role=user | domain=tourism | arity=2
+2026-04-15 13:59:08,692 | INFO | Accepted 10 examples for p00096 | total_candidates=923
+2026-04-15 13:59:08,693 | INFO | Batch attempt 33/4400 | current_candidates=923
+2026-04-15 13:59:13,123 | INFO | Received 3 predicate specs
+2026-04-15 13:59:13,124 | INFO | Generating examples for p00097 | role=user | domain=medicine | arity=1
+2026-04-15 13:59:21,258 | INFO | Accepted 7 examples for p00097 | total_candidates=930
+2026-04-15 13:59:21,258 | INFO | Generating examples for p00099 | role=user | domain=tourism | arity=2
+2026-04-15 13:59:30,655 | INFO | Accepted 10 examples for p00099 | total_candidates=940
+2026-04-15 13:59:30,660 | INFO | Generating examples for p00098 | role=assistant | domain=software development | arity=1
+2026-04-15 13:59:45,689 | INFO | Accepted 10 examples for p00098 | total_candidates=950
+2026-04-15 13:59:45,689 | INFO | Batch attempt 34/4400 | current_candidates=950
+2026-04-15 13:59:50,176 | INFO | Received 3 predicate specs
+2026-04-15 13:59:50,176 | INFO | Generating examples for p00101 | role=assistant | domain=software development | arity=1
+2026-04-15 13:59:59,885 | INFO | Accepted 10 examples for p00101 | total_candidates=960
+2026-04-15 13:59:59,885 | INFO | Generating examples for p00100 | role=user | domain=medicine | arity=1
+2026-04-15 14:00:08,315 | INFO | Accepted 7 examples for p00100 | total_candidates=967
+2026-04-15 14:00:08,317 | INFO | Generating examples for p00102 | role=user | domain=transportation | arity=2
+2026-04-15 14:00:23,706 | INFO | Accepted 10 examples for p00102 | total_candidates=977
+2026-04-15 14:00:23,706 | INFO | Batch attempt 35/4400 | current_candidates=977
+2026-04-15 14:00:27,811 | INFO | Received 3 predicate specs
+2026-04-15 14:00:27,811 | INFO | Generating examples for p00105 | role=user | domain=tourism | arity=1
+2026-04-15 14:00:35,231 | INFO | Accepted 10 examples for p00105 | total_candidates=987
+2026-04-15 14:00:35,231 | INFO | Generating examples for p00103 | role=user | domain=medicine | arity=1
+2026-04-15 14:00:43,619 | INFO | Accepted 7 examples for p00103 | total_candidates=994
+2026-04-15 14:00:43,619 | INFO | Generating examples for p00104 | role=assistant | domain=software development | arity=1
+2026-04-15 14:00:50,967 | INFO | Accepted 9 examples for p00104 | total_candidates=1003
+2026-04-15 14:00:50,967 | INFO | Batch attempt 36/4400 | current_candidates=1003
+2026-04-15 14:00:57,067 | INFO | Received 3 predicate specs
+2026-04-15 14:00:57,067 | INFO | Generating examples for p00106 | role=user | domain=medicine | arity=1
+2026-04-15 14:01:05,037 | INFO | Accepted 10 examples for p00106 | total_candidates=1013
+2026-04-15 14:01:05,038 | INFO | Generating examples for p00108 | role=user | domain=tourism | arity=1
+2026-04-15 14:01:13,749 | INFO | Accepted 10 examples for p00108 | total_candidates=1023
+2026-04-15 14:01:13,749 | INFO | Generating examples for p00107 | role=assistant | domain=software development | arity=1
+2026-04-15 14:01:25,047 | INFO | Accepted 10 examples for p00107 | total_candidates=1033
+2026-04-15 14:01:25,050 | INFO | Batch attempt 37/4400 | current_candidates=1033
+2026-04-15 14:01:29,449 | INFO | Received 3 predicate specs
+2026-04-15 14:01:29,449 | INFO | Generating examples for p00111 | role=user | domain=transportation | arity=2
+2026-04-15 14:01:38,063 | INFO | Accepted 10 examples for p00111 | total_candidates=1043
+2026-04-15 14:01:38,064 | INFO | Generating examples for p00109 | role=user | domain=medicine | arity=1
+2026-04-15 14:01:45,901 | INFO | Accepted 9 examples for p00109 | total_candidates=1052
+2026-04-15 14:01:45,901 | INFO | Generating examples for p00110 | role=assistant | domain=software development | arity=1
+2026-04-15 14:01:55,195 | INFO | Accepted 10 examples for p00110 | total_candidates=1062
+2026-04-15 14:01:55,195 | INFO | Batch attempt 38/4400 | current_candidates=1062
+2026-04-15 14:02:00,468 | INFO | Received 3 predicate specs
+2026-04-15 14:02:00,468 | INFO | Generating examples for p00113 | role=assistant | domain=ecommerce | arity=2
+2026-04-15 14:02:13,236 | INFO | Accepted 10 examples for p00113 | total_candidates=1072
+2026-04-15 14:02:13,236 | INFO | Generating examples for p00114 | role=assistant | domain=law | arity=2
+2026-04-15 14:02:25,176 | INFO | Accepted 10 examples for p00114 | total_candidates=1082
+2026-04-15 14:02:25,176 | INFO | Generating examples for p00112 | role=user | domain=medicine | arity=2
+2026-04-15 14:02:35,061 | INFO | Accepted 10 examples for p00112 | total_candidates=1092
+2026-04-15 14:02:35,064 | INFO | Batch attempt 39/4400 | current_candidates=1092
+2026-04-15 14:02:39,184 | INFO | Received 3 predicate specs
+2026-04-15 14:02:39,184 | INFO | Generating examples for p00115 | role=user | domain=medicine | arity=1
+2026-04-15 14:02:47,572 | INFO | Accepted 8 examples for p00115 | total_candidates=1100
+2026-04-15 14:02:47,627 | INFO | Wrote 1100 rows to data\dataset.jsonl
+2026-04-15 14:02:47,637 | INFO | Coverage: {"has_user": true, "has_assistant": true, "has_true": true, "has_false": true, "has_unary": true, "has_binary": true}
+2026-04-15 14:07:24,801 | INFO | Starting validate-only mode
+2026-04-15 14:07:24,801 | INFO | Input=data\dataset.jsonl | Output=data\dataset.validated.jsonl | ValidatorModel=anthropic/claude-sonnet-4.6 | BatchSize=10
+2026-04-15 14:07:27,744 | INFO | Validator batch 1/110 | checked=10 | flagged=0
+2026-04-15 14:07:29,821 | INFO | Validator batch 2/110 | checked=10 | flagged=0
+2026-04-15 14:07:37,534 | INFO | Validator batch 3/110 | checked=10 | flagged=0
+2026-04-15 14:07:39,355 | INFO | Validator batch 4/110 | checked=10 | flagged=0
+2026-04-15 14:07:42,179 | INFO | Validator batch 5/110 | checked=10 | flagged=0
+2026-04-15 14:07:48,042 | INFO | Validator batch 6/110 | checked=10 | flagged=0
+2026-04-15 14:07:49,670 | INFO | Validator batch 7/110 | checked=10 | flagged=0
+2026-04-15 14:07:57,701 | INFO | Validator batch 8/110 | checked=10 | flagged=1
+2026-04-15 14:08:04,755 | INFO | Validator batch 9/110 | checked=10 | flagged=1
+2026-04-15 14:08:07,644 | INFO | Validator batch 10/110 | checked=10 | flagged=0
+2026-04-15 14:08:10,011 | INFO | Validator batch 11/110 | checked=10 | flagged=0
+2026-04-15 14:08:12,018 | INFO | Validator batch 12/110 | checked=10 | flagged=0
+2026-04-15 14:08:14,497 | INFO | Validator batch 13/110 | checked=10 | flagged=0
+2026-04-15 14:08:16,015 | INFO | Validator batch 14/110 | checked=10 | flagged=0
+2026-04-15 14:08:23,295 | INFO | Validator batch 15/110 | checked=10 | flagged=0
+2026-04-15 14:08:29,823 | INFO | Validator batch 16/110 | checked=10 | flagged=0
+2026-04-15 14:08:37,272 | INFO | Validator batch 17/110 | checked=10 | flagged=0
+2026-04-15 14:08:38,782 | INFO | Validator batch 18/110 | checked=10 | flagged=0
+2026-04-15 14:08:44,130 | INFO | Validator batch 19/110 | checked=10 | flagged=0
+2026-04-15 14:08:45,670 | INFO | Validator batch 20/110 | checked=10 | flagged=0
+2026-04-15 14:08:52,944 | INFO | Validator batch 21/110 | checked=10 | flagged=0
+2026-04-15 14:08:55,266 | INFO | Validator batch 22/110 | checked=10 | flagged=0
+2026-04-15 14:08:57,814 | INFO | Validator batch 23/110 | checked=10 | flagged=0
+2026-04-15 14:09:05,051 | INFO | Validator batch 24/110 | checked=10 | flagged=0
+2026-04-15 14:09:07,398 | INFO | Validator batch 25/110 | checked=10 | flagged=0
+2026-04-15 14:09:31,463 | INFO | Validator batch 26/110 | checked=10 | flagged=1
+2026-04-15 14:09:44,144 | INFO | Validator batch 27/110 | checked=10 | flagged=2
+2026-04-15 14:09:45,883 | INFO | Validator batch 28/110 | checked=10 | flagged=0
+2026-04-15 14:09:52,562 | INFO | Validator batch 29/110 | checked=10 | flagged=0
+2026-04-15 14:09:55,110 | INFO | Validator batch 30/110 | checked=10 | flagged=0
+2026-04-15 14:09:57,260 | INFO | Validator batch 31/110 | checked=10 | flagged=0
+2026-04-15 14:09:59,609 | INFO | Validator batch 32/110 | checked=10 | flagged=0
+2026-04-15 14:10:12,490 | INFO | Validator batch 33/110 | checked=10 | flagged=2
+2026-04-15 14:10:14,963 | INFO | Validator batch 34/110 | checked=10 | flagged=0
+2026-04-15 14:10:16,803 | INFO | Validator batch 35/110 | checked=10 | flagged=0
+2026-04-15 14:10:22,523 | INFO | Validator batch 36/110 | checked=10 | flagged=0
+2026-04-15 14:10:30,225 | INFO | Validator batch 37/110 | checked=10 | flagged=1
+2026-04-15 14:10:36,076 | INFO | Validator batch 38/110 | checked=10 | flagged=0
+2026-04-15 14:10:37,685 | INFO | Validator batch 39/110 | checked=10 | flagged=0
+2026-04-15 14:10:39,379 | INFO | Validator batch 40/110 | checked=10 | flagged=0
+2026-04-15 14:10:46,763 | INFO | Validator batch 41/110 | checked=10 | flagged=0
+2026-04-15 14:10:53,384 | INFO | Validator batch 42/110 | checked=10 | flagged=0
+2026-04-15 14:10:59,700 | INFO | Validator batch 43/110 | checked=10 | flagged=0
+2026-04-15 14:11:05,748 | INFO | Validator batch 44/110 | checked=10 | flagged=0
+2026-04-15 14:11:08,185 | INFO | Validator batch 45/110 | checked=10 | flagged=0
+2026-04-15 14:11:10,638 | INFO | Validator batch 46/110 | checked=10 | flagged=0
+2026-04-15 14:11:17,677 | INFO | Validator batch 47/110 | checked=10 | flagged=0
+2026-04-15 14:11:19,088 | INFO | Validator batch 48/110 | checked=10 | flagged=0
+2026-04-15 14:11:25,663 | INFO | Validator batch 49/110 | checked=10 | flagged=0
+2026-04-15 14:11:31,854 | INFO | Validator batch 50/110 | checked=10 | flagged=1
+2026-04-15 14:11:33,264 | INFO | Validator batch 51/110 | checked=10 | flagged=0
+2026-04-15 14:11:39,319 | INFO | Validator batch 52/110 | checked=10 | flagged=1
+2026-04-15 14:11:45,807 | INFO | Validator batch 53/110 | checked=10 | flagged=3
+2026-04-15 14:11:53,566 | INFO | Validator batch 54/110 | checked=10 | flagged=3
+2026-04-15 14:11:56,581 | INFO | Validator batch 55/110 | checked=10 | flagged=0
+2026-04-15 14:12:04,395 | INFO | Validator batch 56/110 | checked=10 | flagged=0
+2026-04-15 14:12:11,846 | INFO | Validator batch 57/110 | checked=10 | flagged=0
+2026-04-15 14:12:14,804 | INFO | Validator batch 58/110 | checked=10 | flagged=0
+2026-04-15 14:12:16,245 | INFO | Validator batch 59/110 | checked=10 | flagged=0
+2026-04-15 14:12:18,991 | INFO | Validator batch 60/110 | checked=10 | flagged=0
+2026-04-15 14:12:28,976 | INFO | Validator batch 61/110 | checked=10 | flagged=0
+2026-04-15 14:12:30,582 | INFO | Validator batch 62/110 | checked=10 | flagged=0
+2026-04-15 14:12:32,011 | INFO | Validator batch 63/110 | checked=10 | flagged=0
+2026-04-15 14:12:33,399 | INFO | Validator batch 64/110 | checked=10 | flagged=0
+2026-04-15 14:12:40,718 | INFO | Validator batch 65/110 | checked=10 | flagged=3
+2026-04-15 14:12:46,494 | INFO | Validator batch 66/110 | checked=10 | flagged=1
+2026-04-15 14:12:48,093 | INFO | Validator batch 67/110 | checked=10 | flagged=0
+2026-04-15 14:12:55,345 | INFO | Validator batch 68/110 | checked=10 | flagged=0
+2026-04-15 14:13:01,624 | INFO | Validator batch 69/110 | checked=10 | flagged=2
+2026-04-15 14:13:09,001 | INFO | Validator batch 70/110 | checked=10 | flagged=0
+2026-04-15 14:13:19,078 | INFO | Validator batch 71/110 | checked=10 | flagged=1
+2026-04-15 14:13:27,584 | INFO | Validator batch 72/110 | checked=10 | flagged=0
+2026-04-15 14:13:34,165 | INFO | Validator batch 73/110 | checked=10 | flagged=2
+2026-04-15 14:13:41,049 | INFO | Validator batch 74/110 | checked=10 | flagged=0
+2026-04-15 14:13:42,575 | INFO | Validator batch 75/110 | checked=10 | flagged=0
+2026-04-15 14:13:49,096 | INFO | Validator batch 76/110 | checked=10 | flagged=0
+2026-04-15 14:13:51,380 | INFO | Validator batch 77/110 | checked=10 | flagged=0
+2026-04-15 14:13:52,827 | INFO | Validator batch 78/110 | checked=10 | flagged=0
+2026-04-15 14:13:54,313 | INFO | Validator batch 79/110 | checked=10 | flagged=0
+2026-04-15 14:14:01,035 | INFO | Validator batch 80/110 | checked=10 | flagged=0
+2026-04-15 14:14:02,561 | INFO | Validator batch 81/110 | checked=10 | flagged=0
+2026-04-15 14:14:09,090 | INFO | Validator batch 82/110 | checked=10 | flagged=0
+2026-04-15 14:14:11,343 | INFO | Validator batch 83/110 | checked=10 | flagged=0
+2026-04-15 14:14:18,054 | INFO | Validator batch 84/110 | checked=10 | flagged=1
+2026-04-15 14:14:25,809 | INFO | Validator batch 85/110 | checked=10 | flagged=0
+2026-04-15 14:14:34,579 | INFO | Validator batch 86/110 | checked=10 | flagged=0
+2026-04-15 14:14:41,474 | INFO | Validator batch 87/110 | checked=10 | flagged=2
+2026-04-15 14:14:43,005 | INFO | Validator batch 88/110 | checked=10 | flagged=0
+2026-04-15 14:14:48,433 | INFO | Validator batch 89/110 | checked=10 | flagged=0
+2026-04-15 14:14:55,919 | INFO | Validator batch 90/110 | checked=10 | flagged=0
+2026-04-15 14:14:58,277 | INFO | Validator batch 91/110 | checked=10 | flagged=0
+2026-04-15 14:15:04,768 | INFO | Validator batch 92/110 | checked=10 | flagged=0
+2026-04-15 14:15:08,325 | INFO | Validator batch 93/110 | checked=10 | flagged=0
+2026-04-15 14:15:15,430 | INFO | Validator batch 94/110 | checked=10 | flagged=1
+2026-04-15 14:15:17,874 | INFO | Validator batch 95/110 | checked=10 | flagged=0
+2026-04-15 14:15:20,309 | INFO | Validator batch 96/110 | checked=10 | flagged=0
+2026-04-15 14:15:21,813 | INFO | Validator batch 97/110 | checked=10 | flagged=0
+2026-04-15 14:15:28,114 | INFO | Validator batch 98/110 | checked=10 | flagged=0
+2026-04-15 14:15:33,966 | INFO | Validator batch 99/110 | checked=10 | flagged=0
+2026-04-15 14:15:40,867 | INFO | Validator batch 100/110 | checked=10 | flagged=1
+2026-04-15 14:15:42,528 | INFO | Validator batch 101/110 | checked=10 | flagged=1
+2026-04-15 14:15:47,615 | INFO | Validator batch 102/110 | checked=10 | flagged=0
+2026-04-15 14:15:56,042 | INFO | Validator batch 103/110 | checked=10 | flagged=3
+2026-04-15 14:16:03,598 | INFO | Validator batch 104/110 | checked=10 | flagged=1
+2026-04-15 14:16:11,437 | INFO | Validator batch 105/110 | checked=10 | flagged=0
+2026-04-15 14:16:14,507 | INFO | Validator batch 106/110 | checked=10 | flagged=0
+2026-04-15 14:16:20,896 | INFO | Validator batch 107/110 | checked=10 | flagged=0
+2026-04-15 14:16:26,098 | INFO | Validator batch 108/110 | checked=10 | flagged=2
+2026-04-15 14:16:27,618 | INFO | Validator batch 109/110 | checked=10 | flagged=0
+2026-04-15 14:16:34,618 | INFO | Validator batch 110/110 | checked=10 | flagged=0
+2026-04-15 14:16:34,634 | INFO | Validator removed 37 rows
+2026-04-15 14:16:34,634 | INFO | Wrote 1063 rows to data\dataset.validated.jsonl
+2026-04-15 14:18:02,613 | INFO | Starting validate-only mode
+2026-04-15 14:18:02,614 | INFO | Input=data\dataset.jsonl | Output=data\dataset.validated.jsonl | ValidatorModel=anthropic/claude-sonnet-4.6 | BatchSize=10
+2026-04-15 14:18:05,566 | INFO | Validator batch 1/107 | checked=10 | flagged=0
+2026-04-15 14:18:07,871 | INFO | Validator batch 2/107 | checked=10 | flagged=0
+2026-04-15 14:18:14,467 | INFO | Validator batch 3/107 | checked=10 | flagged=0
+2026-04-15 14:18:16,779 | INFO | Validator batch 4/107 | checked=10 | flagged=0
+2026-04-15 14:18:19,031 | INFO | Validator batch 5/107 | checked=10 | flagged=0
+2026-04-15 14:18:24,634 | INFO | Validator batch 6/107 | checked=10 | flagged=0
+2026-04-15 14:18:26,104 | INFO | Validator batch 7/107 | checked=10 | flagged=0
+2026-04-15 14:18:32,956 | INFO | Validator batch 8/107 | checked=10 | flagged=0
+2026-04-15 14:18:41,380 | INFO | Validator batch 9/107 | checked=10 | flagged=0
+2026-04-15 14:18:42,861 | INFO | Validator batch 10/107 | checked=10 | flagged=0
+2026-04-15 14:18:44,699 | INFO | Validator batch 11/107 | checked=10 | flagged=0
+2026-04-15 14:18:46,108 | INFO | Validator batch 12/107 | checked=10 | flagged=0
+2026-04-15 14:18:47,677 | INFO | Validator batch 13/107 | checked=10 | flagged=0
+2026-04-15 14:18:49,122 | INFO | Validator batch 14/107 | checked=10 | flagged=0
+2026-04-15 14:19:09,313 | INFO | Validator batch 15/107 | checked=10 | flagged=0
+2026-04-15 14:19:25,034 | INFO | Validator batch 16/107 | checked=10 | flagged=0
+2026-04-15 14:19:33,924 | INFO | Validator batch 17/107 | checked=10 | flagged=0
+2026-04-15 14:19:41,416 | INFO | Validator batch 18/107 | checked=10 | flagged=0
+2026-04-15 14:19:48,062 | INFO | Validator batch 19/107 | checked=10 | flagged=0
+2026-04-15 14:19:49,581 | INFO | Validator batch 20/107 | checked=10 | flagged=0
+2026-04-15 14:19:56,368 | INFO | Validator batch 21/107 | checked=10 | flagged=1
+2026-04-15 14:19:59,846 | INFO | Validator batch 22/107 | checked=10 | flagged=0
+2026-04-15 14:20:02,397 | INFO | Validator batch 23/107 | checked=10 | flagged=0
+2026-04-15 14:20:07,894 | INFO | Validator batch 24/107 | checked=10 | flagged=0
+2026-04-15 14:20:15,182 | INFO | Validator batch 25/107 | checked=10 | flagged=0
+2026-04-15 14:20:26,251 | INFO | Validator batch 26/107 | checked=10 | flagged=0
+2026-04-15 14:20:33,601 | INFO | Validator batch 27/107 | checked=10 | flagged=1
+2026-04-15 14:20:41,265 | INFO | Validator batch 28/107 | checked=10 | flagged=0
+2026-04-15 14:20:47,301 | INFO | Validator batch 29/107 | checked=10 | flagged=1
+2026-04-15 14:20:54,047 | INFO | Validator batch 30/107 | checked=10 | flagged=0
+2026-04-15 14:20:55,425 | INFO | Validator batch 31/107 | checked=10 | flagged=0
+2026-04-15 14:20:58,051 | INFO | Validator batch 32/107 | checked=10 | flagged=0
+2026-04-15 14:21:00,450 | INFO | Validator batch 33/107 | checked=10 | flagged=0
+2026-04-15 14:21:02,709 | INFO | Validator batch 34/107 | checked=10 | flagged=0
+2026-04-15 14:21:08,861 | INFO | Validator batch 35/107 | checked=10 | flagged=0
+2026-04-15 14:21:14,572 | INFO | Validator batch 36/107 | checked=10 | flagged=0
+2026-04-15 14:21:16,197 | INFO | Validator batch 37/107 | checked=10 | flagged=1
+2026-04-15 14:21:22,991 | INFO | Validator batch 38/107 | checked=10 | flagged=0
+2026-04-15 14:21:24,562 | INFO | Validator batch 39/107 | checked=10 | flagged=0
+2026-04-15 14:21:32,334 | INFO | Validator batch 40/107 | checked=10 | flagged=0
+2026-04-15 14:21:33,876 | INFO | Validator batch 41/107 | checked=10 | flagged=0
+2026-04-15 14:21:35,418 | INFO | Validator batch 42/107 | checked=10 | flagged=1
+2026-04-15 14:21:40,851 | INFO | Validator batch 43/107 | checked=10 | flagged=0
+2026-04-15 14:21:42,577 | INFO | Validator batch 44/107 | checked=10 | flagged=0
+2026-04-15 14:21:44,151 | INFO | Validator batch 45/107 | checked=10 | flagged=0
+2026-04-15 14:21:46,037 | INFO | Validator batch 46/107 | checked=10 | flagged=0
+2026-04-15 14:21:49,685 | INFO | Validator batch 47/107 | checked=10 | flagged=1
+2026-04-15 14:21:54,724 | INFO | Validator batch 48/107 | checked=10 | flagged=0
+2026-04-15 14:22:01,001 | INFO | Validator batch 49/107 | checked=10 | flagged=0
+2026-04-15 14:22:03,892 | INFO | Validator batch 50/107 | checked=10 | flagged=0
+2026-04-15 14:22:10,928 | INFO | Validator batch 51/107 | checked=10 | flagged=0
+2026-04-15 14:22:25,605 | INFO | Validator batch 52/107 | checked=10 | flagged=0
+2026-04-15 14:22:32,409 | INFO | Validator batch 53/107 | checked=10 | flagged=0
+2026-04-15 14:22:39,104 | INFO | Validator batch 54/107 | checked=10 | flagged=0
+2026-04-15 14:22:47,497 | INFO | Validator batch 55/107 | checked=10 | flagged=3
+2026-04-15 14:22:55,158 | INFO | Validator batch 56/107 | checked=10 | flagged=0
+2026-04-15 14:22:58,311 | INFO | Validator batch 57/107 | checked=10 | flagged=0
+2026-04-15 14:23:05,042 | INFO | Validator batch 58/107 | checked=10 | flagged=0
+2026-04-15 14:23:07,175 | INFO | Validator batch 59/107 | checked=10 | flagged=0
+2026-04-15 14:23:15,534 | INFO | Validator batch 60/107 | checked=10 | flagged=1
+2026-04-15 14:23:17,193 | INFO | Validator batch 61/107 | checked=10 | flagged=0
+2026-04-15 14:23:23,184 | INFO | Validator batch 62/107 | checked=10 | flagged=0
+2026-04-15 14:23:26,135 | INFO | Validator batch 63/107 | checked=10 | flagged=1
+2026-04-15 14:23:32,857 | INFO | Validator batch 64/107 | checked=10 | flagged=0
+2026-04-15 14:23:38,252 | INFO | Validator batch 65/107 | checked=10 | flagged=0
+2026-04-15 14:23:50,334 | INFO | Validator batch 66/107 | checked=10 | flagged=0
+2026-04-15 14:23:56,433 | INFO | Validator batch 67/107 | checked=10 | flagged=0
+2026-04-15 14:24:03,857 | INFO | Validator batch 68/107 | checked=10 | flagged=1
+2026-04-15 14:24:11,441 | INFO | Validator batch 69/107 | checked=10 | flagged=2
+2026-04-15 14:24:15,634 | INFO | Validator batch 70/107 | checked=10 | flagged=0
+2026-04-15 14:24:34,420 | INFO | Validator batch 71/107 | checked=10 | flagged=0
+2026-04-15 14:24:36,918 | INFO | Validator batch 72/107 | checked=10 | flagged=1
+2026-04-15 14:24:41,930 | INFO | Validator batch 73/107 | checked=10 | flagged=0
+2026-04-15 14:24:47,562 | INFO | Validator batch 74/107 | checked=10 | flagged=0
+2026-04-15 14:24:49,481 | INFO | Validator batch 75/107 | checked=10 | flagged=0
+2026-04-15 14:24:52,102 | INFO | Validator batch 76/107 | checked=10 | flagged=0
+2026-04-15 14:24:58,692 | INFO | Validator batch 77/107 | checked=10 | flagged=0
+2026-04-15 14:25:01,057 | INFO | Validator batch 78/107 | checked=10 | flagged=0
+2026-04-15 14:25:08,106 | INFO | Validator batch 79/107 | checked=10 | flagged=0
+2026-04-15 14:25:15,575 | INFO | Validator batch 80/107 | checked=10 | flagged=0
+2026-04-15 14:25:20,966 | INFO | Validator batch 81/107 | checked=10 | flagged=0
+2026-04-15 14:25:28,405 | INFO | Validator batch 82/107 | checked=10 | flagged=1
+2026-04-15 14:25:37,126 | INFO | Validator batch 83/107 | checked=10 | flagged=1
+2026-04-15 14:25:44,259 | INFO | Validator batch 84/107 | checked=10 | flagged=0
+2026-04-15 14:25:45,780 | INFO | Validator batch 85/107 | checked=10 | flagged=0
+2026-04-15 14:25:47,379 | INFO | Validator batch 86/107 | checked=10 | flagged=0
+2026-04-15 14:25:55,550 | INFO | Validator batch 87/107 | checked=10 | flagged=0
+2026-04-15 14:25:59,551 | INFO | Validator batch 88/107 | checked=10 | flagged=0
+2026-04-15 14:26:06,811 | INFO | Validator batch 89/107 | checked=10 | flagged=0
+2026-04-15 14:26:08,781 | INFO | Validator batch 90/107 | checked=10 | flagged=0
+2026-04-15 14:26:15,094 | INFO | Validator batch 91/107 | checked=10 | flagged=0
+2026-04-15 14:26:21,958 | INFO | Validator batch 92/107 | checked=10 | flagged=0
+2026-04-15 14:26:23,541 | INFO | Validator batch 93/107 | checked=10 | flagged=0
+2026-04-15 14:26:29,918 | INFO | Validator batch 94/107 | checked=10 | flagged=1
+2026-04-15 14:26:36,779 | INFO | Validator batch 95/107 | checked=10 | flagged=0
+2026-04-15 14:26:42,355 | INFO | Validator batch 96/107 | checked=10 | flagged=0
+2026-04-15 14:26:43,963 | INFO | Validator batch 97/107 | checked=10 | flagged=0
+2026-04-15 14:26:49,521 | INFO | Validator batch 98/107 | checked=10 | flagged=0
+2026-04-15 14:26:51,338 | INFO | Validator batch 99/107 | checked=10 | flagged=0
+2026-04-15 14:26:54,336 | INFO | Validator batch 100/107 | checked=10 | flagged=0
+2026-04-15 14:27:01,752 | INFO | Validator batch 101/107 | checked=10 | flagged=0
+2026-04-15 14:27:03,512 | INFO | Validator batch 102/107 | checked=10 | flagged=0
+2026-04-15 14:27:09,907 | INFO | Validator batch 103/107 | checked=10 | flagged=0
+2026-04-15 14:27:16,746 | INFO | Validator batch 104/107 | checked=10 | flagged=1
+2026-04-15 14:27:17,758 | INFO | Validator batch 105/107 | checked=10 | flagged=0
+2026-04-15 14:27:25,691 | INFO | Validator batch 106/107 | checked=10 | flagged=0
+2026-04-15 14:27:26,688 | INFO | Validator batch 107/107 | checked=3 | flagged=0
+2026-04-15 14:27:26,698 | INFO | Validator removed 19 rows
+2026-04-15 14:27:26,698 | INFO | Wrote 1044 rows to data\dataset.validated.jsonl
