@@ -1,0 +1,28 @@
+services:
+  dejavuguard:
+    build: .
+    ports:
+      - "8001:8000"
+    volumes:
+      - dejavuguard-data:/data
+    environment:
+      - DATABASE_PATH=/data/dejavuguard.db
+      - DEJAVU_URL=http://dejavu:8080
+    depends_on:
+      dejavu:
+        condition: service_started
+    restart: unless-stopped
+
+  dejavu:
+    build:
+      context: ./backend/libs
+      dockerfile: Dockerfile.dejavu
+    ports:
+      - "8080:8080"
+    volumes:
+      - dejavu-sessions:/sessions
+    restart: unless-stopped
+
+volumes:
+  dejavuguard-data:
+  dejavu-sessions:
