@@ -20,8 +20,10 @@ const temporalOps = [
 ] as const;
 
 const quantifierOps = [
-  { label: "Forall", insert: "Forall x . ", desc: "For all values of x" },
-  { label: "Exists", insert: "Exists x . ", desc: "There exists a value of x" },
+  { label: "forall", insert: "forall x . ", desc: "For all SEEN values of x (recommended default)" },
+  { label: "exists", insert: "exists x . ", desc: "There exists a SEEN value of x (recommended default)" },
+  { label: "Forall", insert: "Forall x . ", desc: "For ALL values of x (infinite domain)" },
+  { label: "Exists", insert: "Exists x . ", desc: "There exists ANY value of x (infinite domain)" },
 ] as const;
 
 const booleanOps = [
@@ -226,8 +228,10 @@ export default function FormulaBuilder({
                 <tr><td className="pr-3 py-0.5 font-mono text-accent/70 whitespace-nowrap">φ S ψ</td><td>ψ occurred and φ held continuously since</td></tr>
                 <tr><td className="pr-3 py-0.5 font-mono text-accent/70 whitespace-nowrap">P[&lt;=n] φ</td><td>φ held within the last n steps</td></tr>
                 <tr><td className="pr-3 py-0.5 font-mono text-accent/70 whitespace-nowrap">H[&gt;n] φ</td><td>φ held at all steps beyond n ago</td></tr>
-                <tr><td className="pr-3 py-0.5 font-mono text-accent/70 whitespace-nowrap">Forall x . φ(x)</td><td>for all seen values of x, φ holds</td></tr>
-                <tr><td className="pr-3 py-0.5 font-mono text-accent/70 whitespace-nowrap">Exists x . φ(x)</td><td>there exists a value of x where φ holds</td></tr>
+                <tr><td className="pr-3 py-0.5 font-mono text-accent/70 whitespace-nowrap">forall x . φ(x)</td><td>for all <strong>seen</strong> values of x, φ holds (default)</td></tr>
+                <tr><td className="pr-3 py-0.5 font-mono text-accent/70 whitespace-nowrap">exists x . φ(x)</td><td>there exists a <strong>seen</strong> value of x where φ holds (default)</td></tr>
+                <tr><td className="pr-3 py-0.5 font-mono text-accent/70 whitespace-nowrap">Forall x . φ(x)</td><td>for <strong>all</strong> values of x — infinite domain</td></tr>
+                <tr><td className="pr-3 py-0.5 font-mono text-accent/70 whitespace-nowrap">Exists x . φ(x)</td><td>there exists <strong>any</strong> value of x — infinite domain</td></tr>
               </tbody>
             </table>
           </div>
