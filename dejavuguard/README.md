@@ -153,8 +153,10 @@ DejaVu supports a rich set of first-order past-time temporal logic operators:
 | Since | `phi S psi` | psi occurred and phi held continuously since |
 | Timed Previously | `P[<=n] phi` | phi held within the last n steps |
 | Timed Historically | `H[>n] phi` | phi held at all steps beyond n ago |
-| Universal quantifier | `Forall x . phi(x)` | phi holds for all seen values of x |
-| Existential quantifier | `Exists x . phi(x)` | phi holds for some value of x |
+| For all seen | `forall x . phi(x)` | phi holds for all **seen** values of x (recommended default) |
+| Exists seen | `exists x . phi(x)` | phi holds for some **seen** value of x (recommended default) |
+| For all (infinite) | `Forall x . phi(x)` | phi holds for **all** values of x (infinite domain) |
+| Exists (infinite) | `Exists x . phi(x)` | phi holds for **some** value of x (infinite domain) |
 | Not | `!phi` | negation |
 | And | `phi & psi` | conjunction |
 | Or | `phi \| psi` | disjunction |
