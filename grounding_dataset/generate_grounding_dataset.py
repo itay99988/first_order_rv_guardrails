@@ -26,9 +26,9 @@ from typing import Any, Dict, List, Tuple
 MODEL_NAME = "openai/gpt-5.4"
 VALIDATOR_MODEL_NAME = "anthropic/claude-sonnet-4.6"
 BASE_URL = "https://openrouter.ai/api/v1"
-TEMPERATURE = 0.7
+TEMPERATURE = 1.0
 VALIDATOR_TEMPERATURE = 0.0
-BATCH_SIZE = 3  # Number of predicate families to request per batch.
+BATCH_SIZE = 3  # Number of predicate-spec requests per outer loop attempt.
 VALIDATOR_BATCH_SIZE = 10
 MAX_API_RETRIES = 3
 LOG_FILENAME = "generation.log"
@@ -279,14 +279,23 @@ def request_predicate_specs(
     count: int,
     temperature: float,
     start_predicate_idx: int,
+    target_domain: str | None = None,
 ) -> List[PredicateSpec]:
     allowed_types = sorted(ALLOWED_ENTITY_TYPES)
+    if target_domain:
+        domain_rule = (
+            f'Domain must be exactly "{target_domain}". '
+            f'All generated predicates in this call must use this domain.'
+        )
+    else:
+        domain_rule = f"Use diverse domains and categories; draw from: {', '.join(DOMAINS)}"
+
     prompt = f"""
 You must produce valid JSON only.
 Generate exactly {count} predicate specs for first-order grounding data.
 
 Rules:
-- Use diverse domains and categories; draw from: {', '.join(DOMAINS)}
+- {domain_rule}
 - Predicate description must be concrete, moderately narrow (not too broad and not hyper-specific), and natural language.
 - Use declarative predicate phrasing, not yes/no style. Avoid starting with words like \"whether\" or \"if\".
 - Example style: \"assistant claims a code example is written in programming language\" (good) instead of \"whether a code example is written in a particular programming language\" (bad).
@@ -348,6 +357,8 @@ Output schema:
         if arity not in (1, 2):
             continue
         if not domain or not category or not predicate_description:
+            continue
+        if target_domain and domain != target_domain:
             continue
         if predicate_role not in {"user", "assistant"}:
             continue
@@ -845,16 +856,24 @@ def main() -> int:
             max_attempts,
             len(all_candidates),
         )
-        try:
-            specs = request_predicate_specs(
-                api_key=api_key,
-                count=BATCH_SIZE,
-                temperature=args.temperature,
-                start_predicate_idx=predicate_counter,
-            )
-        except Exception as exc:
-            logger.warning("Predicate batch failed: %s", exc)
-            continue
+        specs: List[PredicateSpec] = []
+        for _ in range(BATCH_SIZE):
+            sampled_domain = rng.choice(DOMAINS)
+            try:
+                new_specs = request_predicate_specs(
+                    api_key=api_key,
+                    count=1,
+                    temperature=args.temperature,
+                    start_predicate_idx=predicate_counter + len(specs),
+                    target_domain=sampled_domain,
+                )
+            except Exception as exc:
+                logger.warning("Predicate request failed for domain=%s: %s", sampled_domain, exc)
+                continue
+            if not new_specs:
+                logger.warning("No valid predicate spec returned for sampled domain=%s", sampled_domain)
+                continue
+            specs.extend(new_specs)
 
         if not specs:
             logger.warning("No valid predicate specs returned in this batch")

@@ -97,7 +97,7 @@ Notes:
 
 ## Useful Optional Flags
 
-- `--temperature 0.7`: generation temperature.
+- `--temperature 1.0`: generation temperature.
 - `--validator-model anthropic/claude-sonnet-4.6`: validator model.
 - `--validator-batch-size 10`: number of records per validation request.
 - `--validator-temperature 0.0`: validator temperature.
