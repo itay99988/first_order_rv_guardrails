@@ -251,6 +251,14 @@ async def _validate_formula(db: DatabaseStore, formula_str: str) -> tuple[list[s
     if not formula_str:
         return [], "Formula cannot be empty"
 
+    # Sanity checks before sending to DejaVu (prevent crashes from adversarial input)
+    if len(formula_str) > 2000:
+        return [], "Formula too long (max 2000 characters)"
+    if formula_str.count('(') != formula_str.count(')'):
+        return [], "Unbalanced parentheses"
+    if formula_str.count('[') != formula_str.count(']'):
+        return [], "Unbalanced brackets"
+
     # Extract identifiers to find which predicates are used in the formula
     candidate_ids = _extract_identifiers(formula_str)
 
@@ -282,6 +290,8 @@ async def _validate_formula(db: DatabaseStore, formula_str: str) -> tuple[list[s
             return sorted(candidate_ids), error
     except DejaVuError as e:
         return [], f"DejaVu unavailable: {e}"
+    except Exception as e:
+        return [], f"Validation failed: {type(e).__name__}: {e}"
     finally:
         await client.close()
 
