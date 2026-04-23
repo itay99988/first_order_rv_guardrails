@@ -95,12 +95,8 @@ DOMAINS = [
     "information security",
     "technology",
     "finance",
-    "agriculture",
     "academia",
     "law",
-    "tourism",
-    "education",
-    "culinary",
     "sports",
     "media",
     "transportation",
@@ -108,7 +104,6 @@ DOMAINS = [
     "telecommunications",
     "energy and utilities",
     "real estate",
-    "human resources",
 ]
 
 CATEGORIES = [
@@ -600,18 +595,23 @@ def request_validation_flags(
     rows: List[Dict[str, Any]],
     model_name: str,
     temperature: float,
-) -> List[str]:
+) -> Tuple[List[str], List[str]]:
     prompt = f"""
 You are validating grounding labels.
 
 For each row, decide whether the predicate_description is expressed in the text.
 Then compare your decision to found.
-Return IDs only where found is wrong.
+Also identify rows where it is genuinely hard to determine if the predicate matches.
+
+Return:
+- wrong_found_record_ids: IDs where found is wrong.
+- hard_to_determine_record_ids: IDs where the match is too ambiguous/uncertain.
 
 Rules:
 - Evaluate the specific predicate semantics, not general topical overlap.
 - Near-miss text should be treated as not found.
 - Use the message text as the primary evidence.
+- If evidence is weak, implied, or ambiguous enough that confident judgment is hard, mark as hard_to_determine.
 - Keep output as strict JSON only.
 
 Rows:
@@ -619,7 +619,8 @@ Rows:
 
 Output schema:
 {{
-  "wrong_record_ids": ["r0000001", "r0000002"]
+  "wrong_found_record_ids": ["r0000001", "r0000002"],
+  "hard_to_determine_record_ids": ["r0000003"]
 }}
 """.strip()
 
@@ -647,7 +648,7 @@ Output schema:
                 "content": (
                     "Your previous reply was not valid JSON. "
                     "Reply again with JSON only, matching exactly: "
-                    "{\"wrong_record_ids\": [\"...\"]}"
+                    "{\"wrong_found_record_ids\": [\"...\"], \"hard_to_determine_record_ids\": [\"...\"]}"
                 ),
             }
         ]
@@ -667,15 +668,28 @@ Output schema:
                 f"Validator returned non-JSON. first='{preview1}' retry='{preview2}'"
             ) from exc
 
-    wrong_ids = payload.get("wrong_record_ids")
+    # Backward compatibility: accept old key if model returns it.
+    wrong_ids = payload.get("wrong_found_record_ids")
+    if wrong_ids is None:
+        wrong_ids = payload.get("wrong_record_ids")
+    uncertain_ids = payload.get("hard_to_determine_record_ids")
     if not isinstance(wrong_ids, list):
-        raise ValueError("Missing wrong_record_ids list")
+        raise ValueError("Missing wrong_found_record_ids list")
+    if uncertain_ids is None:
+        uncertain_ids = []
+    if not isinstance(uncertain_ids, list):
+        raise ValueError("hard_to_determine_record_ids must be a list")
+
     allowed = {row["record_id"] for row in rows}
-    filtered: List[str] = []
+    filtered_wrong: List[str] = []
     for rid in wrong_ids:
-        if isinstance(rid, str) and rid in allowed and rid not in filtered:
-            filtered.append(rid)
-    return filtered
+        if isinstance(rid, str) and rid in allowed and rid not in filtered_wrong:
+            filtered_wrong.append(rid)
+    filtered_uncertain: List[str] = []
+    for rid in uncertain_ids:
+        if isinstance(rid, str) and rid in allowed and rid not in filtered_uncertain:
+            filtered_uncertain.append(rid)
+    return filtered_wrong, filtered_uncertain
 
 
 def validate_and_filter_dataset(
@@ -708,7 +722,7 @@ def validate_and_filter_dataset(
         ]
 
         try:
-            wrong_ids = request_validation_flags(
+            wrong_ids, uncertain_ids = request_validation_flags(
                 api_key=api_key,
                 rows=validator_rows,
                 model_name=model_name,
@@ -720,13 +734,17 @@ def validate_and_filter_dataset(
 
         for rid in wrong_ids:
             flagged_ids.add(rid)
+        for rid in uncertain_ids:
+            flagged_ids.add(rid)
 
         logger.info(
-            "Validator batch %d/%d | checked=%d | flagged=%d",
+            "Validator batch %d/%d | checked=%d | wrong_found=%d | hard_to_determine=%d | flagged_total=%d",
             idx,
             total_batches,
             len(batch),
             len(wrong_ids),
+            len(uncertain_ids),
+            len(set(wrong_ids) | set(uncertain_ids)),
         )
 
     filtered = [row for row in dataset_rows if row["record_id"] not in flagged_ids]

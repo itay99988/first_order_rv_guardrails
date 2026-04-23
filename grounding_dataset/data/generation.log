@@ -1592,3 +1592,963 @@
 2026-04-16 13:51:39,896 | INFO | Validator batch 107/107 | checked=3 | flagged=0
 2026-04-16 13:51:39,896 | INFO | Validator removed 31 rows
 2026-04-16 13:51:39,896 | INFO | Wrote 1032 rows to data\dataset.validated.jsonl
+2026-04-19 12:45:28,397 | INFO | Starting validate-only mode
+2026-04-19 12:45:28,397 | INFO | Input=data\dataset.jsonl | Output=data\dataset.validated.jsonl | ValidatorModel=anthropic/claude-sonnet-4.6 | BatchSize=10
+2026-04-19 12:45:30,365 | INFO | Validator batch 1/104 | checked=10 | wrong_found=1 | hard_to_determine=1 | flagged_total=2
+2026-04-19 12:45:32,222 | INFO | Validator batch 2/104 | checked=10 | wrong_found=1 | hard_to_determine=1 | flagged_total=2
+2026-04-19 12:45:33,899 | INFO | Validator batch 3/104 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-19 12:45:35,687 | INFO | Validator batch 4/104 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:45:37,333 | INFO | Validator batch 5/104 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:45:44,779 | INFO | Validator batch 6/104 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:45:51,272 | INFO | Validator batch 7/104 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:45:52,908 | INFO | Validator batch 8/104 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:45:55,533 | INFO | Validator batch 9/104 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:46:03,297 | INFO | Validator batch 10/104 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-19 12:46:05,449 | INFO | Validator batch 11/104 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:46:07,692 | INFO | Validator batch 12/104 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:46:09,986 | INFO | Validator batch 13/104 | checked=10 | wrong_found=1 | hard_to_determine=0 | flagged_total=1
+2026-04-19 12:46:12,313 | INFO | Validator batch 14/104 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:46:14,173 | INFO | Validator batch 15/104 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-19 12:46:17,562 | INFO | Validator batch 16/104 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:46:25,080 | INFO | Validator batch 17/104 | checked=10 | wrong_found=0 | hard_to_determine=2 | flagged_total=2
+2026-04-19 12:46:28,505 | INFO | Validator batch 18/104 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:46:30,216 | INFO | Validator batch 19/104 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-19 12:46:32,801 | INFO | Validator batch 20/104 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:46:34,355 | INFO | Validator batch 21/104 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:46:37,400 | INFO | Validator batch 22/104 | checked=10 | wrong_found=0 | hard_to_determine=2 | flagged_total=2
+2026-04-19 12:46:38,989 | INFO | Validator batch 23/104 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:46:40,611 | INFO | Validator batch 24/104 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:46:42,913 | INFO | Validator batch 25/104 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-19 12:46:52,949 | INFO | Validator batch 26/104 | checked=10 | wrong_found=1 | hard_to_determine=0 | flagged_total=1
+2026-04-19 12:47:01,763 | INFO | Validator batch 27/104 | checked=10 | wrong_found=0 | hard_to_determine=2 | flagged_total=2
+2026-04-19 12:47:09,030 | INFO | Validator batch 28/104 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-19 12:47:10,586 | INFO | Validator batch 29/104 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:47:12,890 | INFO | Validator batch 30/104 | checked=10 | wrong_found=1 | hard_to_determine=0 | flagged_total=1
+2026-04-19 12:47:14,900 | INFO | Validator batch 31/104 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:47:16,629 | INFO | Validator batch 32/104 | checked=10 | wrong_found=2 | hard_to_determine=0 | flagged_total=2
+2026-04-19 12:47:18,275 | INFO | Validator batch 33/104 | checked=10 | wrong_found=1 | hard_to_determine=0 | flagged_total=1
+2026-04-19 12:47:19,809 | INFO | Validator batch 34/104 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:47:22,272 | INFO | Validator batch 35/104 | checked=10 | wrong_found=1 | hard_to_determine=0 | flagged_total=1
+2026-04-19 12:47:26,580 | INFO | Validator batch 36/104 | checked=10 | wrong_found=1 | hard_to_determine=0 | flagged_total=1
+2026-04-19 12:47:28,192 | INFO | Validator batch 37/104 | checked=10 | wrong_found=1 | hard_to_determine=0 | flagged_total=1
+2026-04-19 12:47:35,020 | INFO | Validator batch 38/104 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-19 12:47:37,338 | INFO | Validator batch 39/104 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:47:39,263 | INFO | Validator batch 40/104 | checked=10 | wrong_found=1 | hard_to_determine=2 | flagged_total=3
+2026-04-19 12:47:42,004 | INFO | Validator batch 41/104 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:47:43,709 | INFO | Validator batch 42/104 | checked=10 | wrong_found=1 | hard_to_determine=1 | flagged_total=2
+2026-04-19 12:47:46,450 | INFO | Validator batch 43/104 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-19 12:47:55,372 | INFO | Validator batch 44/104 | checked=10 | wrong_found=1 | hard_to_determine=1 | flagged_total=1
+2026-04-19 12:47:57,379 | INFO | Validator batch 45/104 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-19 12:47:59,539 | INFO | Validator batch 46/104 | checked=10 | wrong_found=1 | hard_to_determine=0 | flagged_total=1
+2026-04-19 12:48:01,923 | INFO | Validator batch 47/104 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-19 12:48:04,878 | INFO | Validator batch 48/104 | checked=10 | wrong_found=1 | hard_to_determine=0 | flagged_total=1
+2026-04-19 12:48:12,881 | INFO | Validator batch 49/104 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-19 12:48:15,062 | INFO | Validator batch 50/104 | checked=10 | wrong_found=1 | hard_to_determine=0 | flagged_total=1
+2026-04-19 12:48:16,700 | INFO | Validator batch 51/104 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:48:18,083 | INFO | Validator batch 52/104 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-19 12:48:25,567 | INFO | Validator batch 53/104 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-19 12:48:27,804 | INFO | Validator batch 54/104 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:48:31,814 | INFO | Validator batch 55/104 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:48:33,428 | INFO | Validator batch 56/104 | checked=10 | wrong_found=1 | hard_to_determine=0 | flagged_total=1
+2026-04-19 12:48:35,021 | INFO | Validator batch 57/104 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:48:36,340 | INFO | Validator batch 58/104 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:48:37,913 | INFO | Validator batch 59/104 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:48:39,114 | INFO | Validator batch 60/104 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-19 12:48:42,222 | INFO | Validator batch 61/104 | checked=10 | wrong_found=1 | hard_to_determine=0 | flagged_total=1
+2026-04-19 12:48:43,873 | INFO | Validator batch 62/104 | checked=10 | wrong_found=1 | hard_to_determine=0 | flagged_total=1
+2026-04-19 12:48:45,551 | INFO | Validator batch 63/104 | checked=10 | wrong_found=1 | hard_to_determine=0 | flagged_total=1
+2026-04-19 12:48:46,996 | INFO | Validator batch 64/104 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-19 12:48:48,556 | INFO | Validator batch 65/104 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:48:52,996 | INFO | Validator batch 66/104 | checked=10 | wrong_found=1 | hard_to_determine=0 | flagged_total=1
+2026-04-19 12:48:55,121 | INFO | Validator batch 67/104 | checked=10 | wrong_found=0 | hard_to_determine=2 | flagged_total=2
+2026-04-19 12:48:57,730 | INFO | Validator batch 68/104 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:48:59,493 | INFO | Validator batch 69/104 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-19 12:49:01,475 | INFO | Validator batch 70/104 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:49:09,452 | INFO | Validator batch 71/104 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-19 12:49:11,401 | INFO | Validator batch 72/104 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:49:12,705 | INFO | Validator batch 73/104 | checked=10 | wrong_found=1 | hard_to_determine=0 | flagged_total=1
+2026-04-19 12:49:14,688 | INFO | Validator batch 74/104 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:49:22,324 | INFO | Validator batch 75/104 | checked=10 | wrong_found=1 | hard_to_determine=1 | flagged_total=2
+2026-04-19 12:49:34,104 | INFO | Validator batch 76/104 | checked=10 | wrong_found=0 | hard_to_determine=4 | flagged_total=4
+2026-04-19 12:49:35,644 | INFO | Validator batch 77/104 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:49:36,867 | INFO | Validator batch 78/104 | checked=10 | wrong_found=1 | hard_to_determine=0 | flagged_total=1
+2026-04-19 12:49:38,801 | INFO | Validator batch 79/104 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:49:40,557 | INFO | Validator batch 80/104 | checked=10 | wrong_found=0 | hard_to_determine=2 | flagged_total=2
+2026-04-19 12:49:42,122 | INFO | Validator batch 81/104 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:49:43,558 | INFO | Validator batch 82/104 | checked=10 | wrong_found=1 | hard_to_determine=1 | flagged_total=2
+2026-04-19 12:49:49,200 | INFO | Validator batch 83/104 | checked=10 | wrong_found=1 | hard_to_determine=0 | flagged_total=1
+2026-04-19 12:49:50,866 | INFO | Validator batch 84/104 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:49:58,353 | INFO | Validator batch 85/104 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-19 12:50:00,385 | INFO | Validator batch 86/104 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:50:06,835 | INFO | Validator batch 87/104 | checked=10 | wrong_found=1 | hard_to_determine=0 | flagged_total=1
+2026-04-19 12:50:08,903 | INFO | Validator batch 88/104 | checked=10 | wrong_found=2 | hard_to_determine=0 | flagged_total=2
+2026-04-19 12:50:10,364 | INFO | Validator batch 89/104 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:50:12,229 | INFO | Validator batch 90/104 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-19 12:50:14,226 | INFO | Validator batch 91/104 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-19 12:50:15,796 | INFO | Validator batch 92/104 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:50:17,407 | INFO | Validator batch 93/104 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-19 12:50:18,925 | INFO | Validator batch 94/104 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:50:20,845 | INFO | Validator batch 95/104 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:50:22,480 | INFO | Validator batch 96/104 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:50:23,904 | INFO | Validator batch 97/104 | checked=10 | wrong_found=0 | hard_to_determine=2 | flagged_total=2
+2026-04-19 12:50:26,695 | INFO | Validator batch 98/104 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-19 12:50:28,396 | INFO | Validator batch 99/104 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-19 12:50:30,904 | INFO | Validator batch 100/104 | checked=10 | wrong_found=1 | hard_to_determine=0 | flagged_total=1
+2026-04-19 12:50:33,515 | INFO | Validator batch 101/104 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:50:38,653 | INFO | Validator batch 102/104 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:50:39,919 | INFO | Validator batch 103/104 | checked=10 | wrong_found=1 | hard_to_determine=1 | flagged_total=2
+2026-04-19 12:50:41,517 | INFO | Validator batch 104/104 | checked=2 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:50:41,548 | INFO | Validator removed 79 rows
+2026-04-19 12:50:41,549 | INFO | Wrote 953 rows to data\dataset.validated.jsonl
+2026-04-19 12:53:53,930 | INFO | Starting validate-only mode
+2026-04-19 12:53:53,930 | INFO | Input=data\dataset.validated.jsonl | Output=data\dataset.validated2.jsonl | ValidatorModel=anthropic/claude-sonnet-4.6 | BatchSize=10
+2026-04-19 12:53:56,863 | INFO | Validator batch 1/96 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:53:58,502 | INFO | Validator batch 2/96 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:54:00,763 | INFO | Validator batch 3/96 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-19 12:54:02,546 | INFO | Validator batch 4/96 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:54:06,154 | INFO | Validator batch 5/96 | checked=10 | wrong_found=1 | hard_to_determine=0 | flagged_total=1
+2026-04-19 12:54:13,446 | INFO | Validator batch 6/96 | checked=10 | wrong_found=0 | hard_to_determine=2 | flagged_total=2
+2026-04-19 12:54:19,111 | INFO | Validator batch 7/96 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:54:20,882 | INFO | Validator batch 8/96 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-19 12:54:22,497 | INFO | Validator batch 9/96 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:54:24,158 | INFO | Validator batch 10/96 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:54:25,979 | INFO | Validator batch 11/96 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-19 12:54:27,596 | INFO | Validator batch 12/96 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:54:29,162 | INFO | Validator batch 13/96 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:54:30,926 | INFO | Validator batch 14/96 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-19 12:54:35,095 | INFO | Validator batch 15/96 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-19 12:54:40,202 | INFO | Validator batch 16/96 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:54:42,669 | INFO | Validator batch 17/96 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:54:44,261 | INFO | Validator batch 18/96 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:54:46,364 | INFO | Validator batch 19/96 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:54:48,325 | INFO | Validator batch 20/96 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-19 12:54:51,365 | INFO | Validator batch 21/96 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-19 12:54:52,910 | INFO | Validator batch 22/96 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:54:56,369 | INFO | Validator batch 23/96 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:54:58,926 | INFO | Validator batch 24/96 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:55:01,097 | INFO | Validator batch 25/96 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:55:03,153 | INFO | Validator batch 26/96 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:55:05,287 | INFO | Validator batch 27/96 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:55:07,774 | INFO | Validator batch 28/96 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:55:10,120 | INFO | Validator batch 29/96 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:55:12,397 | INFO | Validator batch 30/96 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:55:14,693 | INFO | Validator batch 31/96 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:55:16,325 | INFO | Validator batch 32/96 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:55:17,942 | INFO | Validator batch 33/96 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:55:19,606 | INFO | Validator batch 34/96 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-19 12:55:21,389 | INFO | Validator batch 35/96 | checked=10 | wrong_found=1 | hard_to_determine=0 | flagged_total=1
+2026-04-19 12:55:22,957 | INFO | Validator batch 36/96 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:55:24,503 | INFO | Validator batch 37/96 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:55:26,086 | INFO | Validator batch 38/96 | checked=10 | wrong_found=1 | hard_to_determine=0 | flagged_total=1
+2026-04-19 12:55:28,819 | INFO | Validator batch 39/96 | checked=10 | wrong_found=1 | hard_to_determine=0 | flagged_total=1
+2026-04-19 12:55:30,545 | INFO | Validator batch 40/96 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:55:33,531 | INFO | Validator batch 41/96 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:55:35,182 | INFO | Validator batch 42/96 | checked=10 | wrong_found=1 | hard_to_determine=0 | flagged_total=1
+2026-04-19 12:55:36,884 | INFO | Validator batch 43/96 | checked=10 | wrong_found=0 | hard_to_determine=2 | flagged_total=2
+2026-04-19 12:55:41,048 | INFO | Validator batch 44/96 | checked=10 | wrong_found=1 | hard_to_determine=0 | flagged_total=1
+2026-04-19 12:55:49,586 | INFO | Validator batch 45/96 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-19 12:55:56,916 | INFO | Validator batch 46/96 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-19 12:55:59,565 | INFO | Validator batch 47/96 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:56:01,615 | INFO | Validator batch 48/96 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-19 12:56:03,681 | INFO | Validator batch 49/96 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:56:05,543 | INFO | Validator batch 50/96 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:56:07,511 | INFO | Validator batch 51/96 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:56:09,466 | INFO | Validator batch 52/96 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:56:11,496 | INFO | Validator batch 53/96 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:56:13,898 | INFO | Validator batch 54/96 | checked=10 | wrong_found=1 | hard_to_determine=0 | flagged_total=1
+2026-04-19 12:56:15,727 | INFO | Validator batch 55/96 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:56:19,778 | INFO | Validator batch 56/96 | checked=10 | wrong_found=1 | hard_to_determine=1 | flagged_total=2
+2026-04-19 12:56:21,935 | INFO | Validator batch 57/96 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:56:22,982 | INFO | Validator batch 58/96 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:56:29,245 | INFO | Validator batch 59/96 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:56:30,807 | INFO | Validator batch 60/96 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:56:33,462 | INFO | Validator batch 61/96 | checked=10 | wrong_found=0 | hard_to_determine=2 | flagged_total=2
+2026-04-19 12:56:35,104 | INFO | Validator batch 62/96 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:56:36,676 | INFO | Validator batch 63/96 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:56:38,444 | INFO | Validator batch 64/96 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:56:40,402 | INFO | Validator batch 65/96 | checked=10 | wrong_found=0 | hard_to_determine=2 | flagged_total=2
+2026-04-19 12:56:42,395 | INFO | Validator batch 66/96 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:56:43,967 | INFO | Validator batch 67/96 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:56:45,532 | INFO | Validator batch 68/96 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:56:46,909 | INFO | Validator batch 69/96 | checked=10 | wrong_found=1 | hard_to_determine=0 | flagged_total=1
+2026-04-19 12:56:48,617 | INFO | Validator batch 70/96 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-19 12:56:50,057 | INFO | Validator batch 71/96 | checked=10 | wrong_found=1 | hard_to_determine=0 | flagged_total=1
+2026-04-19 12:56:51,721 | INFO | Validator batch 72/96 | checked=10 | wrong_found=1 | hard_to_determine=0 | flagged_total=1
+2026-04-19 12:56:53,256 | INFO | Validator batch 73/96 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:56:54,403 | INFO | Validator batch 74/96 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-19 12:56:56,016 | INFO | Validator batch 75/96 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:56:57,601 | INFO | Validator batch 76/96 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:56:59,248 | INFO | Validator batch 77/96 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-19 12:57:01,184 | INFO | Validator batch 78/96 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-19 12:57:02,958 | INFO | Validator batch 79/96 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:57:05,006 | INFO | Validator batch 80/96 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:57:06,785 | INFO | Validator batch 81/96 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:57:08,607 | INFO | Validator batch 82/96 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:57:10,727 | INFO | Validator batch 83/96 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:57:12,707 | INFO | Validator batch 84/96 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:57:14,454 | INFO | Validator batch 85/96 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:57:16,102 | INFO | Validator batch 86/96 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-19 12:57:19,842 | INFO | Validator batch 87/96 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-19 12:57:21,411 | INFO | Validator batch 88/96 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:57:24,124 | INFO | Validator batch 89/96 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:57:25,725 | INFO | Validator batch 90/96 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:57:27,486 | INFO | Validator batch 91/96 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-19 12:57:31,320 | INFO | Validator batch 92/96 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:57:33,098 | INFO | Validator batch 93/96 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-19 12:57:34,803 | INFO | Validator batch 94/96 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:57:36,389 | INFO | Validator batch 95/96 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:57:38,440 | INFO | Validator batch 96/96 | checked=3 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-19 12:57:38,481 | INFO | Validator removed 39 rows
+2026-04-19 12:57:38,482 | INFO | Wrote 914 rows to data\dataset.validated2.jsonl
+2026-04-20 10:49:03,646 | INFO | Starting generation
+2026-04-20 10:49:03,646 | INFO | Target length=1300, output_dir=data, model=openai/gpt-5.4
+2026-04-20 10:49:03,646 | INFO | Batch attempt 1/5200 | current_candidates=0
+2026-04-20 10:49:18,565 | INFO | Received 3 predicate specs
+2026-04-20 10:49:18,565 | INFO | Generating examples for p00003 | role=assistant | domain=technology | arity=2
+2026-04-20 10:49:30,318 | INFO | Accepted 10 examples for p00003 | total_candidates=10
+2026-04-20 10:49:30,318 | INFO | Generating examples for p00002 | role=user | domain=energy and utilities | arity=1
+2026-04-20 10:49:42,251 | INFO | Accepted 10 examples for p00002 | total_candidates=20
+2026-04-20 10:49:42,251 | INFO | Generating examples for p00001 | role=assistant | domain=telecommunications | arity=2
+2026-04-20 10:49:50,953 | INFO | Accepted 10 examples for p00001 | total_candidates=30
+2026-04-20 10:49:50,953 | INFO | Batch attempt 2/5200 | current_candidates=30
+2026-04-20 10:49:59,902 | INFO | Received 3 predicate specs
+2026-04-20 10:49:59,902 | INFO | Generating examples for p00006 | role=user | domain=academia | arity=1
+2026-04-20 10:50:08,759 | INFO | Accepted 10 examples for p00006 | total_candidates=40
+2026-04-20 10:50:08,759 | INFO | Generating examples for p00004 | role=assistant | domain=academia | arity=2
+2026-04-20 10:50:19,113 | INFO | Accepted 10 examples for p00004 | total_candidates=50
+2026-04-20 10:50:19,115 | INFO | Generating examples for p00005 | role=assistant | domain=medicine | arity=2
+2026-04-20 10:50:30,838 | INFO | Accepted 10 examples for p00005 | total_candidates=60
+2026-04-20 10:50:30,838 | INFO | Batch attempt 3/5200 | current_candidates=60
+2026-04-20 10:50:39,934 | INFO | Received 3 predicate specs
+2026-04-20 10:50:39,934 | INFO | Generating examples for p00007 | role=assistant | domain=technology | arity=2
+2026-04-20 10:50:52,434 | INFO | Accepted 10 examples for p00007 | total_candidates=70
+2026-04-20 10:50:52,435 | INFO | Generating examples for p00008 | role=assistant | domain=technology | arity=2
+2026-04-20 10:51:03,154 | INFO | Accepted 10 examples for p00008 | total_candidates=80
+2026-04-20 10:51:03,155 | INFO | Generating examples for p00009 | role=user | domain=energy and utilities | arity=1
+2026-04-20 10:51:12,826 | INFO | Accepted 10 examples for p00009 | total_candidates=90
+2026-04-20 10:51:12,826 | INFO | Batch attempt 4/5200 | current_candidates=90
+2026-04-20 10:51:21,347 | WARNING | No valid predicate spec returned for sampled domain=media
+2026-04-20 10:51:21,348 | INFO | Received 2 predicate specs
+2026-04-20 10:51:21,349 | INFO | Generating examples for p00011 | role=assistant | domain=sports | arity=2
+2026-04-20 10:51:30,708 | INFO | Accepted 10 examples for p00011 | total_candidates=100
+2026-04-20 10:51:30,708 | INFO | Generating examples for p00010 | role=user | domain=energy and utilities | arity=1
+2026-04-20 10:51:38,319 | INFO | Accepted 10 examples for p00010 | total_candidates=110
+2026-04-20 10:51:38,320 | INFO | Batch attempt 5/5200 | current_candidates=110
+2026-04-20 10:51:45,753 | INFO | Received 3 predicate specs
+2026-04-20 10:51:45,753 | INFO | Generating examples for p00014 | role=assistant | domain=medicine | arity=1
+2026-04-20 10:51:59,100 | INFO | Accepted 10 examples for p00014 | total_candidates=120
+2026-04-20 10:51:59,100 | INFO | Generating examples for p00012 | role=user | domain=energy and utilities | arity=1
+2026-04-20 10:52:07,240 | INFO | Accepted 10 examples for p00012 | total_candidates=130
+2026-04-20 10:52:07,241 | INFO | Generating examples for p00013 | role=assistant | domain=real estate | arity=1
+2026-04-20 10:52:19,131 | INFO | Accepted 10 examples for p00013 | total_candidates=140
+2026-04-20 10:52:19,132 | INFO | Batch attempt 6/5200 | current_candidates=140
+2026-04-20 10:52:26,888 | INFO | Received 3 predicate specs
+2026-04-20 10:52:26,889 | INFO | Generating examples for p00015 | role=user | domain=energy and utilities | arity=1
+2026-04-20 10:52:40,486 | INFO | Accepted 10 examples for p00015 | total_candidates=150
+2026-04-20 10:52:40,486 | INFO | Generating examples for p00016 | role=assistant | domain=telecommunications | arity=1
+2026-04-20 10:52:50,595 | INFO | Accepted 10 examples for p00016 | total_candidates=160
+2026-04-20 10:52:50,596 | INFO | Generating examples for p00017 | role=assistant | domain=medicine | arity=1
+2026-04-20 10:53:00,784 | INFO | Accepted 10 examples for p00017 | total_candidates=170
+2026-04-20 10:53:00,785 | INFO | Batch attempt 7/5200 | current_candidates=170
+2026-04-20 10:53:11,950 | INFO | Received 3 predicate specs
+2026-04-20 10:53:11,951 | INFO | Generating examples for p00020 | role=assistant | domain=information security | arity=1
+2026-04-20 10:53:24,218 | INFO | Accepted 10 examples for p00020 | total_candidates=180
+2026-04-20 10:53:24,219 | INFO | Generating examples for p00019 | role=assistant | domain=finance | arity=2
+2026-04-20 10:53:32,610 | INFO | Accepted 10 examples for p00019 | total_candidates=190
+2026-04-20 10:53:32,610 | INFO | Generating examples for p00018 | role=assistant | domain=technology | arity=2
+2026-04-20 10:53:45,708 | INFO | Accepted 10 examples for p00018 | total_candidates=200
+2026-04-20 10:53:45,709 | INFO | Batch attempt 8/5200 | current_candidates=200
+2026-04-20 10:53:59,400 | INFO | Received 3 predicate specs
+2026-04-20 10:53:59,401 | INFO | Generating examples for p00021 | role=user | domain=software development | arity=1
+2026-04-20 10:54:14,680 | INFO | Accepted 10 examples for p00021 | total_candidates=210
+2026-04-20 10:54:14,681 | INFO | Generating examples for p00022 | role=assistant | domain=media | arity=2
+2026-04-20 10:54:24,395 | INFO | Accepted 10 examples for p00022 | total_candidates=220
+2026-04-20 10:54:24,395 | INFO | Generating examples for p00023 | role=user | domain=technology | arity=1
+2026-04-20 10:54:35,538 | INFO | Accepted 10 examples for p00023 | total_candidates=230
+2026-04-20 10:54:35,539 | INFO | Batch attempt 9/5200 | current_candidates=230
+2026-04-20 10:54:43,112 | INFO | Received 3 predicate specs
+2026-04-20 10:54:43,113 | INFO | Generating examples for p00024 | role=assistant | domain=sports | arity=2
+2026-04-20 10:54:51,724 | INFO | Accepted 10 examples for p00024 | total_candidates=240
+2026-04-20 10:54:51,725 | INFO | Generating examples for p00025 | role=user | domain=insurance | arity=1
+2026-04-20 10:55:02,400 | INFO | Accepted 10 examples for p00025 | total_candidates=250
+2026-04-20 10:55:02,401 | INFO | Generating examples for p00026 | role=assistant | domain=medicine | arity=1
+2026-04-20 10:55:12,965 | WARNING | Message generation failed for p00026: Expecting ',' delimiter: line 75 column 6 (char 2190)
+2026-04-20 10:55:12,966 | INFO | Batch attempt 10/5200 | current_candidates=250
+2026-04-20 10:55:20,720 | WARNING | No valid predicate spec returned for sampled domain=media
+2026-04-20 10:55:20,722 | INFO | Received 2 predicate specs
+2026-04-20 10:55:20,723 | INFO | Generating examples for p00027 | role=user | domain=insurance | arity=2
+2026-04-20 10:55:32,790 | INFO | Accepted 10 examples for p00027 | total_candidates=260
+2026-04-20 10:55:32,790 | INFO | Generating examples for p00028 | role=user | domain=real estate | arity=1
+2026-04-20 10:55:43,641 | INFO | Accepted 10 examples for p00028 | total_candidates=270
+2026-04-20 10:55:43,642 | INFO | Batch attempt 11/5200 | current_candidates=270
+2026-04-20 10:55:52,014 | INFO | Received 3 predicate specs
+2026-04-20 10:55:52,015 | INFO | Generating examples for p00031 | role=assistant | domain=real estate | arity=2
+2026-04-20 10:56:05,828 | INFO | Accepted 10 examples for p00031 | total_candidates=280
+2026-04-20 10:56:05,828 | INFO | Generating examples for p00030 | role=user | domain=law | arity=1
+2026-04-20 10:56:14,935 | INFO | Accepted 10 examples for p00030 | total_candidates=290
+2026-04-20 10:56:14,936 | INFO | Generating examples for p00029 | role=user | domain=transportation | arity=2
+2026-04-20 10:56:25,804 | INFO | Accepted 10 examples for p00029 | total_candidates=300
+2026-04-20 10:56:25,805 | INFO | Batch attempt 12/5200 | current_candidates=300
+2026-04-20 10:56:33,197 | INFO | Received 3 predicate specs
+2026-04-20 10:56:33,198 | INFO | Generating examples for p00032 | role=user | domain=telecommunications | arity=1
+2026-04-20 10:56:41,902 | INFO | Accepted 10 examples for p00032 | total_candidates=310
+2026-04-20 10:56:41,903 | INFO | Generating examples for p00034 | role=user | domain=ecommerce | arity=2
+2026-04-20 10:56:55,747 | INFO | Accepted 10 examples for p00034 | total_candidates=320
+2026-04-20 10:56:55,748 | INFO | Generating examples for p00033 | role=user | domain=academia | arity=1
+2026-04-20 10:57:03,353 | INFO | Accepted 10 examples for p00033 | total_candidates=330
+2026-04-20 10:57:03,353 | INFO | Batch attempt 13/5200 | current_candidates=330
+2026-04-20 10:57:06,175 | WARNING | No valid predicate spec returned for sampled domain=media
+2026-04-20 10:57:11,750 | INFO | Received 2 predicate specs
+2026-04-20 10:57:11,751 | INFO | Generating examples for p00036 | role=assistant | domain=finance | arity=2
+2026-04-20 10:57:21,675 | INFO | Accepted 9 examples for p00036 | total_candidates=339
+2026-04-20 10:57:21,676 | INFO | Generating examples for p00035 | role=user | domain=law | arity=2
+2026-04-20 10:57:34,049 | INFO | Accepted 10 examples for p00035 | total_candidates=349
+2026-04-20 10:57:34,049 | INFO | Batch attempt 14/5200 | current_candidates=349
+2026-04-20 10:57:43,236 | INFO | Received 3 predicate specs
+2026-04-20 10:57:43,236 | INFO | Generating examples for p00037 | role=user | domain=insurance | arity=1
+2026-04-20 10:57:50,996 | INFO | Accepted 10 examples for p00037 | total_candidates=359
+2026-04-20 10:57:50,996 | INFO | Generating examples for p00038 | role=assistant | domain=information security | arity=2
+2026-04-20 10:58:01,903 | INFO | Accepted 10 examples for p00038 | total_candidates=369
+2026-04-20 10:58:01,903 | INFO | Generating examples for p00039 | role=assistant | domain=software development | arity=2
+2026-04-20 10:58:12,103 | INFO | Accepted 10 examples for p00039 | total_candidates=379
+2026-04-20 10:58:12,104 | INFO | Batch attempt 15/5200 | current_candidates=379
+2026-04-20 10:58:19,166 | INFO | Received 3 predicate specs
+2026-04-20 10:58:19,167 | INFO | Generating examples for p00040 | role=user | domain=academia | arity=1
+2026-04-20 10:58:28,667 | INFO | Accepted 9 examples for p00040 | total_candidates=388
+2026-04-20 10:58:28,668 | INFO | Generating examples for p00042 | role=user | domain=real estate | arity=1
+2026-04-20 10:58:39,500 | INFO | Accepted 10 examples for p00042 | total_candidates=398
+2026-04-20 10:58:39,500 | INFO | Generating examples for p00041 | role=assistant | domain=software development | arity=1
+2026-04-20 10:58:52,355 | INFO | Accepted 10 examples for p00041 | total_candidates=408
+2026-04-20 10:58:52,356 | INFO | Batch attempt 16/5200 | current_candidates=408
+2026-04-20 10:58:55,125 | WARNING | No valid predicate spec returned for sampled domain=media
+2026-04-20 10:59:00,886 | INFO | Received 2 predicate specs
+2026-04-20 10:59:00,887 | INFO | Generating examples for p00044 | role=assistant | domain=information security | arity=2
+2026-04-20 10:59:13,787 | INFO | Accepted 10 examples for p00044 | total_candidates=418
+2026-04-20 10:59:13,788 | INFO | Generating examples for p00043 | role=user | domain=transportation | arity=1
+2026-04-20 10:59:22,521 | INFO | Accepted 10 examples for p00043 | total_candidates=428
+2026-04-20 10:59:22,521 | INFO | Batch attempt 17/5200 | current_candidates=428
+2026-04-20 10:59:25,874 | WARNING | No valid predicate spec returned for sampled domain=media
+2026-04-20 10:59:31,294 | INFO | Received 2 predicate specs
+2026-04-20 10:59:31,295 | INFO | Generating examples for p00045 | role=assistant | domain=technology | arity=2
+2026-04-20 11:00:46,624 | WARNING | Message generation failed for p00045: IncompleteRead(88 bytes read)
+2026-04-20 11:00:46,638 | INFO | Generating examples for p00046 | role=assistant | domain=medicine | arity=2
+2026-04-20 11:00:51,222 | WARNING | Message generation failed for p00046: OpenRouter call failed after retries: <urlopen error [Errno 11001] getaddrinfo failed>
+2026-04-20 11:00:51,222 | INFO | Batch attempt 18/5200 | current_candidates=428
+2026-04-20 11:01:01,229 | INFO | Received 3 predicate specs
+2026-04-20 11:01:01,230 | INFO | Generating examples for p00049 | role=assistant | domain=telecommunications | arity=2
+2026-04-20 11:01:13,228 | INFO | Accepted 10 examples for p00049 | total_candidates=438
+2026-04-20 11:01:13,230 | INFO | Generating examples for p00047 | role=assistant | domain=information security | arity=2
+2026-04-20 11:01:24,219 | INFO | Accepted 10 examples for p00047 | total_candidates=448
+2026-04-20 11:01:24,220 | INFO | Generating examples for p00048 | role=assistant | domain=insurance | arity=2
+2026-04-20 11:01:34,610 | INFO | Accepted 10 examples for p00048 | total_candidates=458
+2026-04-20 11:01:34,611 | INFO | Batch attempt 19/5200 | current_candidates=458
+2026-04-20 11:01:42,331 | INFO | Received 3 predicate specs
+2026-04-20 11:01:42,331 | INFO | Generating examples for p00051 | role=user | domain=law | arity=1
+2026-04-20 11:01:51,866 | INFO | Accepted 10 examples for p00051 | total_candidates=468
+2026-04-20 11:01:51,867 | INFO | Generating examples for p00052 | role=assistant | domain=academia | arity=2
+2026-04-20 11:02:02,334 | INFO | Accepted 10 examples for p00052 | total_candidates=478
+2026-04-20 11:02:02,335 | INFO | Generating examples for p00050 | role=user | domain=energy and utilities | arity=1
+2026-04-20 11:02:12,961 | INFO | Accepted 10 examples for p00050 | total_candidates=488
+2026-04-20 11:02:12,962 | INFO | Batch attempt 20/5200 | current_candidates=488
+2026-04-20 11:02:15,669 | WARNING | No valid predicate spec returned for sampled domain=media
+2026-04-20 11:02:20,570 | INFO | Received 2 predicate specs
+2026-04-20 11:02:20,571 | INFO | Generating examples for p00054 | role=user | domain=insurance | arity=1
+2026-04-20 11:02:32,135 | INFO | Accepted 10 examples for p00054 | total_candidates=498
+2026-04-20 11:02:32,135 | INFO | Generating examples for p00053 | role=user | domain=transportation | arity=1
+2026-04-20 11:02:41,512 | INFO | Accepted 10 examples for p00053 | total_candidates=508
+2026-04-20 11:02:41,513 | INFO | Batch attempt 21/5200 | current_candidates=508
+2026-04-20 11:02:49,402 | WARNING | No valid predicate spec returned for sampled domain=media
+2026-04-20 11:02:49,403 | INFO | Received 2 predicate specs
+2026-04-20 11:02:49,403 | INFO | Generating examples for p00055 | role=user | domain=transportation | arity=1
+2026-04-20 11:02:58,860 | INFO | Accepted 9 examples for p00055 | total_candidates=517
+2026-04-20 11:02:58,860 | INFO | Generating examples for p00056 | role=assistant | domain=real estate | arity=2
+2026-04-20 11:03:09,474 | INFO | Accepted 10 examples for p00056 | total_candidates=527
+2026-04-20 11:03:09,474 | INFO | Batch attempt 22/5200 | current_candidates=527
+2026-04-20 11:03:17,739 | INFO | Received 3 predicate specs
+2026-04-20 11:03:17,740 | INFO | Generating examples for p00057 | role=assistant | domain=information security | arity=1
+2026-04-20 11:03:28,366 | INFO | Accepted 10 examples for p00057 | total_candidates=537
+2026-04-20 11:03:28,366 | INFO | Generating examples for p00059 | role=assistant | domain=information security | arity=1
+2026-04-20 11:03:35,667 | INFO | Accepted 10 examples for p00059 | total_candidates=547
+2026-04-20 11:03:35,668 | INFO | Generating examples for p00058 | role=assistant | domain=information security | arity=2
+2026-04-20 11:03:46,718 | INFO | Accepted 10 examples for p00058 | total_candidates=557
+2026-04-20 11:03:46,719 | INFO | Batch attempt 23/5200 | current_candidates=557
+2026-04-20 11:03:49,530 | WARNING | No valid predicate spec returned for sampled domain=media
+2026-04-20 11:03:52,333 | WARNING | No valid predicate spec returned for sampled domain=media
+2026-04-20 11:03:55,513 | INFO | Received 1 predicate specs
+2026-04-20 11:03:55,514 | INFO | Generating examples for p00060 | role=user | domain=insurance | arity=1
+2026-04-20 11:04:04,624 | INFO | Accepted 10 examples for p00060 | total_candidates=567
+2026-04-20 11:04:04,624 | INFO | Batch attempt 24/5200 | current_candidates=567
+2026-04-20 11:04:12,794 | INFO | Received 3 predicate specs
+2026-04-20 11:04:12,795 | INFO | Generating examples for p00063 | role=assistant | domain=sports | arity=2
+2026-04-20 11:04:23,750 | INFO | Accepted 10 examples for p00063 | total_candidates=577
+2026-04-20 11:04:23,751 | INFO | Generating examples for p00062 | role=user | domain=ecommerce | arity=1
+2026-04-20 11:04:32,293 | INFO | Accepted 10 examples for p00062 | total_candidates=587
+2026-04-20 11:04:32,294 | INFO | Generating examples for p00061 | role=assistant | domain=finance | arity=2
+2026-04-20 11:04:46,619 | INFO | Accepted 7 examples for p00061 | total_candidates=594
+2026-04-20 11:04:46,620 | INFO | Batch attempt 25/5200 | current_candidates=594
+2026-04-20 11:04:56,230 | INFO | Received 3 predicate specs
+2026-04-20 11:04:56,231 | INFO | Generating examples for p00066 | role=assistant | domain=information security | arity=1
+2026-04-20 11:05:08,012 | INFO | Accepted 10 examples for p00066 | total_candidates=604
+2026-04-20 11:05:08,013 | INFO | Generating examples for p00064 | role=assistant | domain=medicine | arity=2
+2026-04-20 11:05:19,486 | INFO | Accepted 10 examples for p00064 | total_candidates=614
+2026-04-20 11:05:19,487 | INFO | Generating examples for p00065 | role=assistant | domain=information security | arity=1
+2026-04-20 11:05:37,111 | INFO | Accepted 10 examples for p00065 | total_candidates=624
+2026-04-20 11:05:37,111 | INFO | Batch attempt 26/5200 | current_candidates=624
+2026-04-20 11:05:44,460 | INFO | Received 3 predicate specs
+2026-04-20 11:05:44,460 | INFO | Generating examples for p00069 | role=user | domain=insurance | arity=1
+2026-04-20 11:05:53,543 | INFO | Accepted 10 examples for p00069 | total_candidates=634
+2026-04-20 11:05:53,545 | INFO | Generating examples for p00067 | role=user | domain=ecommerce | arity=1
+2026-04-20 11:06:03,531 | INFO | Accepted 10 examples for p00067 | total_candidates=644
+2026-04-20 11:06:03,531 | INFO | Generating examples for p00068 | role=assistant | domain=real estate | arity=2
+2026-04-20 11:06:15,715 | INFO | Accepted 10 examples for p00068 | total_candidates=654
+2026-04-20 11:06:15,715 | INFO | Batch attempt 27/5200 | current_candidates=654
+2026-04-20 11:06:22,781 | INFO | Received 3 predicate specs
+2026-04-20 11:06:22,781 | INFO | Generating examples for p00071 | role=assistant | domain=software development | arity=1
+2026-04-20 11:06:31,504 | INFO | Accepted 10 examples for p00071 | total_candidates=664
+2026-04-20 11:06:31,505 | INFO | Generating examples for p00072 | role=assistant | domain=real estate | arity=2
+2026-04-20 11:06:42,817 | INFO | Accepted 10 examples for p00072 | total_candidates=674
+2026-04-20 11:06:42,818 | INFO | Generating examples for p00070 | role=user | domain=ecommerce | arity=1
+2026-04-20 11:06:53,988 | INFO | Accepted 10 examples for p00070 | total_candidates=684
+2026-04-20 11:06:53,989 | INFO | Batch attempt 28/5200 | current_candidates=684
+2026-04-20 11:07:03,558 | INFO | Received 3 predicate specs
+2026-04-20 11:07:03,559 | INFO | Generating examples for p00074 | role=assistant | domain=finance | arity=2
+2026-04-20 11:07:13,146 | INFO | Accepted 10 examples for p00074 | total_candidates=694
+2026-04-20 11:07:13,146 | INFO | Generating examples for p00073 | role=assistant | domain=finance | arity=2
+2026-04-20 11:07:21,714 | INFO | Accepted 7 examples for p00073 | total_candidates=701
+2026-04-20 11:07:21,715 | INFO | Generating examples for p00075 | role=assistant | domain=telecommunications | arity=2
+2026-04-20 11:07:30,312 | INFO | Accepted 10 examples for p00075 | total_candidates=711
+2026-04-20 11:07:30,315 | INFO | Batch attempt 29/5200 | current_candidates=711
+2026-04-20 11:07:39,226 | INFO | Received 3 predicate specs
+2026-04-20 11:07:39,227 | INFO | Generating examples for p00076 | role=user | domain=insurance | arity=1
+2026-04-20 11:07:50,030 | INFO | Accepted 10 examples for p00076 | total_candidates=721
+2026-04-20 11:07:50,030 | INFO | Generating examples for p00077 | role=user | domain=ecommerce | arity=1
+2026-04-20 11:08:01,421 | INFO | Accepted 10 examples for p00077 | total_candidates=731
+2026-04-20 11:08:01,422 | INFO | Generating examples for p00078 | role=user | domain=energy and utilities | arity=1
+2026-04-20 11:08:10,695 | INFO | Accepted 10 examples for p00078 | total_candidates=741
+2026-04-20 11:08:10,696 | INFO | Batch attempt 30/5200 | current_candidates=741
+2026-04-20 11:08:17,907 | INFO | Received 3 predicate specs
+2026-04-20 11:08:17,907 | INFO | Generating examples for p00079 | role=assistant | domain=software development | arity=1
+2026-04-20 11:08:30,628 | INFO | Accepted 10 examples for p00079 | total_candidates=751
+2026-04-20 11:08:30,631 | INFO | Generating examples for p00080 | role=user | domain=law | arity=2
+2026-04-20 11:08:39,151 | INFO | Accepted 10 examples for p00080 | total_candidates=761
+2026-04-20 11:08:39,153 | INFO | Generating examples for p00081 | role=assistant | domain=technology | arity=2
+2026-04-20 11:08:52,427 | INFO | Accepted 9 examples for p00081 | total_candidates=770
+2026-04-20 11:08:52,428 | INFO | Batch attempt 31/5200 | current_candidates=770
+2026-04-20 11:09:00,255 | INFO | Received 3 predicate specs
+2026-04-20 11:09:00,256 | INFO | Generating examples for p00082 | role=assistant | domain=information security | arity=1
+2026-04-20 11:09:13,487 | INFO | Accepted 10 examples for p00082 | total_candidates=780
+2026-04-20 11:09:13,488 | INFO | Generating examples for p00083 | role=user | domain=real estate | arity=2
+2026-04-20 11:09:26,834 | INFO | Accepted 10 examples for p00083 | total_candidates=790
+2026-04-20 11:09:26,834 | INFO | Generating examples for p00084 | role=user | domain=energy and utilities | arity=1
+2026-04-20 11:09:41,634 | INFO | Accepted 10 examples for p00084 | total_candidates=800
+2026-04-20 11:09:41,635 | INFO | Batch attempt 32/5200 | current_candidates=800
+2026-04-20 11:09:49,721 | INFO | Received 3 predicate specs
+2026-04-20 11:09:49,722 | INFO | Generating examples for p00086 | role=user | domain=energy and utilities | arity=1
+2026-04-20 11:10:01,107 | INFO | Accepted 10 examples for p00086 | total_candidates=810
+2026-04-20 11:10:01,107 | INFO | Generating examples for p00085 | role=assistant | domain=information security | arity=2
+2026-04-20 11:10:13,273 | INFO | Accepted 10 examples for p00085 | total_candidates=820
+2026-04-20 11:10:13,274 | INFO | Generating examples for p00087 | role=assistant | domain=academia | arity=2
+2026-04-20 11:10:28,060 | INFO | Accepted 10 examples for p00087 | total_candidates=830
+2026-04-20 11:10:28,061 | INFO | Batch attempt 33/5200 | current_candidates=830
+2026-04-20 11:10:36,005 | INFO | Received 3 predicate specs
+2026-04-20 11:10:36,006 | INFO | Generating examples for p00090 | role=assistant | domain=information security | arity=1
+2026-04-20 11:10:48,928 | INFO | Accepted 10 examples for p00090 | total_candidates=840
+2026-04-20 11:10:48,929 | INFO | Generating examples for p00089 | role=user | domain=energy and utilities | arity=1
+2026-04-20 11:10:58,091 | INFO | Accepted 10 examples for p00089 | total_candidates=850
+2026-04-20 11:10:58,091 | INFO | Generating examples for p00088 | role=assistant | domain=technology | arity=2
+2026-04-20 11:11:10,739 | INFO | Accepted 9 examples for p00088 | total_candidates=859
+2026-04-20 11:11:10,740 | INFO | Batch attempt 34/5200 | current_candidates=859
+2026-04-20 11:11:18,818 | WARNING | No valid predicate spec returned for sampled domain=media
+2026-04-20 11:11:18,820 | INFO | Received 2 predicate specs
+2026-04-20 11:11:18,820 | INFO | Generating examples for p00091 | role=user | domain=insurance | arity=1
+2026-04-20 11:11:27,224 | INFO | Accepted 10 examples for p00091 | total_candidates=869
+2026-04-20 11:11:27,224 | INFO | Generating examples for p00092 | role=assistant | domain=telecommunications | arity=1
+2026-04-20 11:11:33,962 | INFO | Accepted 10 examples for p00092 | total_candidates=879
+2026-04-20 11:11:33,962 | INFO | Batch attempt 35/5200 | current_candidates=879
+2026-04-20 11:11:42,364 | WARNING | No valid predicate spec returned for sampled domain=media
+2026-04-20 11:11:42,366 | INFO | Received 2 predicate specs
+2026-04-20 11:11:42,366 | INFO | Generating examples for p00094 | role=user | domain=ecommerce | arity=2
+2026-04-20 11:11:55,142 | INFO | Accepted 10 examples for p00094 | total_candidates=889
+2026-04-20 11:11:55,142 | INFO | Generating examples for p00093 | role=user | domain=ecommerce | arity=1
+2026-04-20 11:12:04,790 | INFO | Accepted 10 examples for p00093 | total_candidates=899
+2026-04-20 11:12:04,792 | INFO | Batch attempt 36/5200 | current_candidates=899
+2026-04-20 11:12:14,376 | INFO | Received 3 predicate specs
+2026-04-20 11:12:14,377 | INFO | Generating examples for p00097 | role=assistant | domain=insurance | arity=2
+2026-04-20 11:12:23,312 | INFO | Accepted 10 examples for p00097 | total_candidates=909
+2026-04-20 11:12:23,313 | INFO | Generating examples for p00095 | role=user | domain=software development | arity=1
+2026-04-20 11:12:37,481 | INFO | Accepted 10 examples for p00095 | total_candidates=919
+2026-04-20 11:12:37,481 | INFO | Generating examples for p00096 | role=user | domain=energy and utilities | arity=1
+2026-04-20 11:12:48,127 | INFO | Accepted 10 examples for p00096 | total_candidates=929
+2026-04-20 11:12:48,127 | INFO | Batch attempt 37/5200 | current_candidates=929
+2026-04-20 11:12:56,230 | INFO | Received 3 predicate specs
+2026-04-20 11:12:56,230 | INFO | Generating examples for p00100 | role=user | domain=insurance | arity=1
+2026-04-20 11:13:04,193 | INFO | Accepted 10 examples for p00100 | total_candidates=939
+2026-04-20 11:13:04,194 | INFO | Generating examples for p00098 | role=assistant | domain=insurance | arity=1
+2026-04-20 11:13:14,311 | INFO | Accepted 10 examples for p00098 | total_candidates=949
+2026-04-20 11:13:14,311 | INFO | Generating examples for p00099 | role=assistant | domain=finance | arity=2
+2026-04-20 11:13:20,508 | INFO | Accepted 6 examples for p00099 | total_candidates=955
+2026-04-20 11:13:20,508 | INFO | Batch attempt 38/5200 | current_candidates=955
+2026-04-20 11:13:28,015 | INFO | Received 3 predicate specs
+2026-04-20 11:13:28,015 | INFO | Generating examples for p00103 | role=user | domain=ecommerce | arity=1
+2026-04-20 11:13:39,641 | INFO | Accepted 10 examples for p00103 | total_candidates=965
+2026-04-20 11:13:39,642 | INFO | Generating examples for p00102 | role=assistant | domain=information security | arity=1
+2026-04-20 11:13:52,032 | INFO | Accepted 10 examples for p00102 | total_candidates=975
+2026-04-20 11:13:52,033 | INFO | Generating examples for p00101 | role=assistant | domain=software development | arity=1
+2026-04-20 11:14:03,369 | INFO | Accepted 10 examples for p00101 | total_candidates=985
+2026-04-20 11:14:03,369 | INFO | Batch attempt 39/5200 | current_candidates=985
+2026-04-20 11:14:10,924 | INFO | Received 3 predicate specs
+2026-04-20 11:14:10,925 | INFO | Generating examples for p00106 | role=assistant | domain=information security | arity=2
+2026-04-20 11:14:23,081 | INFO | Accepted 10 examples for p00106 | total_candidates=995
+2026-04-20 11:14:23,083 | INFO | Generating examples for p00104 | role=assistant | domain=sports | arity=2
+2026-04-20 11:14:32,716 | INFO | Accepted 10 examples for p00104 | total_candidates=1005
+2026-04-20 11:14:32,717 | INFO | Generating examples for p00105 | role=assistant | domain=telecommunications | arity=1
+2026-04-20 11:14:41,279 | INFO | Accepted 10 examples for p00105 | total_candidates=1015
+2026-04-20 11:14:41,281 | INFO | Batch attempt 40/5200 | current_candidates=1015
+2026-04-20 11:14:51,690 | INFO | Received 3 predicate specs
+2026-04-20 11:14:51,691 | INFO | Generating examples for p00107 | role=user | domain=media | arity=1
+2026-04-20 11:15:02,366 | INFO | Accepted 10 examples for p00107 | total_candidates=1025
+2026-04-20 11:15:02,366 | INFO | Generating examples for p00108 | role=user | domain=ecommerce | arity=1
+2026-04-20 11:15:13,023 | INFO | Accepted 10 examples for p00108 | total_candidates=1035
+2026-04-20 11:15:13,023 | INFO | Generating examples for p00109 | role=assistant | domain=law | arity=2
+2026-04-20 11:15:26,812 | INFO | Accepted 10 examples for p00109 | total_candidates=1045
+2026-04-20 11:15:26,813 | INFO | Batch attempt 41/5200 | current_candidates=1045
+2026-04-20 11:15:34,665 | INFO | Received 3 predicate specs
+2026-04-20 11:15:34,666 | INFO | Generating examples for p00111 | role=assistant | domain=finance | arity=2
+2026-04-20 11:15:43,743 | INFO | Accepted 9 examples for p00111 | total_candidates=1054
+2026-04-20 11:15:43,744 | INFO | Generating examples for p00110 | role=assistant | domain=finance | arity=2
+2026-04-20 11:15:49,663 | INFO | Accepted 7 examples for p00110 | total_candidates=1061
+2026-04-20 11:15:49,664 | INFO | Generating examples for p00112 | role=user | domain=transportation | arity=2
+2026-04-20 11:16:00,544 | INFO | Accepted 10 examples for p00112 | total_candidates=1071
+2026-04-20 11:16:00,544 | INFO | Batch attempt 42/5200 | current_candidates=1071
+2026-04-20 11:16:08,436 | INFO | Received 3 predicate specs
+2026-04-20 11:16:08,437 | INFO | Generating examples for p00115 | role=assistant | domain=medicine | arity=2
+2026-04-20 11:16:17,389 | INFO | Accepted 10 examples for p00115 | total_candidates=1081
+2026-04-20 11:16:17,390 | INFO | Generating examples for p00113 | role=assistant | domain=telecommunications | arity=2
+2026-04-20 11:16:29,157 | INFO | Accepted 10 examples for p00113 | total_candidates=1091
+2026-04-20 11:16:29,157 | INFO | Generating examples for p00114 | role=assistant | domain=software development | arity=2
+2026-04-20 11:16:41,368 | INFO | Accepted 10 examples for p00114 | total_candidates=1101
+2026-04-20 11:16:41,368 | INFO | Batch attempt 43/5200 | current_candidates=1101
+2026-04-20 11:16:48,718 | INFO | Received 3 predicate specs
+2026-04-20 11:16:48,719 | INFO | Generating examples for p00117 | role=user | domain=real estate | arity=1
+2026-04-20 11:16:57,934 | INFO | Accepted 10 examples for p00117 | total_candidates=1111
+2026-04-20 11:16:57,935 | INFO | Generating examples for p00118 | role=user | domain=transportation | arity=1
+2026-04-20 11:17:06,829 | INFO | Accepted 10 examples for p00118 | total_candidates=1121
+2026-04-20 11:17:06,829 | INFO | Generating examples for p00116 | role=assistant | domain=medicine | arity=2
+2026-04-20 11:17:15,846 | INFO | Accepted 10 examples for p00116 | total_candidates=1131
+2026-04-20 11:17:15,846 | INFO | Batch attempt 44/5200 | current_candidates=1131
+2026-04-20 11:17:25,088 | INFO | Received 3 predicate specs
+2026-04-20 11:17:25,088 | INFO | Generating examples for p00119 | role=user | domain=energy and utilities | arity=1
+2026-04-20 11:17:32,646 | INFO | Accepted 10 examples for p00119 | total_candidates=1141
+2026-04-20 11:17:32,647 | INFO | Generating examples for p00121 | role=assistant | domain=energy and utilities | arity=2
+2026-04-20 11:17:45,428 | INFO | Accepted 10 examples for p00121 | total_candidates=1151
+2026-04-20 11:17:45,428 | INFO | Generating examples for p00120 | role=user | domain=law | arity=1
+2026-04-20 11:17:53,332 | INFO | Accepted 10 examples for p00120 | total_candidates=1161
+2026-04-20 11:17:53,334 | INFO | Batch attempt 45/5200 | current_candidates=1161
+2026-04-20 11:18:01,516 | INFO | Received 3 predicate specs
+2026-04-20 11:18:01,517 | INFO | Generating examples for p00122 | role=user | domain=telecommunications | arity=2
+2026-04-20 11:18:10,958 | INFO | Accepted 10 examples for p00122 | total_candidates=1171
+2026-04-20 11:18:10,958 | INFO | Generating examples for p00123 | role=assistant | domain=telecommunications | arity=1
+2026-04-20 11:18:18,866 | INFO | Accepted 10 examples for p00123 | total_candidates=1181
+2026-04-20 11:18:18,867 | INFO | Generating examples for p00124 | role=assistant | domain=medicine | arity=2
+2026-04-20 11:18:30,833 | INFO | Accepted 9 examples for p00124 | total_candidates=1190
+2026-04-20 11:18:30,834 | INFO | Batch attempt 46/5200 | current_candidates=1190
+2026-04-20 11:18:37,642 | INFO | Received 3 predicate specs
+2026-04-20 11:18:37,642 | INFO | Generating examples for p00125 | role=assistant | domain=sports | arity=2
+2026-04-20 11:18:46,821 | INFO | Accepted 9 examples for p00125 | total_candidates=1199
+2026-04-20 11:18:46,822 | INFO | Generating examples for p00127 | role=user | domain=ecommerce | arity=1
+2026-04-20 11:18:58,130 | INFO | Accepted 10 examples for p00127 | total_candidates=1209
+2026-04-20 11:18:58,131 | INFO | Generating examples for p00126 | role=assistant | domain=software development | arity=1
+2026-04-20 11:19:06,059 | INFO | Accepted 10 examples for p00126 | total_candidates=1219
+2026-04-20 11:19:06,060 | INFO | Batch attempt 47/5200 | current_candidates=1219
+2026-04-20 11:19:14,389 | INFO | Received 3 predicate specs
+2026-04-20 11:19:14,390 | INFO | Generating examples for p00130 | role=user | domain=insurance | arity=1
+2026-04-20 11:19:23,225 | INFO | Accepted 10 examples for p00130 | total_candidates=1229
+2026-04-20 11:19:23,226 | INFO | Generating examples for p00128 | role=assistant | domain=finance | arity=2
+2026-04-20 11:19:33,164 | INFO | Accepted 7 examples for p00128 | total_candidates=1236
+2026-04-20 11:19:33,165 | INFO | Generating examples for p00129 | role=user | domain=ecommerce | arity=1
+2026-04-20 11:19:40,610 | INFO | Accepted 10 examples for p00129 | total_candidates=1246
+2026-04-20 11:19:40,610 | INFO | Batch attempt 48/5200 | current_candidates=1246
+2026-04-20 11:19:49,351 | INFO | Received 3 predicate specs
+2026-04-20 11:19:49,351 | INFO | Generating examples for p00133 | role=assistant | domain=software development | arity=1
+2026-04-20 11:19:58,097 | INFO | Accepted 10 examples for p00133 | total_candidates=1256
+2026-04-20 11:19:58,099 | INFO | Generating examples for p00132 | role=assistant | domain=sports | arity=2
+2026-04-20 11:20:08,378 | INFO | Accepted 10 examples for p00132 | total_candidates=1266
+2026-04-20 11:20:08,379 | INFO | Generating examples for p00131 | role=assistant | domain=law | arity=2
+2026-04-20 11:20:17,795 | INFO | Accepted 10 examples for p00131 | total_candidates=1276
+2026-04-20 11:20:17,797 | INFO | Batch attempt 49/5200 | current_candidates=1276
+2026-04-20 11:20:25,382 | INFO | Received 3 predicate specs
+2026-04-20 11:20:25,383 | INFO | Generating examples for p00134 | role=user | domain=transportation | arity=2
+2026-04-20 11:20:34,917 | INFO | Accepted 10 examples for p00134 | total_candidates=1286
+2026-04-20 11:20:34,918 | INFO | Generating examples for p00135 | role=assistant | domain=software development | arity=2
+2026-04-20 11:20:48,235 | INFO | Accepted 10 examples for p00135 | total_candidates=1296
+2026-04-20 11:20:48,235 | INFO | Generating examples for p00136 | role=user | domain=software development | arity=2
+2026-04-20 11:21:00,796 | INFO | Accepted 10 examples for p00136 | total_candidates=1306
+2026-04-20 11:21:00,815 | INFO | Wrote 1300 rows to data\dataset.jsonl
+2026-04-20 11:21:00,815 | INFO | Coverage: {"has_user": true, "has_assistant": true, "has_true": true, "has_false": true, "has_unary": true, "has_binary": true}
+2026-04-20 11:28:10,828 | INFO | Starting validate-only mode
+2026-04-20 11:28:10,828 | INFO | Input=data\test.set.jsonl | Output=data\test.set.validated.jsonl | ValidatorModel=anthropic/claude-sonnet-4.6 | BatchSize=10
+2026-04-20 11:28:13,780 | INFO | Validator batch 1/127 | checked=10 | wrong_found=2 | hard_to_determine=1 | flagged_total=3
+2026-04-20 11:28:21,268 | INFO | Validator batch 2/127 | checked=10 | wrong_found=0 | hard_to_determine=2 | flagged_total=2
+2026-04-20 11:28:26,249 | INFO | Validator batch 3/127 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:28:28,837 | INFO | Validator batch 4/127 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:28:31,058 | INFO | Validator batch 5/127 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:28:43,146 | INFO | Validator batch 6/127 | checked=10 | wrong_found=1 | hard_to_determine=1 | flagged_total=2
+2026-04-20 11:28:52,572 | INFO | Validator batch 7/127 | checked=10 | wrong_found=1 | hard_to_determine=1 | flagged_total=1
+2026-04-20 11:28:55,771 | INFO | Validator batch 8/127 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-20 11:29:00,102 | INFO | Validator batch 9/127 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-20 11:29:02,600 | INFO | Validator batch 10/127 | checked=10 | wrong_found=1 | hard_to_determine=0 | flagged_total=1
+2026-04-20 11:29:04,885 | INFO | Validator batch 11/127 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:29:08,612 | INFO | Validator batch 12/127 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:29:11,405 | INFO | Validator batch 13/127 | checked=10 | wrong_found=1 | hard_to_determine=0 | flagged_total=1
+2026-04-20 11:29:14,794 | INFO | Validator batch 14/127 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:29:16,888 | INFO | Validator batch 15/127 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:29:20,525 | INFO | Validator batch 16/127 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:29:22,639 | INFO | Validator batch 17/127 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:29:26,040 | INFO | Validator batch 18/127 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:29:28,675 | INFO | Validator batch 19/127 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-20 11:29:38,057 | INFO | Validator batch 20/127 | checked=10 | wrong_found=1 | hard_to_determine=0 | flagged_total=1
+2026-04-20 11:29:46,830 | INFO | Validator batch 21/127 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-20 11:29:50,044 | INFO | Validator batch 22/127 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:29:52,376 | INFO | Validator batch 23/127 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:29:55,195 | INFO | Validator batch 24/127 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:29:58,077 | INFO | Validator batch 25/127 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:30:00,939 | INFO | Validator batch 26/127 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-20 11:30:05,659 | INFO | Validator batch 27/127 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:30:09,119 | INFO | Validator batch 28/127 | checked=10 | wrong_found=1 | hard_to_determine=4 | flagged_total=5
+2026-04-20 11:30:17,212 | INFO | Validator batch 29/127 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-20 11:30:19,836 | INFO | Validator batch 30/127 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-20 11:30:30,288 | INFO | Validator batch 31/127 | checked=10 | wrong_found=0 | hard_to_determine=2 | flagged_total=2
+2026-04-20 11:30:32,319 | INFO | Validator batch 32/127 | checked=10 | wrong_found=2 | hard_to_determine=0 | flagged_total=2
+2026-04-20 11:30:34,125 | INFO | Validator batch 33/127 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-20 11:30:41,932 | INFO | Validator batch 34/127 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:30:44,111 | INFO | Validator batch 35/127 | checked=10 | wrong_found=1 | hard_to_determine=0 | flagged_total=1
+2026-04-20 11:30:49,034 | INFO | Validator batch 36/127 | checked=10 | wrong_found=0 | hard_to_determine=2 | flagged_total=2
+2026-04-20 11:31:02,518 | INFO | Validator batch 37/127 | checked=10 | wrong_found=1 | hard_to_determine=0 | flagged_total=1
+2026-04-20 11:31:05,417 | INFO | Validator batch 38/127 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:31:09,105 | INFO | Validator batch 39/127 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:31:10,887 | INFO | Validator batch 40/127 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-20 11:31:13,256 | INFO | Validator batch 41/127 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:31:16,196 | INFO | Validator batch 42/127 | checked=10 | wrong_found=1 | hard_to_determine=0 | flagged_total=1
+2026-04-20 11:31:18,578 | INFO | Validator batch 43/127 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:31:21,356 | INFO | Validator batch 44/127 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:31:23,286 | INFO | Validator batch 45/127 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:31:35,537 | INFO | Validator batch 46/127 | checked=10 | wrong_found=1 | hard_to_determine=1 | flagged_total=2
+2026-04-20 11:31:37,314 | INFO | Validator batch 47/127 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:31:39,654 | INFO | Validator batch 48/127 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:31:41,622 | INFO | Validator batch 49/127 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:31:43,525 | INFO | Validator batch 50/127 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:32:38,831 | INFO | Validator batch 51/127 | checked=10 | wrong_found=1 | hard_to_determine=0 | flagged_total=1
+2026-04-20 11:32:41,057 | INFO | Validator batch 52/127 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:32:42,901 | INFO | Validator batch 53/127 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:32:44,950 | INFO | Validator batch 54/127 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-20 11:32:47,084 | INFO | Validator batch 55/127 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:32:53,519 | INFO | Validator batch 56/127 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-20 11:32:56,014 | INFO | Validator batch 57/127 | checked=10 | wrong_found=1 | hard_to_determine=0 | flagged_total=1
+2026-04-20 11:32:59,922 | INFO | Validator batch 58/127 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-20 11:33:02,199 | INFO | Validator batch 59/127 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:33:14,551 | INFO | Validator batch 60/127 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:33:16,511 | INFO | Validator batch 61/127 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:33:18,472 | INFO | Validator batch 62/127 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:33:31,920 | INFO | Validator batch 63/127 | checked=10 | wrong_found=1 | hard_to_determine=1 | flagged_total=2
+2026-04-20 11:33:36,035 | INFO | Validator batch 64/127 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:33:38,649 | INFO | Validator batch 65/127 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:33:41,575 | INFO | Validator batch 66/127 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-20 11:33:44,691 | INFO | Validator batch 67/127 | checked=10 | wrong_found=1 | hard_to_determine=1 | flagged_total=2
+2026-04-20 11:33:46,237 | INFO | Validator batch 68/127 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:33:48,999 | INFO | Validator batch 69/127 | checked=10 | wrong_found=1 | hard_to_determine=1 | flagged_total=2
+2026-04-20 11:33:55,492 | INFO | Validator batch 70/127 | checked=10 | wrong_found=2 | hard_to_determine=2 | flagged_total=4
+2026-04-20 11:34:03,950 | INFO | Validator batch 71/127 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:34:12,080 | INFO | Validator batch 72/127 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-20 11:34:16,596 | INFO | Validator batch 73/127 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:34:23,395 | INFO | Validator batch 74/127 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:34:31,683 | INFO | Validator batch 75/127 | checked=10 | wrong_found=1 | hard_to_determine=2 | flagged_total=3
+2026-04-20 11:34:33,379 | INFO | Validator batch 76/127 | checked=10 | wrong_found=1 | hard_to_determine=0 | flagged_total=1
+2026-04-20 11:34:35,395 | INFO | Validator batch 77/127 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:34:45,656 | INFO | Validator batch 78/127 | checked=10 | wrong_found=0 | hard_to_determine=2 | flagged_total=2
+2026-04-20 11:34:48,346 | INFO | Validator batch 79/127 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-20 11:34:58,402 | INFO | Validator batch 80/127 | checked=10 | wrong_found=1 | hard_to_determine=1 | flagged_total=2
+2026-04-20 11:35:02,778 | INFO | Validator batch 81/127 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-20 11:35:05,229 | INFO | Validator batch 82/127 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:35:06,790 | INFO | Validator batch 83/127 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:35:10,598 | INFO | Validator batch 84/127 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:35:12,812 | INFO | Validator batch 85/127 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:35:17,261 | INFO | Validator batch 86/127 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:35:26,259 | INFO | Validator batch 87/127 | checked=10 | wrong_found=0 | hard_to_determine=2 | flagged_total=2
+2026-04-20 11:35:28,082 | INFO | Validator batch 88/127 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:35:32,079 | INFO | Validator batch 89/127 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:35:34,651 | INFO | Validator batch 90/127 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:35:36,380 | INFO | Validator batch 91/127 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:35:38,967 | INFO | Validator batch 92/127 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-20 11:35:41,434 | INFO | Validator batch 93/127 | checked=10 | wrong_found=0 | hard_to_determine=2 | flagged_total=2
+2026-04-20 11:35:43,364 | INFO | Validator batch 94/127 | checked=10 | wrong_found=1 | hard_to_determine=0 | flagged_total=1
+2026-04-20 11:35:45,126 | INFO | Validator batch 95/127 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:35:58,816 | INFO | Validator batch 96/127 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-20 11:36:14,119 | INFO | Validator batch 97/127 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-20 11:36:16,061 | INFO | Validator batch 98/127 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:36:18,247 | INFO | Validator batch 99/127 | checked=10 | wrong_found=1 | hard_to_determine=1 | flagged_total=2
+2026-04-20 11:36:20,355 | INFO | Validator batch 100/127 | checked=10 | wrong_found=4 | hard_to_determine=0 | flagged_total=4
+2026-04-20 11:36:24,533 | INFO | Validator batch 101/127 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:36:28,236 | INFO | Validator batch 102/127 | checked=10 | wrong_found=1 | hard_to_determine=0 | flagged_total=1
+2026-04-20 11:36:31,258 | INFO | Validator batch 103/127 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:36:34,547 | INFO | Validator batch 104/127 | checked=10 | wrong_found=1 | hard_to_determine=0 | flagged_total=1
+2026-04-20 11:36:37,285 | INFO | Validator batch 105/127 | checked=10 | wrong_found=1 | hard_to_determine=0 | flagged_total=1
+2026-04-20 11:36:39,837 | INFO | Validator batch 106/127 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:36:42,079 | INFO | Validator batch 107/127 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-20 11:36:45,322 | INFO | Validator batch 108/127 | checked=10 | wrong_found=1 | hard_to_determine=1 | flagged_total=2
+2026-04-20 11:36:47,658 | INFO | Validator batch 109/127 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-20 11:38:06,145 | INFO | Validator batch 110/127 | checked=10 | wrong_found=0 | hard_to_determine=2 | flagged_total=2
+2026-04-20 11:38:09,042 | INFO | Validator batch 111/127 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-20 11:38:15,159 | INFO | Validator batch 112/127 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:38:22,457 | INFO | Validator batch 113/127 | checked=10 | wrong_found=2 | hard_to_determine=0 | flagged_total=2
+2026-04-20 11:38:25,702 | INFO | Validator batch 114/127 | checked=10 | wrong_found=0 | hard_to_determine=2 | flagged_total=2
+2026-04-20 11:38:32,822 | INFO | Validator batch 115/127 | checked=10 | wrong_found=1 | hard_to_determine=1 | flagged_total=2
+2026-04-20 11:38:34,851 | INFO | Validator batch 116/127 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:38:43,556 | INFO | Validator batch 117/127 | checked=10 | wrong_found=0 | hard_to_determine=3 | flagged_total=3
+2026-04-20 11:38:45,540 | INFO | Validator batch 118/127 | checked=10 | wrong_found=1 | hard_to_determine=0 | flagged_total=1
+2026-04-20 11:38:48,437 | INFO | Validator batch 119/127 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:38:51,406 | INFO | Validator batch 120/127 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:38:53,788 | INFO | Validator batch 121/127 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-20 11:38:56,135 | INFO | Validator batch 122/127 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-20 11:38:58,951 | INFO | Validator batch 123/127 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-20 11:39:03,854 | INFO | Validator batch 124/127 | checked=10 | wrong_found=2 | hard_to_determine=0 | flagged_total=2
+2026-04-20 11:39:07,003 | INFO | Validator batch 125/127 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:39:14,411 | INFO | Validator batch 126/127 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-20 11:39:21,258 | INFO | Validator batch 127/127 | checked=9 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:39:21,277 | INFO | Validator removed 103 rows
+2026-04-20 11:39:21,278 | INFO | Wrote 1166 rows to data\test.set.validated.jsonl
+2026-04-20 11:41:19,616 | INFO | Starting validate-only mode
+2026-04-20 11:41:19,617 | INFO | Input=data\test.set.validated.jsonl | Output=data\test.set.validated2.jsonl | ValidatorModel=anthropic/claude-sonnet-4.6 | BatchSize=10
+2026-04-20 11:41:22,161 | INFO | Validator batch 1/117 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-20 11:41:24,369 | INFO | Validator batch 2/117 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-20 11:41:26,626 | INFO | Validator batch 3/117 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:41:38,488 | INFO | Validator batch 4/117 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-20 11:41:42,973 | INFO | Validator batch 5/117 | checked=10 | wrong_found=0 | hard_to_determine=2 | flagged_total=2
+2026-04-20 11:41:46,353 | INFO | Validator batch 6/117 | checked=10 | wrong_found=1 | hard_to_determine=0 | flagged_total=1
+2026-04-20 11:41:49,245 | INFO | Validator batch 7/117 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:41:51,582 | INFO | Validator batch 8/117 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:42:04,433 | INFO | Validator batch 9/117 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:42:07,212 | INFO | Validator batch 10/117 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:42:09,461 | INFO | Validator batch 11/117 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:42:12,735 | INFO | Validator batch 12/117 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:42:16,730 | INFO | Validator batch 13/117 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:42:19,297 | INFO | Validator batch 14/117 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:42:21,457 | INFO | Validator batch 15/117 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:42:37,151 | INFO | Validator batch 16/117 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:42:39,424 | INFO | Validator batch 17/117 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:42:42,791 | INFO | Validator batch 18/117 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:42:44,932 | INFO | Validator batch 19/117 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-20 11:42:47,271 | INFO | Validator batch 20/117 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:42:49,960 | INFO | Validator batch 21/117 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:42:51,790 | INFO | Validator batch 22/117 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:42:53,508 | INFO | Validator batch 23/117 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-20 11:42:56,999 | INFO | Validator batch 24/117 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:43:04,011 | INFO | Validator batch 25/117 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:43:06,941 | INFO | Validator batch 26/117 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:43:13,982 | INFO | Validator batch 27/117 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-20 11:43:16,130 | INFO | Validator batch 28/117 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-20 11:43:18,762 | INFO | Validator batch 29/117 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-20 11:43:20,682 | INFO | Validator batch 30/117 | checked=10 | wrong_found=0 | hard_to_determine=2 | flagged_total=2
+2026-04-20 11:43:22,723 | INFO | Validator batch 31/117 | checked=10 | wrong_found=1 | hard_to_determine=1 | flagged_total=2
+2026-04-20 11:43:24,797 | INFO | Validator batch 32/117 | checked=10 | wrong_found=1 | hard_to_determine=1 | flagged_total=2
+2026-04-20 11:43:31,806 | INFO | Validator batch 33/117 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-20 11:43:33,374 | INFO | Validator batch 34/117 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:43:35,348 | INFO | Validator batch 35/117 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:43:37,594 | INFO | Validator batch 36/117 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:43:39,676 | INFO | Validator batch 37/117 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:43:42,778 | INFO | Validator batch 38/117 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:43:49,949 | INFO | Validator batch 39/117 | checked=10 | wrong_found=1 | hard_to_determine=0 | flagged_total=1
+2026-04-20 11:43:52,381 | INFO | Validator batch 40/117 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:43:55,397 | INFO | Validator batch 41/117 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:43:58,943 | INFO | Validator batch 42/117 | checked=10 | wrong_found=1 | hard_to_determine=0 | flagged_total=1
+2026-04-20 11:44:08,305 | INFO | Validator batch 43/117 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-20 11:44:12,368 | INFO | Validator batch 44/117 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:44:14,643 | INFO | Validator batch 45/117 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:44:16,683 | INFO | Validator batch 46/117 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:44:18,857 | INFO | Validator batch 47/117 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-20 11:44:20,789 | INFO | Validator batch 48/117 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:44:22,549 | INFO | Validator batch 49/117 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:44:25,856 | INFO | Validator batch 50/117 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:44:27,964 | INFO | Validator batch 51/117 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:44:30,966 | INFO | Validator batch 52/117 | checked=10 | wrong_found=1 | hard_to_determine=1 | flagged_total=2
+2026-04-20 11:44:39,140 | INFO | Validator batch 53/117 | checked=10 | wrong_found=1 | hard_to_determine=0 | flagged_total=1
+2026-04-20 11:44:42,481 | INFO | Validator batch 54/117 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:44:45,597 | INFO | Validator batch 55/117 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:44:47,099 | INFO | Validator batch 56/117 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-20 11:44:49,006 | INFO | Validator batch 57/117 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:44:52,172 | INFO | Validator batch 58/117 | checked=10 | wrong_found=1 | hard_to_determine=0 | flagged_total=1
+2026-04-20 11:45:01,508 | INFO | Validator batch 59/117 | checked=10 | wrong_found=1 | hard_to_determine=0 | flagged_total=1
+2026-04-20 11:45:03,528 | INFO | Validator batch 60/117 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:45:05,826 | INFO | Validator batch 61/117 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:45:08,283 | INFO | Validator batch 62/117 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-20 11:45:10,634 | INFO | Validator batch 63/117 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-20 11:45:14,954 | INFO | Validator batch 64/117 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:45:18,461 | INFO | Validator batch 65/117 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-20 11:45:25,627 | INFO | Validator batch 66/117 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-20 11:45:29,042 | INFO | Validator batch 67/117 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:45:31,087 | INFO | Validator batch 68/117 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:45:33,059 | INFO | Validator batch 69/117 | checked=10 | wrong_found=1 | hard_to_determine=0 | flagged_total=1
+2026-04-20 11:45:35,222 | INFO | Validator batch 70/117 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:45:37,191 | INFO | Validator batch 71/117 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:45:45,001 | INFO | Validator batch 72/117 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-20 11:45:49,086 | INFO | Validator batch 73/117 | checked=10 | wrong_found=1 | hard_to_determine=1 | flagged_total=2
+2026-04-20 11:45:53,320 | INFO | Validator batch 74/117 | checked=10 | wrong_found=1 | hard_to_determine=1 | flagged_total=2
+2026-04-20 11:45:55,219 | INFO | Validator batch 75/117 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:46:00,076 | INFO | Validator batch 76/117 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:46:03,110 | INFO | Validator batch 77/117 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:46:05,738 | INFO | Validator batch 78/117 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:46:28,786 | INFO | Validator batch 79/117 | checked=10 | wrong_found=0 | hard_to_determine=2 | flagged_total=2
+2026-04-20 11:46:30,941 | INFO | Validator batch 80/117 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:46:32,776 | INFO | Validator batch 81/117 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:46:38,092 | INFO | Validator batch 82/117 | checked=10 | wrong_found=1 | hard_to_determine=0 | flagged_total=1
+2026-04-20 11:46:40,553 | INFO | Validator batch 83/117 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-20 11:46:48,833 | INFO | Validator batch 84/117 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-20 11:46:51,085 | INFO | Validator batch 85/117 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:46:53,424 | INFO | Validator batch 86/117 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:46:56,116 | INFO | Validator batch 87/117 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-20 11:46:59,025 | INFO | Validator batch 88/117 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:47:03,398 | INFO | Validator batch 89/117 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-20 11:47:05,862 | INFO | Validator batch 90/117 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:47:08,007 | INFO | Validator batch 91/117 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:47:10,260 | INFO | Validator batch 92/117 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:47:13,629 | INFO | Validator batch 93/117 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-20 11:47:15,552 | INFO | Validator batch 94/117 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:47:17,523 | INFO | Validator batch 95/117 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:47:20,489 | INFO | Validator batch 96/117 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-20 11:47:23,208 | INFO | Validator batch 97/117 | checked=10 | wrong_found=1 | hard_to_determine=0 | flagged_total=1
+2026-04-20 11:47:25,413 | INFO | Validator batch 98/117 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:47:27,699 | INFO | Validator batch 99/117 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:47:30,607 | INFO | Validator batch 100/117 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:47:32,859 | INFO | Validator batch 101/117 | checked=10 | wrong_found=0 | hard_to_determine=2 | flagged_total=2
+2026-04-20 11:47:34,839 | INFO | Validator batch 102/117 | checked=10 | wrong_found=2 | hard_to_determine=0 | flagged_total=2
+2026-04-20 11:47:36,914 | INFO | Validator batch 103/117 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:47:45,434 | INFO | Validator batch 104/117 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-20 11:47:47,271 | INFO | Validator batch 105/117 | checked=10 | wrong_found=1 | hard_to_determine=0 | flagged_total=1
+2026-04-20 11:47:54,003 | INFO | Validator batch 106/117 | checked=10 | wrong_found=2 | hard_to_determine=0 | flagged_total=2
+2026-04-20 11:47:58,751 | INFO | Validator batch 107/117 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-20 11:48:02,239 | INFO | Validator batch 108/117 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-20 11:48:05,383 | INFO | Validator batch 109/117 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:48:08,406 | INFO | Validator batch 110/117 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:48:10,640 | INFO | Validator batch 111/117 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:48:24,125 | INFO | Validator batch 112/117 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:48:26,127 | INFO | Validator batch 113/117 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:48:29,333 | INFO | Validator batch 114/117 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:48:32,033 | INFO | Validator batch 115/117 | checked=10 | wrong_found=0 | hard_to_determine=2 | flagged_total=2
+2026-04-20 11:48:33,844 | INFO | Validator batch 116/117 | checked=10 | wrong_found=1 | hard_to_determine=0 | flagged_total=1
+2026-04-20 11:48:43,274 | INFO | Validator batch 117/117 | checked=6 | wrong_found=1 | hard_to_determine=2 | flagged_total=2
+2026-04-20 11:48:43,295 | INFO | Validator removed 63 rows
+2026-04-20 11:48:43,295 | INFO | Wrote 1103 rows to data\test.set.validated2.jsonl
+2026-04-20 11:49:59,889 | INFO | Starting validate-only mode
+2026-04-20 11:49:59,890 | INFO | Input=data\test.set.validated2.jsonl | Output=data\test.set.validated3.jsonl | ValidatorModel=anthropic/claude-sonnet-4.6 | BatchSize=10
+2026-04-20 11:50:03,653 | INFO | Validator batch 1/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:50:06,269 | INFO | Validator batch 2/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:50:09,122 | INFO | Validator batch 3/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:50:12,079 | INFO | Validator batch 4/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:50:14,705 | INFO | Validator batch 5/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:50:18,249 | INFO | Validator batch 6/111 | checked=10 | wrong_found=0 | hard_to_determine=2 | flagged_total=2
+2026-04-20 11:50:20,865 | INFO | Validator batch 7/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:50:22,995 | INFO | Validator batch 8/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:50:25,021 | INFO | Validator batch 9/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:50:27,723 | INFO | Validator batch 10/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:50:30,018 | INFO | Validator batch 11/111 | checked=10 | wrong_found=1 | hard_to_determine=0 | flagged_total=1
+2026-04-20 11:50:36,054 | INFO | Validator batch 12/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:50:38,427 | INFO | Validator batch 13/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:50:41,204 | INFO | Validator batch 14/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:50:43,565 | INFO | Validator batch 15/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:50:45,527 | INFO | Validator batch 16/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:50:47,799 | INFO | Validator batch 17/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:50:50,357 | INFO | Validator batch 18/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:50:52,377 | INFO | Validator batch 19/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:50:55,349 | INFO | Validator batch 20/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:50:59,357 | INFO | Validator batch 21/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:51:16,794 | INFO | Validator batch 22/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:51:20,555 | INFO | Validator batch 23/111 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-20 11:51:22,496 | INFO | Validator batch 24/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:51:24,504 | INFO | Validator batch 25/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:51:26,403 | INFO | Validator batch 26/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:51:28,519 | INFO | Validator batch 27/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:51:30,915 | INFO | Validator batch 28/111 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-20 11:51:32,531 | INFO | Validator batch 29/111 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-20 11:51:34,371 | INFO | Validator batch 30/111 | checked=10 | wrong_found=1 | hard_to_determine=0 | flagged_total=1
+2026-04-20 11:51:36,637 | INFO | Validator batch 31/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:51:39,129 | INFO | Validator batch 32/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:51:41,353 | INFO | Validator batch 33/111 | checked=10 | wrong_found=1 | hard_to_determine=0 | flagged_total=1
+2026-04-20 11:51:43,321 | INFO | Validator batch 34/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:51:45,510 | INFO | Validator batch 35/111 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-20 11:51:49,854 | INFO | Validator batch 36/111 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-20 11:51:53,333 | INFO | Validator batch 37/111 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-20 11:51:55,212 | INFO | Validator batch 38/111 | checked=10 | wrong_found=1 | hard_to_determine=0 | flagged_total=1
+2026-04-20 11:51:58,925 | INFO | Validator batch 39/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:52:00,663 | INFO | Validator batch 40/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:52:03,025 | INFO | Validator batch 41/111 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-20 11:52:06,431 | INFO | Validator batch 42/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:52:08,949 | INFO | Validator batch 43/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:52:12,189 | INFO | Validator batch 44/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:52:14,437 | INFO | Validator batch 45/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:52:16,293 | INFO | Validator batch 46/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:52:18,538 | INFO | Validator batch 47/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:52:20,873 | INFO | Validator batch 48/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:52:23,035 | INFO | Validator batch 49/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:52:24,974 | INFO | Validator batch 50/111 | checked=10 | wrong_found=1 | hard_to_determine=0 | flagged_total=1
+2026-04-20 11:52:28,228 | INFO | Validator batch 51/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:52:31,242 | INFO | Validator batch 52/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:52:34,842 | INFO | Validator batch 53/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:52:36,925 | INFO | Validator batch 54/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:52:39,364 | INFO | Validator batch 55/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:52:41,810 | INFO | Validator batch 56/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:52:45,070 | INFO | Validator batch 57/111 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-20 11:52:47,024 | INFO | Validator batch 58/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:52:49,017 | INFO | Validator batch 59/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:52:50,609 | INFO | Validator batch 60/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:52:52,515 | INFO | Validator batch 61/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:52:54,986 | INFO | Validator batch 62/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:53:04,858 | INFO | Validator batch 63/111 | checked=10 | wrong_found=1 | hard_to_determine=0 | flagged_total=1
+2026-04-20 11:53:07,013 | INFO | Validator batch 64/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:53:09,783 | INFO | Validator batch 65/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:53:22,068 | INFO | Validator batch 66/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:53:25,807 | INFO | Validator batch 67/111 | checked=10 | wrong_found=1 | hard_to_determine=0 | flagged_total=1
+2026-04-20 11:53:27,980 | INFO | Validator batch 68/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:53:36,856 | INFO | Validator batch 69/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:53:40,560 | INFO | Validator batch 70/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:53:42,790 | INFO | Validator batch 71/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:53:46,269 | INFO | Validator batch 72/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:53:48,895 | INFO | Validator batch 73/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:53:51,773 | INFO | Validator batch 74/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:54:04,833 | INFO | Validator batch 75/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:54:07,065 | INFO | Validator batch 76/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:54:11,590 | INFO | Validator batch 77/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:54:14,989 | INFO | Validator batch 78/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:54:17,133 | INFO | Validator batch 79/111 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-20 11:54:23,086 | INFO | Validator batch 80/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:54:24,355 | INFO | Validator batch 81/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:54:27,368 | INFO | Validator batch 82/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:54:29,847 | INFO | Validator batch 83/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:54:32,496 | INFO | Validator batch 84/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:54:34,594 | INFO | Validator batch 85/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:54:36,533 | INFO | Validator batch 86/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:54:38,688 | INFO | Validator batch 87/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:54:40,870 | INFO | Validator batch 88/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:54:48,040 | INFO | Validator batch 89/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:54:50,531 | INFO | Validator batch 90/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:54:52,556 | INFO | Validator batch 91/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:54:55,331 | INFO | Validator batch 92/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:54:57,507 | INFO | Validator batch 93/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:55:00,480 | INFO | Validator batch 94/111 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-20 11:55:03,272 | INFO | Validator batch 95/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:55:05,774 | INFO | Validator batch 96/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:55:07,961 | INFO | Validator batch 97/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:55:10,082 | INFO | Validator batch 98/111 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-20 11:55:12,375 | INFO | Validator batch 99/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:55:14,604 | INFO | Validator batch 100/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:55:16,630 | INFO | Validator batch 101/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:55:19,629 | INFO | Validator batch 102/111 | checked=10 | wrong_found=0 | hard_to_determine=2 | flagged_total=2
+2026-04-20 11:55:21,666 | INFO | Validator batch 103/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:55:23,061 | INFO | Validator batch 104/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:55:24,929 | INFO | Validator batch 105/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:55:28,066 | INFO | Validator batch 106/111 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-20 11:55:29,725 | INFO | Validator batch 107/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:55:32,167 | INFO | Validator batch 108/111 | checked=10 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:55:34,198 | INFO | Validator batch 109/111 | checked=10 | wrong_found=1 | hard_to_determine=1 | flagged_total=2
+2026-04-20 11:55:36,669 | INFO | Validator batch 110/111 | checked=10 | wrong_found=0 | hard_to_determine=1 | flagged_total=1
+2026-04-20 11:55:39,711 | INFO | Validator batch 111/111 | checked=3 | wrong_found=0 | hard_to_determine=0 | flagged_total=0
+2026-04-20 11:55:39,756 | INFO | Validator removed 26 rows
+2026-04-20 11:55:39,756 | INFO | Wrote 1077 rows to data\test.set.validated3.jsonl
