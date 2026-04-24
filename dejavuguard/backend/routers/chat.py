@@ -96,6 +96,8 @@ async def _get_or_create_monitor(db: DatabaseStore, session_id: str) -> Conversa
             prop_id=r["prop_id"],
             description=r["description"],
             role=r["role"],
+            arity=r.get("arity", 0) or 0,
+            arg_descriptions=_parse_json_list_field(r.get("arg_descriptions")),
             few_shot_positive=_parse_json_list_field(r.get("few_shot_positive")),
             few_shot_negative=_parse_json_list_field(r.get("few_shot_negative")),
             few_shot_generated_at=r.get("few_shot_generated_at"),
@@ -227,6 +229,12 @@ async def _process_chat(db: DatabaseStore, body: ChatRequest) -> ChatResponse:
         return JSONResponse(
             status_code=502,
             content={"detail": f"OpenRouter error: {e}"},
+        )
+
+    if not response_text:
+        return JSONResponse(
+            status_code=502,
+            content={"detail": "Chat model returned empty response. Check your chat model selection in Settings."},
         )
 
     # 3. Check assistant response

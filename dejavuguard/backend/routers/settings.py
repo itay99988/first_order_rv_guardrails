@@ -55,8 +55,9 @@ async def _load_settings(db: DatabaseStore) -> AppSettings:
     )
     return AppSettings(
         openrouter_api_key=all_settings.get("openrouter_api_key", ""),
-        openrouter_model=all_settings.get("openrouter_model", "mistralai/mistral-7b-instruct"),
+        openrouter_model=all_settings.get("openrouter_model", ""),
         openrouter_model_custom=all_settings.get("openrouter_model_custom", ""),
+        few_shot_model=all_settings.get("few_shot_model", "chat"),
         grounding=grounding,
     )
 
@@ -66,6 +67,7 @@ async def _save_settings(db: DatabaseStore, settings: AppSettings) -> None:
     await db.set_setting("openrouter_api_key", settings.openrouter_api_key)
     await db.set_setting("openrouter_model", settings.openrouter_model)
     await db.set_setting("openrouter_model_custom", settings.openrouter_model_custom)
+    await db.set_setting("few_shot_model", settings.few_shot_model)
     await db.set_setting("grounding_provider", settings.grounding.provider)
     await db.set_setting("grounding_base_url", settings.grounding.base_url)
     await db.set_setting("grounding_model", settings.grounding.model)
@@ -140,20 +142,24 @@ async def grounding_models(
 
 @router.get("/settings/openrouter/models")
 async def openrouter_models(request: Request):
-    """List models available on OpenRouter."""
-    db = _get_db(request)
-    settings = await _load_settings(db)
-    if not settings.openrouter_api_key:
-        return JSONResponse(
-            status_code=400,
-            content={"detail": "OpenRouter API key not configured"},
-        )
-    client = OpenRouterClient(api_key=settings.openrouter_api_key)
+    """List text models available on OpenRouter.
+
+    The OpenRouter models API is public — no API key required for listing.
+    Filters to text-capable models only (excludes image/audio-only models).
+    """
+    # Use empty key — the /models endpoint is public
+    client = OpenRouterClient(api_key="")
     try:
-        models = await client.list_models()
-        return {"models": models}
+        all_models = await client.list_models()
+        # Filter to text-capable models only
+        text_models = [
+            m for m in all_models
+            if "text" in (m.get("architecture", {}).get("input_modalities") or [])
+            and "text" in (m.get("architecture", {}).get("output_modalities") or [])
+        ]
+        return {"models": text_models}
     except OpenRouterError as e:
         return JSONResponse(
-            status_code=e.status_code,
+            status_code=e.status_code or 502,
             content={"detail": str(e)},
         )

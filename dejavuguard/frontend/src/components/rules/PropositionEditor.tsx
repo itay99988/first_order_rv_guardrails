@@ -10,6 +10,7 @@ interface PropositionEditorProps {
     description: string;
     role: string;
     arity: number;
+    arg_descriptions: string[];
   }) => Promise<void> | void;
   onCancel: () => void;
 }
@@ -25,14 +26,36 @@ export default function PropositionEditor({
     initial?.role ?? "user",
   );
   const [arity, setArity] = useState(initial?.arity ?? 0);
+  const [argDescriptions, setArgDescriptions] = useState<string[]>(
+    initial?.arg_descriptions ?? [],
+  );
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
   const isEdit = !!initial;
   const isValid = propId.trim().length > 0 && description.trim().length > 0;
 
+  // Keep argDescriptions in sync with arity
+  const updateArity = (newArity: number) => {
+    setArity(newArity);
+    setArgDescriptions((prev) => {
+      if (newArity <= 0) return [];
+      const next = [...prev];
+      while (next.length < newArity) next.push("");
+      return next.slice(0, newArity);
+    });
+  };
+
+  const updateArgDescription = (index: number, value: string) => {
+    setArgDescriptions((prev) => {
+      const next = [...prev];
+      next[index] = value;
+      return next;
+    });
+  };
+
   const arityPreview = arity > 0
-    ? `${propId}(${Array.from({ length: arity }, (_, i) => `a${i + 1}`).join(", ")})`
+    ? `${propId}(${Array.from({ length: arity }, (_, i) => argDescriptions[i] || `a${i + 1}`).join(", ")})`
     : propId;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -46,6 +69,7 @@ export default function PropositionEditor({
         description: description.trim(),
         role,
         arity,
+        arg_descriptions: argDescriptions.map((d) => d.trim()),
       });
     } catch (err) {
       setSaveError(
@@ -124,7 +148,7 @@ export default function PropositionEditor({
             <div className="flex items-center">
               <button
                 type="button"
-                onClick={() => setArity(Math.max(0, arity - 1))}
+                onClick={() => updateArity(Math.max(0, arity - 1))}
                 disabled={isEdit || arity <= 0}
                 className="border border-border border-r-0 bg-dark-primary px-2.5 py-2 text-sm text-terminal-text hover:bg-dark-hover hover:text-accent disabled:opacity-30 disabled:hover:bg-dark-primary disabled:hover:text-terminal-text transition-colors"
                 data-testid="prop-arity-decrement"
@@ -139,7 +163,7 @@ export default function PropositionEditor({
                 value={arity}
                 onChange={(e) => {
                   const v = parseInt(e.target.value);
-                  if (!isNaN(v)) setArity(Math.max(0, Math.min(10, v)));
+                  if (!isNaN(v)) updateArity(Math.max(0, Math.min(10, v)));
                 }}
                 disabled={isEdit}
                 className="w-12 border border-border bg-dark-primary py-2 text-center font-mono text-sm text-terminal-bright focus:border-accent/50 focus:outline-none disabled:opacity-50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
@@ -147,7 +171,7 @@ export default function PropositionEditor({
               />
               <button
                 type="button"
-                onClick={() => setArity(Math.min(10, arity + 1))}
+                onClick={() => updateArity(Math.min(10, arity + 1))}
                 disabled={isEdit || arity >= 10}
                 className="border border-border border-l-0 bg-dark-primary px-2.5 py-2 text-sm text-terminal-text hover:bg-dark-hover hover:text-accent disabled:opacity-30 disabled:hover:bg-dark-primary disabled:hover:text-terminal-text transition-colors"
                 data-testid="prop-arity-increment"
@@ -163,6 +187,34 @@ export default function PropositionEditor({
             Preview: <code>{arityPreview}</code>
           </p>
         </div>
+
+        {arity > 0 && (
+          <div data-testid="arg-descriptions-section">
+            <label className="mb-2 block text-terminal-text font-mono text-sm">
+              Argument Descriptions
+            </label>
+            <p className="mb-2 text-xs text-terminal-dim">
+              Describe what each argument represents (used for data extraction during grounding).
+            </p>
+            <div className="space-y-2">
+              {Array.from({ length: arity }, (_, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <span className="w-16 shrink-0 font-mono text-xs text-terminal-dim">
+                    Arg {i + 1}:
+                  </span>
+                  <input
+                    type="text"
+                    value={argDescriptions[i] ?? ""}
+                    onChange={(e) => updateArgDescription(i, e.target.value)}
+                    placeholder={`e.g., ${i === 0 ? "account number" : i === 1 ? "destination" : "amount"}`}
+                    className="w-full rounded-none border border-border bg-dark-primary px-3 py-1.5 text-sm text-terminal-bright placeholder-terminal-dim focus:border-accent/50 focus:outline-none focus:ring-1 focus:ring-accent/20"
+                    data-testid={`arg-desc-input-${i}`}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div>
           <label

@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+*.egg
+.pytest_cache/
+.coverage
+htmlcov/
+dist/
+build/
+
+# Virtual environments
+venv/
+.venv/
+
+# Node / Frontend
+node_modules/
+dist/
+.vite/
+
+# Environment and secrets
+.env
+.env.local
+*.db
+*.sqlite
+
+# Session and user data
+sessions/
+SESSION_LOG.md
+
+# IDE
+.vscode/
+.idea/
+.DS_Store
+
+# Git worktrees
+.worktrees/
+
+# OS
+Thumbs.db
+
+# Playwright
+test-results/
+playwright-report/

@@ -65,6 +65,10 @@ class DatabaseStore:
             await self._db.execute(
                 "ALTER TABLE propositions ADD COLUMN arity INTEGER DEFAULT 0"
             )
+        if "arg_descriptions" not in columns:
+            await self._db.execute(
+                "ALTER TABLE propositions ADD COLUMN arg_descriptions TEXT"
+            )
 
     # Internal helpers
 
@@ -114,6 +118,7 @@ class DatabaseStore:
         description: str,
         role: str,
         arity: int = 0,
+        arg_descriptions: list[str] | None = None,
         few_shot_positive: list[str] | None = None,
         few_shot_negative: list[str] | None = None,
         few_shot_generated_at: str | None = None,
@@ -125,15 +130,20 @@ class DatabaseStore:
         few_shot_negative_json = (
             json.dumps(few_shot_negative) if few_shot_negative is not None else None
         )
+        arg_descriptions_json = (
+            json.dumps(arg_descriptions) if arg_descriptions is not None else None
+        )
         await self._db.execute(
             "INSERT INTO propositions ("
-            "prop_id, description, role, arity, few_shot_positive, few_shot_negative, few_shot_generated_at"
-            ") VALUES (?, ?, ?, ?, ?, ?, ?)",
+            "prop_id, description, role, arity, arg_descriptions, "
+            "few_shot_positive, few_shot_negative, few_shot_generated_at"
+            ") VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 prop_id,
                 description,
                 role,
                 arity,
+                arg_descriptions_json,
                 few_shot_positive_json,
                 few_shot_negative_json,
                 few_shot_generated_at,
@@ -154,6 +164,7 @@ class DatabaseStore:
         prop_id: str,
         description: str | None = None,
         role: str | None = None,
+        arg_descriptions: list[str] | None = None,
         few_shot_positive: list[str] | None = None,
         few_shot_negative: list[str] | None = None,
         few_shot_generated_at: str | None = None,
@@ -167,6 +178,9 @@ class DatabaseStore:
         if role is not None:
             updates.append("role = ?")
             params.append(role)
+        if arg_descriptions is not None:
+            updates.append("arg_descriptions = ?")
+            params.append(json.dumps(arg_descriptions))
         if few_shot_positive is not None:
             updates.append("few_shot_positive = ?")
             params.append(json.dumps(few_shot_positive))

@@ -12,7 +12,7 @@ from __future__ import annotations
 import json
 import re
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from backend.engine.trace import MessageEvent
 from backend.models.policy import Proposition
@@ -35,22 +35,30 @@ DEFAULT_USER_PROMPT_TEMPLATE_ASSISTANT = DEFAULT_GROUNDING_USER_PROMPT_TEMPLATE_
 
 @dataclass
 class GroundingResult:
-    """Result of evaluating a message against a predicate."""
+    """Result of evaluating a message against a predicate.
+
+    The ``match`` field maps to ``found`` in the LLM response format.
+    ``object_mentions`` carries verbatim extracted argument mentions
+    when the predicate has arity > 0.
+    """
 
     match: bool
     confidence: float
     reasoning: str
     method: str  # "llm" | "cosine" | "nli" | "hybrid"
     prop_id: str = ""
+    object_mentions: list[dict] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         """Convert to a serializable dictionary."""
         return {
             "match": self.match,
+            "found": self.match,
             "confidence": self.confidence,
             "reasoning": self.reasoning,
             "method": self.method,
             "prop_id": self.prop_id,
+            "object_mentions": self.object_mentions,
         }
 
 
@@ -95,11 +103,12 @@ def _extract_json(text: str) -> dict | None:
     except json.JSONDecodeError:
         pass
 
-    # Try to find a JSON object in the text
-    match = re.search(r"\{[^{}]*\}", text)
-    if match:
+    # Try to find a JSON object in the text (support nested objects)
+    start = text.find("{")
+    end = text.rfind("}") + 1
+    if start >= 0 and end > start:
         try:
-            return json.loads(match.group(0))
+            return json.loads(text[start:end])
         except json.JSONDecodeError:
             pass
 
@@ -166,6 +175,7 @@ class LLMGrounding(GroundingMethod):
     def _parse_response(self, response_text: str, prop_id: str) -> GroundingResult:
         """Parse the LLM's JSON response into a GroundingResult.
 
+        Supports both new format (``found``) and old format (``match``).
         Fail-open: on parse errors, returns match=False.
         """
         data = _extract_json(response_text)
@@ -179,12 +189,19 @@ class LLMGrounding(GroundingMethod):
                 prop_id=prop_id,
             )
 
-        match_val = data.get("match")
+        # Support both "found" (new) and "match" (old) field names
+        if "found" in data:
+            match_val = data["found"]
+        elif "match" in data:
+            match_val = data["match"]
+        else:
+            match_val = None
+
         if not isinstance(match_val, bool):
             return GroundingResult(
                 match=False,
                 confidence=0.0,
-                reasoning=f"'match' field is not a boolean: {match_val}",
+                reasoning=f"'found'/'match' field is not a boolean: {match_val}",
                 method="llm",
                 prop_id=prop_id,
             )
@@ -199,12 +216,25 @@ class LLMGrounding(GroundingMethod):
         if not isinstance(reasoning, str):
             reasoning = str(reasoning)
 
+        # Parse object_mentions when found=True
+        object_mentions: list[dict] = []
+        if match_val:
+            raw_mentions = data.get("object_mentions", [])
+            if isinstance(raw_mentions, list):
+                for item in raw_mentions:
+                    if isinstance(item, dict) and "object_id" in item and "mention" in item:
+                        object_mentions.append({
+                            "object_id": str(item["object_id"]),
+                            "mention": str(item["mention"]),
+                        })
+
         return GroundingResult(
             match=match_val,
             confidence=confidence,
             reasoning=reasoning,
             method="llm",
             prop_id=prop_id,
+            object_mentions=object_mentions,
         )
 
 
@@ -229,6 +259,25 @@ def render_few_shots(proposition: Proposition, role: str) -> str:
     return "\n\n".join(lines)
 
 
+def _build_objects_section(proposition: Proposition) -> str:
+    """Build the Objects section for the grounding prompt.
+
+    When arity > 0, creates an objects list mapping o1..oN to argument
+    descriptions.  When arity is 0, returns an empty string so the prompt
+    uses a simplified Boolean-only format.
+    """
+    if proposition.arity <= 0:
+        return ""
+
+    descriptions = proposition.arg_descriptions or []
+    lines: list[str] = []
+    for i in range(proposition.arity):
+        desc = descriptions[i] if i < len(descriptions) else f"argument {i + 1}"
+        lines.append(f"  - o{i + 1}: {desc}")
+
+    return "Objects:\n" + "\n".join(lines) + "\n"
+
+
 def build_grounding_prompts(
     proposition: Proposition,
     message_role: str,
@@ -240,15 +289,16 @@ def build_grounding_prompts(
     """Build system/user prompts for a predicate-message pair."""
     role = (proposition.role or message_role or "user").strip().lower()
     if role == "assistant":
-        final_system_prompt = system_prompt or DEFAULT_SYSTEM_PROMPT
+        final_system_prompt = system_prompt if system_prompt is not None else DEFAULT_SYSTEM_PROMPT
         user_template = (
             user_prompt_template_assistant or DEFAULT_USER_PROMPT_TEMPLATE_ASSISTANT
         )
     else:
-        final_system_prompt = system_prompt or DEFAULT_SYSTEM_PROMPT
+        final_system_prompt = system_prompt if system_prompt is not None else DEFAULT_SYSTEM_PROMPT
         user_template = user_prompt_template_user or DEFAULT_USER_PROMPT_TEMPLATE_USER
 
     few_shot_examples = render_few_shots(proposition, role)
+    objects_section = _build_objects_section(proposition)
 
     user_prompt = user_template.format(
         proposition_description=proposition.description,
@@ -257,5 +307,6 @@ def build_grounding_prompts(
         message_role_upper=(message_role or "user").strip().upper(),
         message_text=message_text,
         few_shot_examples=few_shot_examples,
+        objects_section=objects_section,
     )
     return final_system_prompt, user_prompt

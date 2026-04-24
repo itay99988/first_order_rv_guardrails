@@ -209,7 +209,7 @@ export default function GroundingConfig({
                   models={openRouterModels}
                   value={grounding.model}
                   onChange={(m) => setGrounding({ ...grounding, model: m })}
-                  placeholder="Select grounding model"
+                  placeholder="Choose model..."
                   data-testid="grounding-model-select"
                 />
               </div>

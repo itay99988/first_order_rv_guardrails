@@ -55,14 +55,14 @@ class OpenRouterClient:
 
     Attributes:
         api_key: OpenRouter API key.
-        model: Default model identifier (e.g., "mistralai/mistral-7b-instruct").
+        model: Default model identifier (e.g., "").
         base_url: OpenRouter API base URL.
     """
 
     def __init__(
         self,
         api_key: str,
-        model: str = "mistralai/mistral-7b-instruct",
+        model: str = "",
     ) -> None:
         self.api_key = api_key
         self.model = model
@@ -108,15 +108,19 @@ class OpenRouterClient:
     async def list_models(self) -> list[dict]:
         """List available models from OpenRouter.
 
+        The /models endpoint is public and does not require authentication.
+
         Returns:
             List of model info dicts with 'id', 'name', etc.
 
         Raises:
-            OpenRouterAuthError: If the API key is invalid.
-            OpenRouterError: For other API errors.
+            OpenRouterError: For API errors.
         """
         url = f"{self.base_url}/models"
-        response = await self._http_client.get(url, headers=self._headers())
+        headers = {"Content-Type": "application/json"}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+        response = await self._http_client.get(url, headers=headers)
         _check_status(response)
         data = response.json()
         return data.get("data", [])

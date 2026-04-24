@@ -40,12 +40,14 @@ export default function RulesView() {
     description: string;
     role: string;
     arity: number;
+    arg_descriptions: string[];
   }) => {
     setPropWarning(null);
     if (editingProp) {
       await updateProposition(editingProp.prop_id, {
         description: data.description,
         role: data.role,
+        arg_descriptions: data.arg_descriptions,
       });
     } else {
       const result = await createProposition(data);

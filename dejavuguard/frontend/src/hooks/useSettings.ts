@@ -95,15 +95,16 @@ export function useSettings() {
 
   useEffect(() => {
     fetchSettings();
-  }, [fetchSettings]);
+    // Fetch OpenRouter models immediately — the API is public, no key needed
+    fetchOpenRouterModels();
+  }, [fetchSettings, fetchOpenRouterModels]);
 
-  // Auto-fetch model lists once settings are loaded
+  // Fetch grounding models once settings are loaded (needs provider config)
   useEffect(() => {
     if (settings.status === "success") {
-      fetchOpenRouterModels();
       fetchGroundingModels();
     }
-  }, [settings.status, fetchOpenRouterModels, fetchGroundingModels]);
+  }, [settings.status, fetchGroundingModels]);
 
   return {
     settings,

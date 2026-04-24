@@ -42,7 +42,7 @@ class Config:
 
     openrouter_api_key: str = field(default_factory=lambda: os.getenv("OPENROUTER_API_KEY", ""))
     openrouter_model: str = field(
-        default_factory=lambda: os.getenv("OPENROUTER_MODEL", "mistralai/mistral-7b-instruct")
+        default_factory=lambda: os.getenv("OPENROUTER_MODEL", "")
     )
     openrouter_model_custom: str = field(
         default_factory=lambda: os.getenv("OPENROUTER_MODEL_CUSTOM", "")

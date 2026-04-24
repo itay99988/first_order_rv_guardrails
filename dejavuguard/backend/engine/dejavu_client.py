@@ -7,8 +7,11 @@ session. Events are sent as composites (simultaneous) per message step.
 
 from __future__ import annotations
 
+import logging
 import httpx
 from dataclasses import dataclass, field
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -33,7 +36,7 @@ class DejaVuClient:
 
     def __init__(self, base_url: str = "http://localhost:8080"):
         self.base_url = base_url.rstrip("/")
-        self._client = httpx.AsyncClient(timeout=30.0)
+        self._client = httpx.AsyncClient(timeout=120.0)
 
     async def create_session(self, spec: str, bits: int = 20) -> tuple[str, list[str]]:
         """Create a DejaVu monitoring session.
@@ -49,10 +52,16 @@ class DejaVuClient:
             DejaVuError: If spec is invalid or server unreachable.
         """
         try:
+            print(f"\n{'='*60}")
+            print(f"[DejaVu] CREATE SESSION")
+            print(f"[DejaVu] Spec:\n{spec}")
+            print(f"{'='*60}")
             resp = await self._client.post(
                 f"{self.base_url}/sessions",
                 json={"spec": spec, "bits": bits}
             )
+            print(f"[DejaVu] CREATE SESSION response: {resp.status_code} {resp.text[:500]}")
+            print(f"{'='*60}\n")
             if resp.status_code == 201:
                 data = resp.json()
                 return data["session_id"], data["properties"]
@@ -81,10 +90,17 @@ class DejaVuClient:
             DejaVuVerdict with per-property verdicts and violations.
         """
         try:
+            import json as _json
+            print(f"\n{'='*60}")
+            print(f"[DejaVu] SEND EVENTS session={session_id}")
+            print(f"[DejaVu] Events: {_json.dumps(events, indent=2)}")
+            print(f"{'='*60}")
             resp = await self._client.post(
                 f"{self.base_url}/sessions/{session_id}/events",
                 json=events
             )
+            print(f"[DejaVu] SEND EVENTS response: {resp.status_code} {resp.text}")
+            print(f"{'='*60}\n")
             if resp.status_code == 200:
                 data = resp.json()
                 return DejaVuVerdict(

@@ -45,10 +45,6 @@ def build_dejavu_spec(policies: list[Policy], propositions: list[Proposition]) -
                 lines.append(f"pred {prop.prop_id}")
             declared.add(prop.prop_id)
 
-    # Add a step marker predicate (always sent, ensures monitor advances)
-    if "step" not in declared:
-        lines.append("pred step")
-
     if lines:
         lines.append("")  # blank line between preds and props
 
@@ -57,8 +53,8 @@ def build_dejavu_spec(policies: list[Policy], propositions: list[Proposition]) -
         if not policy.enabled:
             continue
         formula = policy.formula_str
-        # Sanitize policy name for DejaVu (no spaces, alphanumeric + underscore)
-        safe_name = policy.policy_id.replace("-", "_")
+        # Sanitize policy name for DejaVu (must start with letter, alphanumeric + underscore)
+        safe_name = "pol_" + policy.policy_id.replace("-", "_")
         lines.append(f"prop {safe_name} : {formula}")
 
     return "\n".join(lines)

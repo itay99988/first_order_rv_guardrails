@@ -109,14 +109,18 @@ export default function GroundingPromptEditor({
             className="mb-1 block text-terminal-text font-mono text-sm"
             htmlFor="system-prompt"
           >
-            System Prompt
+            System Prompt <span className="text-terminal-dim font-normal">(optional)</span>
           </label>
+          <p className="mb-2 text-xs text-terminal-dim">
+            Leave empty to use single-message prompting (recommended). The user prompt templates below include all instructions and few-shot examples.
+          </p>
           <textarea
             id="system-prompt"
             value={systemPrompt}
             onChange={(e) => setSystemPrompt(e.target.value)}
-            rows={8}
-            className="w-full rounded-none border border-border bg-dark-primary font-mono text-sm text-terminal-bright focus:border-accent/50 focus:outline-none focus:ring-1 focus:ring-accent/20 px-3 py-2"
+            rows={3}
+            placeholder="(empty — instructions are in the user prompts below)"
+            className="w-full rounded-none border border-border bg-dark-primary font-mono text-sm text-terminal-bright placeholder-terminal-dim/40 focus:border-accent/50 focus:outline-none focus:ring-1 focus:ring-accent/20 px-3 py-2"
             data-testid="system-prompt-textarea"
           />
         </div>

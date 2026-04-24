@@ -36,7 +36,7 @@ class OpenRouterGroundingAdapter:
     for LocalLLMClient in the grounding engine.
     """
 
-    def __init__(self, api_key: str, model: str = "mistralai/mistral-7b-instruct") -> None:
+    def __init__(self, api_key: str, model: str = "") -> None:
         self.api_key = api_key
         self.model = model
         self._client = OpenRouterClient(api_key=api_key, model=model)

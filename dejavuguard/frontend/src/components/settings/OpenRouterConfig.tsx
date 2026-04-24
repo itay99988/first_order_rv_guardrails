@@ -66,6 +66,7 @@ export default function OpenRouterConfig({
       openrouter_api_key: apiKey,
       openrouter_model: model,
       openrouter_model_custom: useCustomModel ? customModel : "",
+      few_shot_model: settings.few_shot_model || "chat",
     });
   };
 
@@ -149,7 +150,7 @@ export default function OpenRouterConfig({
             value={model}
             onChange={setModel}
             disabled={useCustomModel}
-            placeholder="Enter API key to load models"
+            placeholder="Choose model..."
             data-testid="openrouter-model-select"
           />
           {modelsError && openRouterModels.length === 0 && (
@@ -188,6 +189,39 @@ export default function OpenRouterConfig({
               data-testid="custom-model-input"
             />
           )}
+        </div>
+
+        <div className="border-t border-border pt-4">
+          <label className="mb-2 block text-terminal-text font-mono text-sm">
+            Few-Shot Example Generation Model
+          </label>
+          <p className="mb-2 text-xs text-terminal-dim">
+            Which model generates few-shot examples when creating new predicates.
+          </p>
+          <div className="flex gap-4" data-testid="few-shot-model-select">
+            <label className="flex items-center gap-2 text-sm text-terminal-text">
+              <input
+                type="radio"
+                name="few_shot_model"
+                value="chat"
+                checked={(settings.few_shot_model || "chat") === "chat"}
+                onChange={() => onUpdate({ ...settings, few_shot_model: "chat" })}
+                className="accent-accent"
+              />
+              Chat Model
+            </label>
+            <label className="flex items-center gap-2 text-sm text-terminal-text">
+              <input
+                type="radio"
+                name="few_shot_model"
+                value="grounding"
+                checked={settings.few_shot_model === "grounding"}
+                onChange={() => onUpdate({ ...settings, few_shot_model: "grounding" })}
+                className="accent-accent"
+              />
+              Grounding Model
+            </label>
+          </div>
         </div>
 
         <div className="flex justify-end">

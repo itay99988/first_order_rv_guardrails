@@ -41,12 +41,14 @@ class CreatePropositionRequest(BaseModel):
         description: Canonical description for semantic grounding.
         role: Which message role this applies to ("user" or "assistant").
         arity: Number of arguments (0 = Boolean, >0 = first-order with data).
+        arg_descriptions: Description for each argument (length should match arity).
     """
 
     prop_id: str
     description: str
     role: str  # "user" | "assistant"
     arity: int = 0
+    arg_descriptions: list[str] = []
 
 
 class UpdatePropositionRequest(BaseModel):
@@ -55,6 +57,7 @@ class UpdatePropositionRequest(BaseModel):
     description: str | None = None
     role: str | None = None
     arity: int | None = None
+    arg_descriptions: list[str] | None = None
 
 
 class GroundingPromptPreview(BaseModel):
@@ -123,6 +126,7 @@ def _row_to_proposition(row: dict) -> Proposition:
         description=row["description"],
         role=row["role"],
         arity=row.get("arity", 0) or 0,
+        arg_descriptions=_parse_json_list_field(row.get("arg_descriptions")),
         few_shot_positive=_parse_json_list_field(row.get("few_shot_positive")),
         few_shot_negative=_parse_json_list_field(row.get("few_shot_negative")),
         few_shot_generated_at=row.get("few_shot_generated_at"),
@@ -251,13 +255,9 @@ async def _validate_formula(db: DatabaseStore, formula_str: str) -> tuple[list[s
     if not formula_str:
         return [], "Formula cannot be empty"
 
-    # Sanity checks before sending to DejaVu (prevent crashes from adversarial input)
+    # Basic sanity checks before sending to DejaVu
     if len(formula_str) > 2000:
         return [], "Formula too long (max 2000 characters)"
-    if formula_str.count('(') != formula_str.count(')'):
-        return [], "Unbalanced parentheses"
-    if formula_str.count('[') != formula_str.count(']'):
-        return [], "Unbalanced brackets"
 
     # Extract identifiers to find which predicates are used in the formula
     candidate_ids = _extract_identifiers(formula_str)
@@ -352,26 +352,77 @@ async def create_proposition(request: Request, body: CreatePropositionRequest) -
     few_shot_negative: list[str] = []
     warning: str | None = None
     settings = await _load_settings(db)
-    effective_chat_model = settings.openrouter_model_custom or settings.openrouter_model
-    if settings.openrouter_api_key:
-        try:
-            few_shot_positive, few_shot_negative = await _generate_few_shots_with_chat_model(
-                openrouter_api_key=settings.openrouter_api_key,
-                chat_model=effective_chat_model,
-                proposition_description=body.description,
-                role=body.role,
-            )
-        except HTTPException as e:
-            warning = (
-                f"Few-shot example generation failed ({e.detail}). "
-                "Predicate saved with zero-shot mode — grounding will use the description only. "
-                "To enable few-shot examples, check your OpenRouter API key and chat model in Settings."
-            )
+
+    # Determine which model to use for few-shot generation
+    use_grounding = (settings.few_shot_model == "grounding")
+
+    if use_grounding:
+        # Use the grounding model (local or OpenRouter)
+        grounding_settings = settings.grounding
+        if grounding_settings.provider == "openrouter":
+            api_key = grounding_settings.api_key or settings.openrouter_api_key
+            model = grounding_settings.model
+            if api_key:
+                try:
+                    few_shot_positive, few_shot_negative = await _generate_few_shots_with_chat_model(
+                        openrouter_api_key=api_key,
+                        chat_model=model,
+                        proposition_description=body.description,
+                        role=body.role,
+                    )
+                except HTTPException as e:
+                    warning = (
+                        f"Few-shot generation failed with grounding model ({e.detail}). "
+                        "Predicate saved with zero-shot mode."
+                    )
+            else:
+                warning = (
+                    "No API key configured for grounding model. "
+                    "Predicate saved with zero-shot mode."
+                )
+        else:
+            # Local grounding model (Ollama, LM Studio, etc.) — use via grounding client
+            from backend.services.grounding_client import create_grounding_client
+            try:
+                grounding_client = create_grounding_client(
+                    provider=grounding_settings.provider,
+                    base_url=grounding_settings.base_url,
+                    model=grounding_settings.model,
+                )
+                system_prompt = (
+                    "You generate synthetic few-shot examples for predicate matching. "
+                    "Return ONLY valid JSON."
+                )
+                user_prompt = _few_shot_generation_prompt(body.description, body.role)
+                raw = await grounding_client.chat(system_prompt, user_prompt)
+                few_shot_positive, few_shot_negative = _parse_few_shot_examples(raw)
+            except Exception as e:
+                warning = (
+                    f"Few-shot generation failed with local grounding model ({e}). "
+                    "Predicate saved with zero-shot mode. "
+                    "Ensure your grounding LLM server is running."
+                )
     else:
-        warning = (
-            "No OpenRouter API key configured — predicate saved with zero-shot mode. "
-            "To generate few-shot examples, add your API key in Settings → Chat Model."
-        )
+        # Use the chat model (OpenRouter)
+        effective_chat_model = settings.openrouter_model_custom or settings.openrouter_model
+        if settings.openrouter_api_key:
+            try:
+                few_shot_positive, few_shot_negative = await _generate_few_shots_with_chat_model(
+                    openrouter_api_key=settings.openrouter_api_key,
+                    chat_model=effective_chat_model,
+                    proposition_description=body.description,
+                    role=body.role,
+                )
+            except HTTPException as e:
+                warning = (
+                    f"Few-shot generation failed with chat model ({e.detail}). "
+                    "Predicate saved with zero-shot mode."
+                )
+        else:
+            warning = (
+                "No OpenRouter API key configured — predicate saved with zero-shot mode. "
+                "To generate few-shot examples, add your API key in Settings."
+            )
 
     generated_at = datetime.now(timezone.utc).isoformat()
     await db.create_proposition(
@@ -379,6 +430,7 @@ async def create_proposition(request: Request, body: CreatePropositionRequest) -
         body.description,
         body.role,
         arity=body.arity,
+        arg_descriptions=body.arg_descriptions if body.arg_descriptions else None,
         few_shot_positive=few_shot_positive,
         few_shot_negative=few_shot_negative,
         few_shot_generated_at=generated_at,
@@ -404,7 +456,12 @@ async def update_proposition(
     if body.role is not None and body.role not in ("user", "assistant"):
         raise HTTPException(422, f"Invalid role: {body.role}. Must be 'user' or 'assistant'.")
 
-    await db.update_proposition(prop_id, description=body.description, role=body.role)
+    await db.update_proposition(
+        prop_id,
+        description=body.description,
+        role=body.role,
+        arg_descriptions=body.arg_descriptions,
+    )
     invalidate_monitors()
     updated = await db.get_proposition(prop_id)
     return _row_to_proposition(updated)

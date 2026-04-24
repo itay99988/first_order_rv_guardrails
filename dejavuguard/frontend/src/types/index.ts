@@ -25,6 +25,7 @@ export interface Proposition {
   description: string;
   role: "user" | "assistant";
   arity: number;
+  arg_descriptions?: string[];
   few_shot_positive?: string[];
   few_shot_negative?: string[];
   few_shot_generated_at?: string | null;
@@ -104,6 +105,7 @@ export interface AppSettings {
   openrouter_api_key: string;
   openrouter_model: string;
   openrouter_model_custom: string;
+  few_shot_model: string; // "chat" or "grounding"
   grounding: GroundingSettings;
 }
 

@@ -84,6 +84,7 @@ export async function createProposition(data: {
   description: string;
   role: string;
   arity: number;
+  arg_descriptions?: string[];
 }): Promise<CreatePropositionResponse> {
   return request<CreatePropositionResponse>("/api/propositions", {
     method: "POST",
@@ -93,7 +94,7 @@ export async function createProposition(data: {
 
 export async function updateProposition(
   propId: string,
-  data: { description?: string; role?: string },
+  data: { description?: string; role?: string; arg_descriptions?: string[] },
 ): Promise<Proposition> {
   return request<Proposition>(
     `/api/propositions/${encodeURIComponent(propId)}`,

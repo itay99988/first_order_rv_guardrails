@@ -25,6 +25,7 @@ class Proposition(BaseModel):
     description: str
     role: str  # "user" | "assistant"
     arity: int = 0
+    arg_descriptions: list[str] = Field(default_factory=list)
     few_shot_positive: list[str] = Field(default_factory=list)
     few_shot_negative: list[str] = Field(default_factory=list)
     few_shot_generated_at: str | None = None

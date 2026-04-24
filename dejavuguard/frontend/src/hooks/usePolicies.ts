@@ -41,7 +41,7 @@ export function usePolicies() {
   }, []);
 
   const createProposition = useCallback(
-    async (data: { prop_id: string; description: string; role: string; arity: number }) => {
+    async (data: { prop_id: string; description: string; role: string; arity: number; arg_descriptions?: string[] }) => {
       const result = await apiCreateProposition(data);
       setPropositions((prev) => {
         if (prev.status === "success") {
@@ -55,7 +55,7 @@ export function usePolicies() {
   );
 
   const updateProposition = useCallback(
-    async (propId: string, data: { description?: string; role?: string }) => {
+    async (propId: string, data: { description?: string; role?: string; arg_descriptions?: string[] }) => {
       const updated = await apiUpdateProposition(propId, data);
       setPropositions((prev) => {
         if (prev.status === "success") {

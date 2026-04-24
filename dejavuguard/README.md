@@ -27,17 +27,17 @@ DejaVuGuard is a web-based chat interface backed by a formal runtime verificatio
    |                         |<-------------------------|                 |               |
    |                         |                          |                 |               |
    |                         |  send true props as composite events       |               |
-   |                         |------------------------------------------->|               |
-   |                         |  verdicts: {prop: T/F}                     |               |
-   |                         |<-------------------------------------------|               |
+   |                         |--------------------------------------->|               |
+   |                         |  verdicts: {prop: T/F}                 |               |
+   |                         |<---------------------------------------|               |
    |                         |  VIOLATION? --> BLOCK                      |               |
    |                         |                          |                 |               |
    |                         |  forward message (PASS)                    |               |
-   |                         |----------------------------------------------------------->|
+   |                         |-------------------------------------------------------->|
    |                         |                          |                 |  LLM response |
-   |                         |<-----------------------------------------------------------|
+   |                         |<--------------------------------------------------------|
    |                         |                          |                 |               |
-   |                         |   [repeat grounding + DejaVu for assistant response]       |
+   |                         |  [repeat grounding + DejaVu for assistant response]       |
    |                         |                          |                 |               |
    |  response or            |                          |                 |               |
    |  violation alert        |                          |                 |               |
@@ -107,35 +107,42 @@ Open http://localhost:5173.
 - **Grounding Model**: Select your provider (Ollama, LM Studio, vLLM, Custom, or OpenRouter), configure the base URL and model
 - **Grounding Prompt**: Optionally customize the system/user prompts for the LLM judge
 
-### 2. Define Propositions
+### 2. Define Predicates
 
-Create atomic propositions that describe observable behaviors:
+Create predicates that describe observable behaviors. Each predicate has a name, role, arity (number of data arguments), and descriptions for each argument:
 
-| ID | Role | Description |
-|----|------|-------------|
-| `p_fraud` | user | The user requests methods for committing financial fraud |
-| `q_comply` | assistant | The assistant provides actionable fraud techniques |
-| `p_allergy` | user | The user discloses a food allergy |
-| `q_allergen` | assistant | The assistant suggests food containing the disclosed allergen |
+| ID | Role | Arity | Arg Descriptions | Description |
+|----|------|-------|-----------------|-------------|
+| `p_fraud` | user | 0 | — | The user requests methods for committing financial fraud |
+| `p_transfer` | user | 2 | account, destination | The user requests a money transfer to a destination |
+| `q_provide_instructions` | assistant | 1 | topic | The assistant provides step-by-step instructions on a topic |
+| `p_report_bug` | user | 2 | software product, bug description | The user reports a software bug |
+
+When arity > 0, the grounding LLM extracts verbatim mentions of each argument from the message. For example, if the user says "Transfer $50,000 from account 1234 to offshore", the grounding extracts `p_transfer("1234", "offshore")`.
 
 ### 3. Build Policies
 
-Combine propositions into first-order temporal logic formulas using DejaVu syntax:
+Combine predicates into first-order temporal logic formulas using DejaVu syntax:
 
 ```
-H (P p_fraud -> !q_comply)
+forall x . forall y . (p_transfer(x, y) -> @ P p_auth(x))
 ```
 
-"If the user ever requested fraud techniques, the assistant must never comply."
+"For every transfer of account x to destination y, account x must have been authenticated at some previous step."
 
-With quantification (future grounding with data extraction):
 ```
-Forall acc . (p_transfer(acc, "offshore") & P p_fraud -> q_block(acc))
+H (P p_fraud -> forall t . !q_provide_instructions(t))
 ```
 
-"For every account involved in an offshore transfer after a fraud request, block it."
+"If the user ever requested fraud, the assistant must never provide instructions on any topic."
 
-Formulas are validated in real-time by DejaVu's own parser — syntax errors are caught as you type.
+```
+forall prod . forall bug . (p_report_bug(prod, bug) -> P q_acknowledge(prod))
+```
+
+"For every bug report about a product, the assistant must have previously acknowledged that product."
+
+Formulas are validated by DejaVu's own parser when you click Save — syntax and wellformedness errors are shown immediately.
 
 ### 4. Chat
 
@@ -164,37 +171,42 @@ DejaVu supports a rich set of first-order past-time temporal logic operators:
 
 ### Example Policies
 
-**Fraud Prevention:**
+**Per-Account Transfer Authorization:**
+```
+forall acc . forall dest . (p_transfer(acc, dest) -> @ P p_auth(acc))
+```
+Predicates: `p_transfer(account, destination)` (user, arity 2), `p_auth(account)` (user, arity 1).
+For every transfer request, the referenced account must have been authenticated in a previous step.
+
+**Bug Report Tracking:**
+```
+forall prod . (p_report_bug(prod) -> P q_acknowledge(prod))
+```
+Predicates: `p_report_bug(software product)` (user, arity 1), `q_acknowledge(product)` (assistant, arity 1).
+For every bug reported about a product, the assistant must have previously acknowledged that product.
+
+**Enrollment Compliance:**
+```
+forall student . forall org . (p_enroll(student, org) -> P p_consent(student))
+```
+Predicates: `p_enroll(student, organization)` (user, arity 2), `p_consent(student)` (user, arity 1).
+A student can only be enrolled in an organization if they previously gave consent.
+
+**Medical Safety — No Diagnosis Without Caveat:**
+```
+H (@ p_symptom -> !q_diagnosis)
+```
+Predicates: `p_symptom` (user, arity 0), `q_diagnosis` (assistant, arity 0).
+If the user described symptoms at the previous step, the assistant must not provide a diagnosis (without caveats).
+
+**Fraud Prevention (Boolean):**
 ```
 H (P p_fraud -> !q_comply)
 ```
-If the user ever requested fraud techniques, the assistant must never comply. `P` remembers the request across turns. Irrevocable once violated.
+Predicates: `p_fraud` (user, arity 0), `q_comply` (assistant, arity 0).
+If the user ever requested fraud techniques, the assistant must never comply. Arity-0 predicates work as Boolean flags.
 
-**Sensitive Data Protection:**
-```
-H (@ p_sensitive -> q_warn) & H (P p_sensitive -> !q_echo)
-```
-After the user shares sensitive data, the assistant must warn on the next step (`@`) and must never echo that data back.
-
-**Multi-Turn Jailbreak Prevention:**
-```
-H ((P p_escalate & P p_frame) -> !q_unsafe)
-```
-If the user has ever escalated and previously framed a harmful context, the assistant must not comply.
-
-**Allergen Safety:**
-```
-H (@ p_allergy -> q_warn) & H (P p_allergy -> !q_allergen)
-```
-After a user discloses a food allergy, the assistant must warn on the next step and must never suggest food containing that allergen.
-
-**First-Order: Track Specific Accounts (future, with data extraction):**
-```
-Forall acc . (p_transfer(acc, "offshore") & P p_fraud -> q_block(acc))
-```
-For every account involved in an offshore transfer after a prior fraud request, the assistant must block it. The `Forall` quantifier evaluates this for every account value seen in the conversation.
-
-**Important:** Cross-role formulas must use temporal operators (`P`, `@`, `S`) to reference propositions from a different role. Each step only grounds propositions matching the message's role — other propositions default to `False`.
+**Important:** Cross-role formulas must use temporal operators (`P`, `@`, `S`) to reference predicates from a different role. Each step only grounds predicates matching the message's role — other predicates default to `False`.
 
 ## How It Works
 
@@ -204,29 +216,42 @@ DejaVuGuard uses [DejaVu](https://github.com/havelund/dejavu) as its runtime ver
 
 For each conversation:
 1. A **DejaVu session** is created with the policies compiled into a specification
-2. Each message is **grounded**: the grounding LLM evaluates each predicate against the message text
-3. True predicates are sent to DejaVu as **composite events** (simultaneous)
+2. Each message is **grounded**: the grounding LLM evaluates each predicate against the message text and extracts argument data
+3. Matched predicates are sent to DejaVu as **composite events** with extracted arguments
 4. DejaVu evaluates all temporal properties and returns **per-property verdicts**
 5. If any property is violated, the message is **blocked**
+
+### Semantic Grounding with Data Extraction
+
+The grounding engine uses an LLM-as-judge approach to evaluate each predicate against the message text. For predicates with arguments (arity > 0), the LLM also extracts **verbatim mentions** of each argument from the message.
+
+For example, given:
+- Predicate: `p_transfer(account, destination)` — "the user requests a money transfer"
+- Message: "Please transfer funds from account 1234 to the offshore branch"
+
+The grounding LLM returns:
+```json
+{
+  "found": true,
+  "reasoning": "User requests a transfer; account=1234, destination=offshore branch",
+  "object_mentions": [
+    {"object_id": "o1", "mention": "1234"},
+    {"object_id": "o2", "mention": "offshore branch"}
+  ]
+}
+```
+
+The extracted mentions are sent to DejaVu as event arguments: `p_transfer("1234", "offshore branch")`. This enables first-order quantification — DejaVu can track which specific accounts, products, or entities are involved across the conversation.
+
+The grounding prompts include **built-in few-shot examples** (separate sets for user-role and assistant-role predicates) that teach the LLM to:
+- Match predicates **literally** — subtle mismatches are rejected
+- Distinguish requests from refusals, education, or adjacent topics
+- Extract **exact verbatim substrings** from the message, not paraphrases
+- Return empty `object_mentions` when `found=false`
 
 ### Session Persistence
 
 DejaVu sessions persist to disk as JSON event logs. If the server restarts, sessions are automatically restored by replaying stored events through a fresh monitor. Since DejaVu monitors are deterministic (same spec + same events = same state), replay produces the exact same BDD state. This means conversations survive server restarts, container recreations, and even machine reboots — important for chatbot monitoring where messages can arrive days apart.
-
-### Future: Grounding with Extracted Data
-
-Currently, predicates are Boolean (true/false). In the future, the grounding layer will extract entity data from messages, enabling first-order quantification:
-
-```
-# Current: Boolean grounding
-p_fraud → True/False
-
-# Future: Data-bearing predicates
-p_transfer("1234", "offshore", "50000") → extracted from message
-
-# Enables first-order specs:
-Forall acc . (p_transfer(acc, "offshore") & P p_fraud) -> q_block(acc)
-```
 
 ## DejaVu: The Runtime Verification Engine
 
