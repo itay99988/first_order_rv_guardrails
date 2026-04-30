@@ -45,6 +45,25 @@ class DatabaseStore:
 
     async def _ensure_schema_migrations(self) -> None:
         """Apply lightweight additive migrations for older DB files."""
+        await self._db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS related_objects (
+                policy_id TEXT REFERENCES policies(policy_id) ON DELETE CASCADE,
+                prop_id TEXT REFERENCES propositions(prop_id) ON DELETE CASCADE,
+                object_id TEXT NOT NULL,
+                related_prop_id TEXT REFERENCES propositions(prop_id) ON DELETE CASCADE,
+                related_object_id TEXT NOT NULL,
+                PRIMARY KEY (
+                    policy_id,
+                    prop_id,
+                    object_id,
+                    related_prop_id,
+                    related_object_id
+                )
+            )
+            """
+        )
+
         cursor = await self._db.execute("PRAGMA table_info(propositions)")
         rows = await cursor.fetchall()
         columns = {row["name"] for row in rows}
@@ -290,6 +309,51 @@ class DatabaseStore:
             (prop_id,),
         )
 
+    async def set_policy_related_objects(
+        self,
+        policy_id: str,
+        relations: list[dict],
+    ) -> None:
+        """Replace the related-object graph contributed by one policy."""
+        await self._db.execute("DELETE FROM related_objects WHERE policy_id = ?", (policy_id,))
+
+        seen: set[tuple[str, str, str, str, str]] = set()
+        for relation in relations:
+            prop_id = str(relation.get("prop_id", "")).strip()
+            object_id = str(relation.get("object_id", "")).strip()
+            related_prop_id = str(relation.get("related_prop_id", "")).strip()
+            related_object_id = str(relation.get("related_object_id", "")).strip()
+            if not all((prop_id, object_id, related_prop_id, related_object_id)):
+                continue
+
+            key = (policy_id, prop_id, object_id, related_prop_id, related_object_id)
+            if key in seen:
+                continue
+            seen.add(key)
+
+            await self._db.execute(
+                "INSERT OR IGNORE INTO related_objects "
+                "(policy_id, prop_id, object_id, related_prop_id, related_object_id) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (policy_id, prop_id, object_id, related_prop_id, related_object_id),
+            )
+
+        await self._db.commit()
+
+    async def list_related_objects(self, prop_ids: list[str] | None = None) -> list[dict]:
+        """List related-object edges, optionally scoped to current predicate IDs."""
+        if prop_ids:
+            placeholders = ", ".join("?" for _ in prop_ids)
+            return await self._fetch_all(
+                f"SELECT * FROM related_objects WHERE prop_id IN ({placeholders}) "  # noqa: S608
+                "ORDER BY prop_id, object_id, related_prop_id, related_object_id",
+                tuple(prop_ids),
+            )
+        return await self._fetch_all(
+            "SELECT * FROM related_objects "
+            "ORDER BY prop_id, object_id, related_prop_id, related_object_id"
+        )
+
     # Sessions CRUD
 
     async def create_session(self, session_id: str, name: str | None = None) -> None:
@@ -436,6 +500,21 @@ CREATE TABLE IF NOT EXISTS policy_propositions (
     policy_id TEXT REFERENCES policies(policy_id) ON DELETE CASCADE,
     prop_id TEXT REFERENCES propositions(prop_id) ON DELETE CASCADE,
     PRIMARY KEY (policy_id, prop_id)
+);
+
+CREATE TABLE IF NOT EXISTS related_objects (
+    policy_id TEXT REFERENCES policies(policy_id) ON DELETE CASCADE,
+    prop_id TEXT REFERENCES propositions(prop_id) ON DELETE CASCADE,
+    object_id TEXT NOT NULL,
+    related_prop_id TEXT REFERENCES propositions(prop_id) ON DELETE CASCADE,
+    related_object_id TEXT NOT NULL,
+    PRIMARY KEY (
+        policy_id,
+        prop_id,
+        object_id,
+        related_prop_id,
+        related_object_id
+    )
 );
 
 CREATE TABLE IF NOT EXISTS settings (

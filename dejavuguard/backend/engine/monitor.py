@@ -20,7 +20,7 @@ import asyncio
 import logging
 import uuid
 
-from backend.engine.dejavu_client import DejaVuClient, DejaVuError, DejaVuVerdict
+from backend.engine.dejavu_client import DejaVuClient, DejaVuError
 from backend.engine.grounding import GroundingMethod, GroundingResult
 from backend.engine.spec_builder import build_dejavu_spec
 from backend.engine.trace import ConversationTrace
@@ -57,9 +57,13 @@ class ConversationMonitor:
         grounding: GroundingMethod,
         dejavu_client: DejaVuClient,
         session_id: str = "",
+        related_objects: list[dict] | None = None,
+        canonical_history: list[dict] | None = None,
     ) -> None:
         self._grounding = grounding
         self._propositions = {p.prop_id: p for p in propositions}
+        self._related_objects = self._index_related_objects(related_objects or [])
+        self._canonical_history: list[dict] = list(canonical_history or [])
         self._policies: dict[str, Policy] = {}
         self._dejavu_client = dejavu_client
         self._dejavu_session_id: str | None = None
@@ -137,6 +141,7 @@ class ConversationMonitor:
                 grounding_details.append(result.to_dict())
                 if result.match and result.object_mentions:
                     prop_mentions[prop.prop_id] = result.object_mentions
+                    self._remember_object_history(event.index, prop.prop_id, result.object_mentions)
 
         # Built-in predicates are always available in formulas.
         labeling[BUILTIN_USER_TURN] = role == "user"
@@ -175,8 +180,11 @@ class ConversationMonitor:
                     # Extract args from object mentions, ordered by object_id
                     mentions = prop_mentions.get(prop_id, [])
                     if mentions:
-                        sorted_mentions = sorted(mentions, key=lambda m: m.get("object_id", ""))
-                        args = [m["mention"] for m in sorted_mentions]
+                        sorted_mentions = sorted(mentions, key=self._object_sort_key)
+                        args = [
+                            str(m.get("canonical_form") or m.get("mention") or "")
+                            for m in sorted_mentions
+                        ]
                     else:
                         args = []
                     events.append({"name": prop_id, "args": args})
@@ -262,7 +270,20 @@ class ConversationMonitor:
     async def _safe_ground(self, event, prop: Proposition) -> GroundingResult:
         """Ground a predicate with fail-open error handling."""
         try:
-            return await self._grounding.evaluate(event, prop)
+            context_block, history_block = self._build_related_object_blocks(prop)
+            try:
+                return await self._grounding.evaluate(
+                    event,
+                    prop,
+                    related_object_context_block=context_block,
+                    related_object_history_block=history_block,
+                )
+            except TypeError as e:
+                # Test doubles and older custom grounding implementations may still
+                # expose the old evaluate(message, proposition) signature.
+                if "unexpected" not in str(e) and "positional" not in str(e):
+                    raise
+                return await self._grounding.evaluate(event, prop)
         except Exception:
             return GroundingResult(
                 match=False,
@@ -286,3 +307,124 @@ class ConversationMonitor:
         # Reset per-policy verdicts to passing
         for policy_id in self._per_policy_verdicts:
             self._per_policy_verdicts[policy_id] = True
+        self._canonical_history = []
+
+    @staticmethod
+    def _index_related_objects(relations: list[dict]) -> dict[tuple[str, str], list[dict]]:
+        indexed: dict[tuple[str, str], list[dict]] = {}
+        for relation in relations:
+            prop_id = str(relation.get("prop_id", "")).strip()
+            object_id = str(relation.get("object_id", "")).strip()
+            if not prop_id or not object_id:
+                continue
+            indexed.setdefault((prop_id, object_id), []).append({
+                "policy_id": str(relation.get("policy_id", "")).strip(),
+                "related_prop_id": str(relation.get("related_prop_id", "")).strip(),
+                "related_object_id": str(relation.get("related_object_id", "")).strip(),
+            })
+        return indexed
+
+    @staticmethod
+    def _object_sort_key(mention: dict) -> tuple[int, str]:
+        object_id = str(mention.get("object_id", "")).strip()
+        try:
+            return int(object_id.removeprefix("o")), object_id
+        except ValueError:
+            return 10_000, object_id
+
+    def _object_description(self, prop_id: str, object_id: str) -> str:
+        prop = self._propositions.get(prop_id)
+        if not prop:
+            return "unknown object"
+        try:
+            idx = int(object_id.removeprefix("o")) - 1
+        except ValueError:
+            return "unknown object"
+        if idx < 0:
+            return "unknown object"
+        if idx < len(prop.arg_descriptions):
+            return prop.arg_descriptions[idx]
+        return f"argument {idx + 1}"
+
+    def _build_related_object_blocks(self, prop: Proposition) -> tuple[str, str]:
+        context_lines: list[str] = []
+        related_keys: set[tuple[str, str]] = set()
+
+        for idx in range(prop.arity):
+            object_id = f"o{idx + 1}"
+            relations = self._related_objects.get((prop.prop_id, object_id), [])
+            if not relations:
+                continue
+
+            current_desc = self._object_description(prop.prop_id, object_id)
+            context_lines.append(
+                f"- Current object {prop.prop_id}.{object_id} ({current_desc}) is related to:"
+            )
+            seen_context: set[tuple[str, str, str]] = set()
+            for relation in relations:
+                related_prop_id = relation["related_prop_id"]
+                related_object_id = relation["related_object_id"]
+                key = (related_prop_id, related_object_id, relation["policy_id"])
+                if key in seen_context:
+                    continue
+                seen_context.add(key)
+                related_keys.add((related_prop_id, related_object_id))
+                related_prop = self._propositions.get(related_prop_id)
+                related_desc = (
+                    related_prop.description if related_prop else "unknown predicate"
+                )
+                related_object_desc = self._object_description(
+                    related_prop_id,
+                    related_object_id,
+                )
+                policy_suffix = (
+                    f" via policy {relation['policy_id']}"
+                    if relation.get("policy_id")
+                    else ""
+                )
+                context_lines.append(
+                    f"  - {related_prop_id}: {related_desc}; "
+                    f"related object {related_object_id} ({related_object_desc})"
+                    f"{policy_suffix}"
+                )
+
+        if not context_lines:
+            return "NONE", "NONE"
+
+        history_lines: list[str] = []
+        for item in self._canonical_history:
+            key = (item["prop_id"], item["object_id"])
+            if key not in related_keys:
+                continue
+            history_lines.append(
+                "- {prop_id}.{object_id}: mention={mention!r}, "
+                "canonical_form={canonical_form!r}, trace_index={trace_index}".format(
+                    prop_id=item["prop_id"],
+                    object_id=item["object_id"],
+                    mention=item["mention"],
+                    canonical_form=item["canonical_form"],
+                    trace_index=item["trace_index"],
+                )
+            )
+
+        return "\n".join(context_lines), "\n".join(history_lines) if history_lines else "NONE"
+
+    def _remember_object_history(
+        self,
+        trace_index: int,
+        prop_id: str,
+        object_mentions: list[dict],
+    ) -> None:
+        for item in object_mentions:
+            object_id = str(item.get("object_id", "")).strip()
+            mention = str(item.get("mention", "")).strip()
+            canonical_form = str(item.get("canonical_form") or mention).strip()
+            if not object_id or not mention:
+                continue
+            self._canonical_history.append({
+                "trace_index": trace_index,
+                "prop_id": prop_id,
+                "object_id": object_id,
+                "mention": mention,
+                "canonical_form": canonical_form,
+            })

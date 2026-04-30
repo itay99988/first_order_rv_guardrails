@@ -12,12 +12,20 @@ from __future__ import annotations
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
-from backend.models.settings import AppSettings, GroundingProvider, GroundingSettings
+from backend.models.settings import (
+    DEFAULT_GROUNDING_SYSTEM_PROMPT,
+    DEFAULT_GROUNDING_USER_PROMPT_TEMPLATE_ASSISTANT,
+    DEFAULT_GROUNDING_USER_PROMPT_TEMPLATE_USER,
+    AppSettings,
+    GroundingProvider,
+    GroundingSettings,
+)
 from backend.services.grounding_client import create_grounding_client
 from backend.services.openrouter import OpenRouterClient, OpenRouterError
 from backend.store.db import DatabaseStore
 
 router = APIRouter(tags=["settings"])
+GROUNDING_PROMPT_VERSION = "canonical_forms_v1"
 
 
 def _get_db(request: Request) -> DatabaseStore:
@@ -27,6 +35,7 @@ def _get_db(request: Request) -> DatabaseStore:
 async def _load_settings(db: DatabaseStore) -> AppSettings:
     """Load AppSettings from database key-value store."""
     all_settings = await db.get_all_settings()
+    all_settings = await _upgrade_grounding_prompts_if_needed(db, all_settings)
     # Backward compatibility for older keys.
     legacy_system_prompt = (
         all_settings.get("grounding_system_prompt")
@@ -62,6 +71,81 @@ async def _load_settings(db: DatabaseStore) -> AppSettings:
     )
 
 
+def _prompt_supports_canonical_forms(prompt: str | None) -> bool:
+    prompt = prompt or ""
+    return (
+        "canonical_form" in prompt
+        and (
+            "related_object_context_block" in prompt
+            or "RELATED_OBJECT_CONTEXT_BLOCK" in prompt
+        )
+        and (
+            "related_object_history_block" in prompt
+            or "RELATED_OBJECT_HISTORY_BLOCK" in prompt
+        )
+    )
+
+
+async def _upgrade_grounding_prompts_if_needed(
+    db: DatabaseStore,
+    all_settings: dict[str, str],
+) -> dict[str, str]:
+    """Move existing installations to the canonical-form prompt defaults.
+
+    Older Docker volumes can persist the previous prompt templates indefinitely.
+    The canonical-form feature requires these placeholders, so old templates are
+    upgraded once and then marked with a version key.
+    """
+    if all_settings.get("grounding_prompt_version") == GROUNDING_PROMPT_VERSION:
+        return all_settings
+
+    user_prompt = (
+        all_settings.get("grounding_user_prompt_template_user")
+        or all_settings.get("grounding_user_prompt_template")
+    )
+    assistant_prompt = (
+        all_settings.get("grounding_user_prompt_template_assistant")
+        or all_settings.get("grounding_user_prompt_template")
+    )
+
+    needs_upgrade = (
+        not _prompt_supports_canonical_forms(user_prompt)
+        or not _prompt_supports_canonical_forms(assistant_prompt)
+    )
+    if not needs_upgrade:
+        await db.set_setting("grounding_prompt_version", GROUNDING_PROMPT_VERSION)
+        all_settings["grounding_prompt_version"] = GROUNDING_PROMPT_VERSION
+        return all_settings
+
+    await db.set_setting("grounding_system_prompt", DEFAULT_GROUNDING_SYSTEM_PROMPT)
+    await db.set_setting(
+        "grounding_user_prompt_template_user",
+        DEFAULT_GROUNDING_USER_PROMPT_TEMPLATE_USER,
+    )
+    await db.set_setting(
+        "grounding_user_prompt_template_assistant",
+        DEFAULT_GROUNDING_USER_PROMPT_TEMPLATE_ASSISTANT,
+    )
+    await db.set_setting(
+        "grounding_user_prompt_template",
+        DEFAULT_GROUNDING_USER_PROMPT_TEMPLATE_USER,
+    )
+    await db.set_setting("grounding_prompt_version", GROUNDING_PROMPT_VERSION)
+
+    all_settings["grounding_system_prompt"] = DEFAULT_GROUNDING_SYSTEM_PROMPT
+    all_settings["grounding_user_prompt_template_user"] = (
+        DEFAULT_GROUNDING_USER_PROMPT_TEMPLATE_USER
+    )
+    all_settings["grounding_user_prompt_template_assistant"] = (
+        DEFAULT_GROUNDING_USER_PROMPT_TEMPLATE_ASSISTANT
+    )
+    all_settings["grounding_user_prompt_template"] = (
+        DEFAULT_GROUNDING_USER_PROMPT_TEMPLATE_USER
+    )
+    all_settings["grounding_prompt_version"] = GROUNDING_PROMPT_VERSION
+    return all_settings
+
+
 async def _save_settings(db: DatabaseStore, settings: AppSettings) -> None:
     """Save AppSettings to database key-value store."""
     await db.set_setting("openrouter_api_key", settings.openrouter_api_key)
@@ -85,6 +169,7 @@ async def _save_settings(db: DatabaseStore, settings: AppSettings) -> None:
         "grounding_user_prompt_template", settings.grounding.user_prompt_template_user
     )
     await db.set_setting("grounding_api_key", settings.grounding.api_key)
+    await db.set_setting("grounding_prompt_version", GROUNDING_PROMPT_VERSION)
 
 
 @router.get("/settings")

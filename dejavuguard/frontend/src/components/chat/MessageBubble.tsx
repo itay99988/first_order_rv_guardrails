@@ -161,6 +161,30 @@ export default function MessageBubble({
                           </span>
                         </div>
                         <p className="text-terminal-dim">{g.reasoning}</p>
+                        {g.object_mentions && g.object_mentions.length > 0 && (
+                          <div className="mt-1 space-y-0.5">
+                            {g.object_mentions.map((obj) => (
+                              <div
+                                key={`${g.prop_id}-${obj.object_id}-${obj.mention}`}
+                                className="border border-border/60 bg-dark-surface px-1.5 py-1"
+                              >
+                                <div className="text-terminal-dim">
+                                  <span className="text-accent">{obj.object_id}</span>{" "}
+                                  mention:{" "}
+                                  <span className="text-terminal-text">
+                                    {obj.mention}
+                                  </span>
+                                </div>
+                                <div className="text-terminal-dim">
+                                  canonical:{" "}
+                                  <span className="text-terminal-amber">
+                                    {obj.canonical_form || obj.mention}
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     ))}
                 </div>

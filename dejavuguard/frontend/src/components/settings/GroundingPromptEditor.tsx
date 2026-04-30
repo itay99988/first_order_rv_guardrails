@@ -7,44 +7,71 @@ interface GroundingPromptEditorProps {
   onUpdate: (settings: AppSettings) => void;
 }
 
-const DEFAULT_SYSTEM_PROMPT = `You are a precise content classifier. Your task is to determine whether a message matches a given proposition. You must distinguish between:
-- Messages that genuinely request/intend what the proposition describes
-- Messages that use similar vocabulary but have legitimate/benign intent
-- Educational questions ABOUT the topic (not requesting to perform it)
+const DEFAULT_SYSTEM_PROMPT = `You are a text annotation assistant for first-order grounding.
 
-Respond with ONLY valid JSON, no other text.`;
+Classify whether the message expresses the predicate exactly. If found=true, extract exact verbatim object mentions and a canonical_form for each object. Use related-object context and current-conversation history to choose a prior canonical form when the current mention refers to the same entity/value; otherwise create a concise stable canonical form. If found=false, return object_mentions=[]. Return JSON only.`;
 
-const DEFAULT_USER_PROMPT_USER = `PROPOSITION: "{proposition_description}"
+const DEFAULT_USER_PROMPT_USER = `You are a text annotation assistant. Determine whether a user message matches a predicate description. If it matches, extract exact verbatim object mentions.
 
-Few-shot examples:
+Rules:
+- Read the predicate literally and precisely.
+- Only mark found=true if the message explicitly satisfies the exact predicate.
+- Mentions must be exact substrings copied from the message.
+- Every object_mentions item must include object_id, mention, and canonical_form.
+- To choose canonical_form, use the related object context and related object mention/canonical history below.
+- Pick an existing canonical_form from history if the current mention refers to the same entity/value/concept.
+- Define a new concise stable canonical_form if no prior canonical_form fits.
+- If found=false, object_mentions must be [].
+- Return JSON only.
+
+Predicate-specific few-shot examples:
 {few_shot_examples}
 
-USER MESSAGE: "{message_text}"
-Does this message match the proposition? Consider:
-1. Does the user intend to perform the action described in the proposition?
-2. Or are they asking for education, defense, their own account, or general info?
-
-Respond with JSON:
+Message: "{message_text}"
+Predicate: {proposition_description}
+{objects_section}Related object context:
+{related_object_context_block}
+Related object mention and canonical history:
+{related_object_history_block}
+Output schema:
 {{
-  "match": true or false,
-  "reasoning": "brief explanation"
+  "reasoning": "brief rationale",
+  "found": true,
+  "object_mentions": [
+    {{"object_id": "o1", "mention": "exact span", "canonical_form": "canonical identity or value"}}
+  ]
 }}`;
 
-const DEFAULT_USER_PROMPT_ASSISTANT = `PROPOSITION: "{proposition_description}"
+const DEFAULT_USER_PROMPT_ASSISTANT = `You are a text annotation assistant. Determine whether an assistant message matches a predicate description. If it matches, extract exact verbatim object mentions.
 
-Few-shot examples:
+Rules:
+- Read the predicate literally and precisely.
+- Only mark found=true if the message explicitly satisfies the exact predicate.
+- Subtle mismatches are NOT found.
+- Mentions must be exact substrings copied from the message.
+- Every object_mentions item must include object_id, mention, and canonical_form.
+- To choose canonical_form, use the related object context and related object mention/canonical history below.
+- Pick an existing canonical_form from history if the current mention refers to the same entity/value/concept.
+- Define a new concise stable canonical_form if no prior canonical_form fits.
+- If found=false, object_mentions must be [].
+- Return JSON only.
+
+Predicate-specific few-shot examples:
 {few_shot_examples}
 
-ASSISTANT MESSAGE: "{message_text}"
-Does this message match the proposition? Consider:
-1. Does the assistant response actually perform/provide what the proposition describes?
-2. Or is it general, defensive, refusal-oriented, or safety-focused discussion?
-3. Distinguish direct actionable assistance from high-level or preventive information
-
-Respond with JSON:
+Message: "{message_text}"
+Predicate: {proposition_description}
+{objects_section}Related object context:
+{related_object_context_block}
+Related object mention and canonical history:
+{related_object_history_block}
+Output schema:
 {{
-  "match": true or false,
-  "reasoning": "brief explanation"
+  "reasoning": "brief rationale",
+  "found": true,
+  "object_mentions": [
+    {{"object_id": "o1", "mention": "exact span", "canonical_form": "canonical identity or value"}}
+  ]
 }}`;
 
 export default function GroundingPromptEditor({
@@ -142,7 +169,9 @@ export default function GroundingPromptEditor({
           />
           <p className="mt-1 text-terminal-dim text-xs">
             Template variables: {"{proposition_description}"},{" "}
-            {"{few_shot_examples}"}, {"{message_text}"}
+            {"{few_shot_examples}"}, {"{message_text}"},{" "}
+            {"{objects_section}"}, {"{related_object_context_block}"},{" "}
+            {"{related_object_history_block}"}
           </p>
         </div>
 
@@ -163,7 +192,9 @@ export default function GroundingPromptEditor({
           />
           <p className="mt-1 text-terminal-dim text-xs">
             Template variables: {"{proposition_description}"},{" "}
-            {"{few_shot_examples}"}, {"{message_text}"}
+            {"{few_shot_examples}"}, {"{message_text}"},{" "}
+            {"{objects_section}"}, {"{related_object_context_block}"},{" "}
+            {"{related_object_history_block}"}
           </p>
         </div>
 

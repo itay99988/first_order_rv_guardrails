@@ -15,8 +15,8 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 from backend.engine.grounding import build_grounding_prompts
-from backend.models.chat import ChatMessage
 from backend.models.builtins import is_builtin_proposition
+from backend.models.chat import ChatMessage
 from backend.models.policy import Policy, Proposition
 from backend.routers.chat import invalidate_monitors
 from backend.routers.settings import _load_settings
@@ -106,6 +106,164 @@ def _extract_identifiers(formula_str: str) -> set[str]:
         quant_vars.add(match.group(1))
     all_ids = set(re.findall(r'\b([a-zA-Z_]\w*)\b', cleaned))
     return all_ids - _DEJAVU_KEYWORDS - quant_vars
+
+
+def _split_formula_args(args_str: str) -> list[str]:
+    """Split predicate call arguments while preserving quoted commas."""
+    args: list[str] = []
+    current: list[str] = []
+    quote_char: str | None = None
+    escape_next = False
+
+    for ch in args_str:
+        if escape_next:
+            current.append(ch)
+            escape_next = False
+            continue
+        if ch == "\\" and quote_char:
+            current.append(ch)
+            escape_next = True
+            continue
+        if quote_char:
+            current.append(ch)
+            if ch == quote_char:
+                quote_char = None
+            continue
+        if ch in ("'", '"'):
+            current.append(ch)
+            quote_char = ch
+            continue
+        if ch == ",":
+            args.append("".join(current).strip())
+            current = []
+            continue
+        current.append(ch)
+
+    tail = "".join(current).strip()
+    if tail:
+        args.append(tail)
+    return args
+
+
+def _extract_formula_calls(formula_str: str) -> list[tuple[str, list[str]]]:
+    """Extract simple predicate calls and their raw argument strings."""
+    calls: list[tuple[str, list[str]]] = []
+    for match in re.finditer(r"\b([A-Za-z_]\w*)\s*\(([^()]*)\)", formula_str):
+        call_name = match.group(1)
+        if call_name in _DEJAVU_KEYWORDS:
+            continue
+        calls.append((call_name, _split_formula_args(match.group(2))))
+    return calls
+
+
+def _is_relation_variable(token: str) -> bool:
+    """Return True for unquoted identifier arguments used as policy variables."""
+    raw = (token or "").strip()
+    if not raw:
+        return False
+    if raw[0] in ("'", '"') or raw[-1:] in ("'", '"'):
+        return False
+    if raw in _DEJAVU_KEYWORDS:
+        return False
+    return bool(re.fullmatch(r"[A-Za-z_]\w*", raw))
+
+
+def _strip_formula_string_literals(formula_str: str) -> str:
+    """Remove quoted literals so comparison extraction only sees variables."""
+    cleaned = re.sub(r'"(?:\\.|[^"\\])*"', "", formula_str)
+    return re.sub(r"'(?:\\.|[^'\\])*'", "", cleaned)
+
+
+def _find_variable_comparisons(formula_str: str) -> list[tuple[str, str]]:
+    """Extract variable pairs compared with equality/ordering operators."""
+    cleaned = _strip_formula_string_literals(formula_str)
+    comparisons: list[tuple[str, str]] = []
+    comparison_re = re.compile(
+        r"\b([A-Za-z_]\w*)\b\s*(?:<=|>=|!=|==|=|<|>)\s*\b([A-Za-z_]\w*)\b"
+    )
+    for match in comparison_re.finditer(cleaned):
+        left = match.group(1)
+        right = match.group(2)
+        if _is_relation_variable(left) and _is_relation_variable(right):
+            comparisons.append((left, right))
+    return comparisons
+
+
+class _VariableUnionFind:
+    def __init__(self) -> None:
+        self._parent: dict[str, str] = {}
+
+    def find(self, item: str) -> str:
+        if item not in self._parent:
+            self._parent[item] = item
+        if self._parent[item] != item:
+            self._parent[item] = self.find(self._parent[item])
+        return self._parent[item]
+
+    def union(self, left: str, right: str) -> None:
+        left_root = self.find(left)
+        right_root = self.find(right)
+        if left_root != right_root:
+            self._parent[right_root] = left_root
+
+
+async def _extract_related_object_relations(
+    db: DatabaseStore,
+    formula_str: str,
+) -> list[dict]:
+    """Build directed related-object edges implied by variables and comparisons."""
+    positions_by_variable: dict[str, list[tuple[str, str]]] = {}
+    variables = _VariableUnionFind()
+
+    for prop_id, args in _extract_formula_calls(formula_str):
+        if is_builtin_proposition(prop_id):
+            continue
+        prop = await db.get_proposition(prop_id)
+        if not prop:
+            continue
+
+        arity = prop.get("arity", 0) or 0
+        for idx, arg in enumerate(args[:arity]):
+            if not _is_relation_variable(arg):
+                continue
+            variable = arg.strip()
+            variables.find(variable)
+            positions_by_variable.setdefault(variable, []).append(
+                (prop_id, f"o{idx + 1}")
+            )
+
+    for left, right in _find_variable_comparisons(formula_str):
+        variables.union(left, right)
+
+    positions_by_relation_group: dict[str, list[tuple[str, str]]] = {}
+    for variable, positions in positions_by_variable.items():
+        positions_by_relation_group.setdefault(variables.find(variable), []).extend(
+            positions
+        )
+
+    relations: list[dict] = []
+    seen: set[tuple[str, str, str, str]] = set()
+    for positions in positions_by_relation_group.values():
+        unique_positions = list(dict.fromkeys(positions))
+        if len(unique_positions) < 2:
+            continue
+        for prop_id, object_id in unique_positions:
+            for related_prop_id, related_object_id in unique_positions:
+                key = (prop_id, object_id, related_prop_id, related_object_id)
+                if key in seen or (prop_id, object_id) == (
+                    related_prop_id,
+                    related_object_id,
+                ):
+                    continue
+                seen.add(key)
+                relations.append({
+                    "prop_id": prop_id,
+                    "object_id": object_id,
+                    "related_prop_id": related_prop_id,
+                    "related_object_id": related_object_id,
+                })
+
+    return relations
 
 
 def _parse_json_list_field(raw_value) -> list[str]:
@@ -248,8 +406,8 @@ async def _validate_formula(db: DatabaseStore, formula_str: str) -> tuple[list[s
 
     Returns (prop_ids, error_or_none).
     """
-    from backend.engine.dejavu_client import DejaVuClient, DejaVuError
     from backend.config import get_config
+    from backend.engine.dejavu_client import DejaVuClient, DejaVuError
 
     formula_str = formula_str.strip()
     if not formula_str:
@@ -491,6 +649,8 @@ async def proposition_grounding_prompt(
         system_prompt=settings.grounding.system_prompt,
         user_prompt_template_user=settings.grounding.user_prompt_template_user,
         user_prompt_template_assistant=settings.grounding.user_prompt_template_assistant,
+        related_object_context_block="{{RELATED_OBJECT_CONTEXT_BLOCK}}",
+        related_object_history_block="{{RELATED_OBJECT_HISTORY_BLOCK}}",
     )
     return GroundingPromptPreview(
         prop_id=proposition.prop_id,
@@ -585,6 +745,10 @@ async def create_policy(request: Request, body: CreatePolicyRequest) -> Policy:
         policy_id,
         [pid for pid in prop_ids if not is_builtin_proposition(pid)],
     )
+    await db.set_policy_related_objects(
+        policy_id,
+        await _extract_related_object_relations(db, body.formula_str),
+    )
     invalidate_monitors()
 
     return Policy(
@@ -614,6 +778,10 @@ async def update_policy(request: Request, policy_id: str, body: UpdatePolicyRequ
         await db.set_policy_propositions(
             policy_id,
             [pid for pid in prop_ids if not is_builtin_proposition(pid)],
+        )
+        await db.set_policy_related_objects(
+            policy_id,
+            await _extract_related_object_relations(db, body.formula_str),
         )
 
     await db.update_policy(

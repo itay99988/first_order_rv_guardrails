@@ -26,7 +26,15 @@ class GroundingProvider(StrEnum):
 # built-in few-shot examples from the grounding_dataset evaluation work.
 # Separate templates exist for user-role and assistant-role predicates.
 
-DEFAULT_GROUNDING_SYSTEM_PROMPT = ""
+DEFAULT_GROUNDING_SYSTEM_PROMPT = (
+    "You are a text annotation assistant for first-order grounding.\n\n"
+    "Classify whether the message expresses the predicate exactly. If found=true, "
+    "extract exact verbatim object mentions and a canonical_form for each object. "
+    "Use related-object context and current-conversation history to choose a prior "
+    "canonical form when the current mention refers to the same entity/value; "
+    "otherwise create a concise stable canonical form. If found=false, return "
+    "object_mentions=[]. Return JSON only."
+)
 
 # ---------------------------------------------------------------------------
 # Built-in few-shot examples for USER predicates
@@ -188,9 +196,16 @@ DEFAULT_GROUNDING_USER_PROMPT_TEMPLATE_USER = (
     "acceptance rate\" != \"requests enrollment information\".\n"
     "- Mentions must be exact substrings copied verbatim from the message — do not "
     "paraphrase or generalize.\n"
+    "- For every extracted object mention, include a canonical_form.\n"
+    "- To choose canonical_form, use the related object context and related object "
+    "mention/canonical history below. Pick an existing canonical_form from the "
+    "history if the current mention refers to the same entity/value/concept; "
+    "otherwise define a new concise, stable canonical_form.\n"
     "- If found is false, object_mentions must be [].\n"
     "- Output a JSON object with fields: \"reasoning\" (brief check of whether the "
-    "predicate matches), \"found\" (bool), \"object_mentions\" (list). No other text.\n\n"
+    "predicate matches), \"found\" (bool), \"object_mentions\" (list). No other text.\n"
+    "- Each object_mentions item must have fields: \"object_id\", \"mention\", "
+    "\"canonical_form\".\n\n"
     "Examples:\n\n"
     + _USER_EXAMPLES_ESCAPED
     + "\n\n"
@@ -200,6 +215,10 @@ DEFAULT_GROUNDING_USER_PROMPT_TEMPLATE_USER = (
     "Message: \"{message_text}\"\n"
     "Predicate: {proposition_description}\n"
     "{objects_section}"
+    "Related object context:\n"
+    "{related_object_context_block}\n"
+    "Related object mention and canonical history:\n"
+    "{related_object_history_block}\n"
     "Output:"
 )
 
@@ -222,14 +241,25 @@ DEFAULT_GROUNDING_USER_PROMPT_TEMPLATE_ASSISTANT = (
     "predicate fact -> NOT found.\n"
     "- A shopping list, food pairing suggestion, or ingredient substitution != a recipe "
     "using a product as an ingredient.\n"
+    "- For every extracted object mention, include a canonical_form.\n"
+    "- To choose canonical_form, use the related object context and related object "
+    "mention/canonical history below. Pick an existing canonical_form from the "
+    "history if the current mention refers to the same entity/value/concept; "
+    "otherwise define a new concise, stable canonical_form.\n"
     "- Mentions must be exact verbatim substrings — do not paraphrase.\n"
     "- If found is false, object_mentions must be [].\n"
     "- Output a JSON object with fields: \"reasoning\" (brief check), \"found\" (bool), "
-    "\"object_mentions\" (list). No other text.\n\n"
+    "\"object_mentions\" (list). No other text.\n"
+    "- Each object_mentions item must have fields: \"object_id\", \"mention\", "
+    "\"canonical_form\".\n\n"
     "Annotate:\n\n"
     "Message: \"{message_text}\"\n"
     "Predicate: {proposition_description}\n"
     "{objects_section}"
+    "Related object context:\n"
+    "{related_object_context_block}\n"
+    "Related object mention and canonical history:\n"
+    "{related_object_history_block}\n"
     "Output:"
 )
 

@@ -17,6 +17,8 @@ from dataclasses import dataclass, field
 from backend.engine.trace import MessageEvent
 from backend.models.policy import Proposition
 from backend.models.settings import (
+    _ASSISTANT_EXAMPLES_TEXT,
+    _USER_EXAMPLES_TEXT,
     DEFAULT_GROUNDING_SYSTEM_PROMPT,
     DEFAULT_GROUNDING_USER_PROMPT_TEMPLATE_ASSISTANT,
     DEFAULT_GROUNDING_USER_PROMPT_TEMPLATE_USER,
@@ -77,6 +79,8 @@ class GroundingMethod(ABC):
         self,
         message: MessageEvent,
         proposition: Proposition,
+        related_object_context_block: str = "NONE",
+        related_object_history_block: str = "NONE",
     ) -> GroundingResult:
         """Evaluate whether message matches predicate.
 
@@ -144,6 +148,8 @@ class LLMGrounding(GroundingMethod):
         self,
         message: MessageEvent,
         proposition: Proposition,
+        related_object_context_block: str = "NONE",
+        related_object_history_block: str = "NONE",
     ) -> GroundingResult:
         """Evaluate whether message matches predicate using LLM.
 
@@ -158,6 +164,19 @@ class LLMGrounding(GroundingMethod):
                 system_prompt=self.system_prompt,
                 user_prompt_template_user=self.user_prompt_template_user,
                 user_prompt_template_assistant=self.user_prompt_template_assistant,
+                related_object_context_block=related_object_context_block,
+                related_object_history_block=related_object_history_block,
+            )
+
+            print(  # noqa: T201 - user-facing debug visibility for grounding prompts.
+                "\n[Grounding] RELATED_OBJECT_CONTEXT_BLOCK "
+                f"for {proposition.prop_id}:\n{related_object_context_block}",
+                flush=True,
+            )
+            print(  # noqa: T201 - user-facing debug visibility for grounding prompts.
+                "[Grounding] RELATED_OBJECT_HISTORY_BLOCK "
+                f"for {proposition.prop_id}:\n{related_object_history_block}\n",
+                flush=True,
             )
 
             response_text = await self._client.chat(system_prompt, user_prompt)
@@ -207,7 +226,7 @@ class LLMGrounding(GroundingMethod):
             )
 
         confidence_raw = data.get("confidence")
-        if isinstance(confidence_raw, (int, float)):
+        if isinstance(confidence_raw, int | float):
             confidence = float(confidence_raw)
         else:
             confidence = 1.0 if match_val else 0.0
@@ -223,9 +242,14 @@ class LLMGrounding(GroundingMethod):
             if isinstance(raw_mentions, list):
                 for item in raw_mentions:
                     if isinstance(item, dict) and "object_id" in item and "mention" in item:
+                        mention = str(item["mention"])
+                        canonical_form = item.get("canonical_form")
+                        if canonical_form is None or not str(canonical_form).strip():
+                            canonical_form = mention
                         object_mentions.append({
                             "object_id": str(item["object_id"]),
-                            "mention": str(item["mention"]),
+                            "mention": mention,
+                            "canonical_form": str(canonical_form),
                         })
 
         return GroundingResult(
@@ -249,14 +273,25 @@ def render_few_shots(proposition: Proposition, role: str) -> str:
     lines: list[str] = []
     i = 1
     for txt in positives:
-        lines.append("Example {}:\nLabel: MATCH\n{} MESSAGE: {}".format(i, role_label, txt))
+        lines.append(f"Example {i}:\nLabel: MATCH\n{role_label} MESSAGE: {txt}")
         i += 1
     for txt in negatives:
-        lines.append(
-            "Example {}:\nLabel: NO_MATCH\n{} MESSAGE: {}".format(i, role_label, txt)
-        )
+        lines.append(f"Example {i}:\nLabel: NO_MATCH\n{role_label} MESSAGE: {txt}")
         i += 1
     return "\n\n".join(lines)
+
+
+def _build_objects_block(proposition: Proposition) -> str:
+    """Build only the o1..oN object lines for templates that provide their own header."""
+    if proposition.arity <= 0:
+        return "NONE"
+
+    descriptions = proposition.arg_descriptions or []
+    lines: list[str] = []
+    for i in range(proposition.arity):
+        desc = descriptions[i] if i < len(descriptions) else f"argument {i + 1}"
+        lines.append(f"  - o{i + 1}: {desc}")
+    return "\n".join(lines)
 
 
 def _build_objects_section(proposition: Proposition) -> str:
@@ -269,13 +304,15 @@ def _build_objects_section(proposition: Proposition) -> str:
     if proposition.arity <= 0:
         return ""
 
-    descriptions = proposition.arg_descriptions or []
-    lines: list[str] = []
-    for i in range(proposition.arity):
-        desc = descriptions[i] if i < len(descriptions) else f"argument {i + 1}"
-        lines.append(f"  - o{i + 1}: {desc}")
+    return "Objects:\n" + _build_objects_block(proposition) + "\n"
 
-    return "Objects:\n" + "\n".join(lines) + "\n"
+
+def _replace_prompt_template_aliases(rendered_prompt: str, alias_values: dict[str, str]) -> str:
+    """Support prompt_templates.txt style placeholders after str.format rendering."""
+    for key, value in alias_values.items():
+        rendered_prompt = rendered_prompt.replace("{{" + key + "}}", value)
+        rendered_prompt = rendered_prompt.replace("{" + key + "}", value)
+    return rendered_prompt
 
 
 def build_grounding_prompts(
@@ -285,6 +322,8 @@ def build_grounding_prompts(
     system_prompt: str,
     user_prompt_template_user: str,
     user_prompt_template_assistant: str,
+    related_object_context_block: str = "NONE",
+    related_object_history_block: str = "NONE",
 ) -> tuple[str, str]:
     """Build system/user prompts for a predicate-message pair."""
     role = (proposition.role or message_role or "user").strip().lower()
@@ -299,6 +338,21 @@ def build_grounding_prompts(
 
     few_shot_examples = render_few_shots(proposition, role)
     objects_section = _build_objects_section(proposition)
+    objects_block = _build_objects_block(proposition)
+    alias_values = {
+        "TEXT": message_text,
+        "PREDICATE_DESCRIPTION": proposition.description,
+        "PREDICATE_ROLE": proposition.role,
+        "MESSAGE_ROLE": message_role,
+        "MESSAGE_ROLE_UPPER": (message_role or "user").strip().upper(),
+        "OBJECTS_BLOCK": objects_block,
+        "OBJECTS_SECTION": objects_section,
+        "FEW_SHOT_EXAMPLES": few_shot_examples,
+        "USER_EXAMPLES_BLOCK": _USER_EXAMPLES_TEXT,
+        "ASSISTANT_EXAMPLES_BLOCK": _ASSISTANT_EXAMPLES_TEXT,
+        "RELATED_OBJECT_CONTEXT_BLOCK": related_object_context_block,
+        "RELATED_OBJECT_HISTORY_BLOCK": related_object_history_block,
+    }
 
     user_prompt = user_template.format(
         proposition_description=proposition.description,
@@ -308,5 +362,10 @@ def build_grounding_prompts(
         message_text=message_text,
         few_shot_examples=few_shot_examples,
         objects_section=objects_section,
+        objects_block=objects_block,
+        related_object_context_block=related_object_context_block,
+        related_object_history_block=related_object_history_block,
+        **alias_values,
     )
+    user_prompt = _replace_prompt_template_aliases(user_prompt, alias_values)
     return final_system_prompt, user_prompt

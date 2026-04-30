@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -28,6 +29,7 @@ from backend.services.openrouter import OpenRouterClient, OpenRouterError
 from backend.store.db import DatabaseStore
 
 router = APIRouter(tags=["chat"])
+logger = logging.getLogger(__name__)
 
 # In-memory cache of monitors per session
 _monitors: dict[str, ConversationMonitor] = {}
@@ -47,8 +49,8 @@ def _parse_json_list_field(raw_value) -> list[str]:
         parsed = json.loads(raw_value)
         if isinstance(parsed, list):
             return [str(x) for x in parsed if str(x).strip()]
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("Failed to parse JSON list field: %s", e)
     return []
 
 
@@ -105,6 +107,12 @@ async def _get_or_create_monitor(db: DatabaseStore, session_id: str) -> Conversa
         for r in prop_rows
         if r["prop_id"] in needed_prop_ids
     ]
+    related_objects = (
+        await db.list_related_objects(sorted(needed_prop_ids))
+        if needed_prop_ids
+        else []
+    )
+    canonical_history = await _load_canonical_history(db, session_id)
 
     # Create grounding client from settings
     from backend.routers.settings import _load_settings
@@ -130,9 +138,48 @@ async def _get_or_create_monitor(db: DatabaseStore, session_id: str) -> Conversa
         grounding=grounding,
         dejavu_client=dejavu_client,
         session_id=session_id,
+        related_objects=related_objects,
+        canonical_history=canonical_history,
     )
     _monitors[session_id] = monitor
     return monitor
+
+
+async def _load_canonical_history(db: DatabaseStore, session_id: str) -> list[dict]:
+    """Rehydrate object mention/canonical history from stored messages."""
+    history: list[dict] = []
+    for message in await db.get_session_messages(session_id):
+        if not message.get("grounding_details"):
+            continue
+        try:
+            details = json.loads(message["grounding_details"])
+        except Exception as e:
+            logger.debug("Failed to parse persisted grounding details: %s", e)
+            continue
+        if not isinstance(details, list):
+            continue
+        for detail in details:
+            if not isinstance(detail, dict) or not detail.get("match"):
+                continue
+            prop_id = str(detail.get("prop_id", "")).strip()
+            for mention in detail.get("object_mentions", []) or []:
+                if not isinstance(mention, dict):
+                    continue
+                object_id = str(mention.get("object_id", "")).strip()
+                mention_text = str(mention.get("mention", "")).strip()
+                canonical_form = str(
+                    mention.get("canonical_form") or mention_text
+                ).strip()
+                if not prop_id or not object_id or not mention_text:
+                    continue
+                history.append({
+                    "trace_index": int(message["trace_index"]),
+                    "prop_id": prop_id,
+                    "object_id": object_id,
+                    "mention": mention_text,
+                    "canonical_form": canonical_form,
+                })
+    return history
 
 
 @router.post("/chat")

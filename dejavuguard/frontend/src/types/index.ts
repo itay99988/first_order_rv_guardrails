@@ -52,12 +52,19 @@ export interface ViolationInfo {
   grounding_details: GroundingDetail[];
 }
 
+export interface ObjectMention {
+  object_id: string;
+  mention: string;
+  canonical_form?: string;
+}
+
 export interface GroundingDetail {
   prop_id: string;
   match: boolean;
   confidence: number;
   reasoning: string;
   method: string;
+  object_mentions?: ObjectMention[];
 }
 
 export interface MonitorVerdict {
