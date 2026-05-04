@@ -40,8 +40,10 @@ class GroundingResult:
     """Result of evaluating a message against a predicate.
 
     The ``match`` field maps to ``found`` in the LLM response format.
-    ``object_mentions`` carries verbatim extracted argument mentions
-    when the predicate has arity > 0.
+    ``instances`` carries every complete predicate occurrence in the message.
+    Each instance contains verbatim extracted object mentions for that
+    occurrence. ``object_mentions`` is a flattened convenience view used for
+    display and history indexing.
     """
 
     match: bool
@@ -49,7 +51,24 @@ class GroundingResult:
     reasoning: str
     method: str  # "llm" | "cosine" | "nli" | "hybrid"
     prop_id: str = ""
+    instances: list[dict] = field(default_factory=list)
     object_mentions: list[dict] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        """Keep old test doubles and direct constructions usable."""
+        if self.instances and not self.object_mentions:
+            for instance in self.instances:
+                if isinstance(instance, dict):
+                    mentions = instance.get("object_mentions", [])
+                    if isinstance(mentions, list):
+                        self.object_mentions.extend(
+                            m for m in mentions if isinstance(m, dict)
+                        )
+        elif self.object_mentions and not self.instances:
+            self.instances = [{
+                "instance_id": "i1",
+                "object_mentions": self.object_mentions,
+            }]
 
     def to_dict(self) -> dict:
         """Convert to a serializable dictionary."""
@@ -60,6 +79,7 @@ class GroundingResult:
             "reasoning": self.reasoning,
             "method": self.method,
             "prop_id": self.prop_id,
+            "instances": self.instances,
             "object_mentions": self.object_mentions,
         }
 
@@ -235,22 +255,37 @@ class LLMGrounding(GroundingMethod):
         if not isinstance(reasoning, str):
             reasoning = str(reasoning)
 
-        # Parse object_mentions when found=True
+        # Parse instances when found=True. Legacy flat object_mentions responses
+        # are normalized to a single instance so old test doubles still work.
+        instances: list[dict] = []
         object_mentions: list[dict] = []
         if match_val:
-            raw_mentions = data.get("object_mentions", [])
-            if isinstance(raw_mentions, list):
-                for item in raw_mentions:
-                    if isinstance(item, dict) and "object_id" in item and "mention" in item:
-                        mention = str(item["mention"])
-                        canonical_form = item.get("canonical_form")
-                        if canonical_form is None or not str(canonical_form).strip():
-                            canonical_form = mention
-                        object_mentions.append({
-                            "object_id": str(item["object_id"]),
-                            "mention": mention,
-                            "canonical_form": str(canonical_form),
-                        })
+            raw_instances = data.get("instances", [])
+            if isinstance(raw_instances, list):
+                for idx, raw_instance in enumerate(raw_instances, start=1):
+                    if not isinstance(raw_instance, dict):
+                        continue
+                    mentions = self._parse_object_mentions(
+                        raw_instance.get("object_mentions", [])
+                    )
+                    if not mentions:
+                        continue
+                    instance_id = str(raw_instance.get("instance_id") or f"i{idx}")
+                    instance = {
+                        "instance_id": instance_id,
+                        "object_mentions": mentions,
+                    }
+                    instances.append(instance)
+                    object_mentions.extend(mentions)
+
+            if not instances:
+                mentions = self._parse_object_mentions(data.get("object_mentions", []))
+                if mentions:
+                    instances.append({
+                        "instance_id": "i1",
+                        "object_mentions": mentions,
+                    })
+                    object_mentions.extend(mentions)
 
         return GroundingResult(
             match=match_val,
@@ -258,8 +293,31 @@ class LLMGrounding(GroundingMethod):
             reasoning=reasoning,
             method="llm",
             prop_id=prop_id,
+            instances=instances,
             object_mentions=object_mentions,
         )
+
+    @staticmethod
+    def _parse_object_mentions(raw_mentions: object) -> list[dict]:
+        mentions: list[dict] = []
+        if not isinstance(raw_mentions, list):
+            return mentions
+
+        for item in raw_mentions:
+            if not isinstance(item, dict):
+                continue
+            if "object_id" not in item or "mention" not in item:
+                continue
+            mention = str(item["mention"])
+            canonical_form = item.get("canonical_form")
+            if canonical_form is None or not str(canonical_form).strip():
+                canonical_form = mention
+            mentions.append({
+                "object_id": str(item["object_id"]),
+                "mention": mention,
+                "canonical_form": str(canonical_form),
+            })
+        return mentions
 
 
 def render_few_shots(proposition: Proposition, role: str) -> str:
@@ -308,7 +366,13 @@ def _build_objects_section(proposition: Proposition) -> str:
 
 
 def _replace_prompt_template_aliases(rendered_prompt: str, alias_values: dict[str, str]) -> str:
-    """Support prompt_templates.txt style placeholders after str.format rendering."""
+    """Replace known placeholders without interpreting JSON braces.
+
+    The active grounding prompts contain JSON examples. Using ``str.format``
+    on those templates is brittle because JSON object braces look like Python
+    format fields. This renderer intentionally performs literal replacement
+    only for known placeholders.
+    """
     for key, value in alias_values.items():
         rendered_prompt = rendered_prompt.replace("{{" + key + "}}", value)
         rendered_prompt = rendered_prompt.replace("{" + key + "}", value)
@@ -352,20 +416,17 @@ def build_grounding_prompts(
         "ASSISTANT_EXAMPLES_BLOCK": _ASSISTANT_EXAMPLES_TEXT,
         "RELATED_OBJECT_CONTEXT_BLOCK": related_object_context_block,
         "RELATED_OBJECT_HISTORY_BLOCK": related_object_history_block,
+        "proposition_description": proposition.description,
+        "proposition_role": proposition.role,
+        "message_role": message_role,
+        "message_role_upper": (message_role or "user").strip().upper(),
+        "message_text": message_text,
+        "few_shot_examples": few_shot_examples,
+        "objects_section": objects_section,
+        "objects_block": objects_block,
+        "related_object_context_block": related_object_context_block,
+        "related_object_history_block": related_object_history_block,
     }
 
-    user_prompt = user_template.format(
-        proposition_description=proposition.description,
-        proposition_role=proposition.role,
-        message_role=message_role,
-        message_role_upper=(message_role or "user").strip().upper(),
-        message_text=message_text,
-        few_shot_examples=few_shot_examples,
-        objects_section=objects_section,
-        objects_block=objects_block,
-        related_object_context_block=related_object_context_block,
-        related_object_history_block=related_object_history_block,
-        **alias_values,
-    )
-    user_prompt = _replace_prompt_template_aliases(user_prompt, alias_values)
+    user_prompt = _replace_prompt_template_aliases(user_template, alias_values)
     return final_system_prompt, user_prompt

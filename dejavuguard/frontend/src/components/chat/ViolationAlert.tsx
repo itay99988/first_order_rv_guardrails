@@ -38,11 +38,37 @@ export default function ViolationAlert({
                       {g.reasoning}
                     </p>
                   ) : (
-                    <p key={i} className="text-xs text-terminal-dim">
-                      <span className="font-mono text-terminal-red/80">{g.prop_id}</span>:{" "}
-                      {g.match ? "matched" : "no match"}{" "}
-                      — {g.reasoning}
-                    </p>
+                    <div key={i} className="text-xs text-terminal-dim">
+                      <p>
+                        <span className="font-mono text-terminal-red/80">{g.prop_id}</span>:{" "}
+                        {g.match ? "matched" : "no match"}{" "}
+                        - {g.reasoning}
+                      </p>
+                      {g.instances && g.instances.length > 0 && (
+                        <div className="ml-2 mt-1 space-y-0.5">
+                          {g.instances.map((instance, instanceIndex) => (
+                            <div key={`${g.prop_id}-${instance.instance_id || instanceIndex}`}>
+                              <span className="text-terminal-amber">
+                                {instance.instance_id || `i${instanceIndex + 1}`}
+                              </span>
+                              {": "}
+                              {instance.object_mentions.map((obj) => (
+                                <span
+                                  key={`${obj.object_id}-${obj.mention}`}
+                                  className="mr-2"
+                                >
+                                  <span className="text-accent">{obj.object_id}</span>{" "}
+                                  {obj.mention}{" "}
+                                  <span className="text-terminal-amber">
+                                    ({obj.canonical_form || obj.mention})
+                                  </span>
+                                </span>
+                              ))}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   ),
                 )}
               </div>

@@ -127,8 +127,11 @@ class ConversationMonitor:
         # 3. Ground each relevant predicate (in parallel)
         labeling: dict[str, bool] = {}
         grounding_details: list[dict] = []
-        # Track extracted object mentions per predicate for DejaVu event args
-        prop_mentions: dict[str, list[dict]] = {}
+        # Track extracted predicate instances per predicate for DejaVu event args.
+        # Multiple instances become multiple event objects inside the same
+        # /events composite call. DejaVu expects each event args value to be a
+        # flat list of strings, not a nested list of tuples.
+        prop_instances: dict[str, list[dict]] = {}
 
         if relevant_props:
             grounding_tasks = []
@@ -139,9 +142,17 @@ class ConversationMonitor:
             for prop, result in zip(relevant_props, results, strict=True):
                 labeling[prop.prop_id] = result.match
                 grounding_details.append(result.to_dict())
-                if result.match and result.object_mentions:
-                    prop_mentions[prop.prop_id] = result.object_mentions
-                    self._remember_object_history(event.index, prop.prop_id, result.object_mentions)
+                if result.match:
+                    instances = result.instances or (
+                        [{
+                            "instance_id": "i1",
+                            "object_mentions": result.object_mentions,
+                        }]
+                        if result.object_mentions
+                        else []
+                    )
+                    prop_instances[prop.prop_id] = instances
+                    self._remember_object_history(event.index, prop.prop_id, instances)
 
         # Built-in predicates are always available in formulas.
         labeling[BUILTIN_USER_TURN] = role == "user"
@@ -174,20 +185,29 @@ class ConversationMonitor:
         if self._dejavu_session_id is not None:
             # Build event list: for each prop where labeling is True,
             # create {"name": prop_id, "args": [...]} with extracted mentions.
+            # The whole events list is one DejaVu composite event for this
+            # chat message, so repeated predicate names here are simultaneous
+            # instances of the same predicate.
             events: list[dict] = []
             for prop_id, value in labeling.items():
                 if value and prop_id != BUILTIN_USER_TURN:
-                    # Extract args from object mentions, ordered by object_id
-                    mentions = prop_mentions.get(prop_id, [])
-                    if mentions:
-                        sorted_mentions = sorted(mentions, key=self._object_sort_key)
-                        args = [
-                            str(m.get("canonical_form") or m.get("mention") or "")
-                            for m in sorted_mentions
-                        ]
+                    instances = prop_instances.get(prop_id, [])
+                    if instances:
+                        for instance in instances:
+                            mentions = instance.get("object_mentions", [])
+                            if isinstance(mentions, list) and mentions:
+                                sorted_mentions = sorted(
+                                    mentions, key=self._object_sort_key
+                                )
+                                args = [
+                                    str(m.get("canonical_form") or m.get("mention") or "")
+                                    for m in sorted_mentions
+                                ]
+                            else:
+                                args = []
+                            events.append({"name": prop_id, "args": args})
                     else:
-                        args = []
-                    events.append({"name": prop_id, "args": args})
+                        events.append({"name": prop_id, "args": []})
 
             if not events:
                 # No predicates matched — keep previous verdicts, skip DejaVu call
@@ -413,18 +433,24 @@ class ConversationMonitor:
         self,
         trace_index: int,
         prop_id: str,
-        object_mentions: list[dict],
+        instances: list[dict],
     ) -> None:
-        for item in object_mentions:
-            object_id = str(item.get("object_id", "")).strip()
-            mention = str(item.get("mention", "")).strip()
-            canonical_form = str(item.get("canonical_form") or mention).strip()
-            if not object_id or not mention:
+        for instance in instances:
+            mentions = instance.get("object_mentions", []) if isinstance(instance, dict) else []
+            if not isinstance(mentions, list):
                 continue
-            self._canonical_history.append({
-                "trace_index": trace_index,
-                "prop_id": prop_id,
-                "object_id": object_id,
-                "mention": mention,
-                "canonical_form": canonical_form,
-            })
+            for item in mentions:
+                if not isinstance(item, dict):
+                    continue
+                object_id = str(item.get("object_id", "")).strip()
+                mention = str(item.get("mention", "")).strip()
+                canonical_form = str(item.get("canonical_form") or mention).strip()
+                if not object_id or not mention:
+                    continue
+                self._canonical_history.append({
+                    "trace_index": trace_index,
+                    "prop_id": prop_id,
+                    "object_id": object_id,
+                    "mention": mention,
+                    "canonical_form": canonical_form,
+                })

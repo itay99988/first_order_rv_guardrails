@@ -25,7 +25,7 @@ from backend.services.openrouter import OpenRouterClient, OpenRouterError
 from backend.store.db import DatabaseStore
 
 router = APIRouter(tags=["settings"])
-GROUNDING_PROMPT_VERSION = "canonical_forms_v1"
+GROUNDING_PROMPT_VERSION = "multi_instances_v1"
 
 
 def _get_db(request: Request) -> DatabaseStore:
@@ -71,50 +71,17 @@ async def _load_settings(db: DatabaseStore) -> AppSettings:
     )
 
 
-def _prompt_supports_canonical_forms(prompt: str | None) -> bool:
-    prompt = prompt or ""
-    return (
-        "canonical_form" in prompt
-        and (
-            "related_object_context_block" in prompt
-            or "RELATED_OBJECT_CONTEXT_BLOCK" in prompt
-        )
-        and (
-            "related_object_history_block" in prompt
-            or "RELATED_OBJECT_HISTORY_BLOCK" in prompt
-        )
-    )
-
-
 async def _upgrade_grounding_prompts_if_needed(
     db: DatabaseStore,
     all_settings: dict[str, str],
 ) -> dict[str, str]:
-    """Move existing installations to the canonical-form prompt defaults.
+    """Move existing installations to the active multi-instance prompt defaults.
 
-    Older Docker volumes can persist the previous prompt templates indefinitely.
-    The canonical-form feature requires these placeholders, so old templates are
-    upgraded once and then marked with a version key.
+    Older Docker volumes can persist previous prompt templates indefinitely.
+    The multi-instance feature changes the required response schema, so stale
+    prompts are overwritten once and then marked with a version key.
     """
     if all_settings.get("grounding_prompt_version") == GROUNDING_PROMPT_VERSION:
-        return all_settings
-
-    user_prompt = (
-        all_settings.get("grounding_user_prompt_template_user")
-        or all_settings.get("grounding_user_prompt_template")
-    )
-    assistant_prompt = (
-        all_settings.get("grounding_user_prompt_template_assistant")
-        or all_settings.get("grounding_user_prompt_template")
-    )
-
-    needs_upgrade = (
-        not _prompt_supports_canonical_forms(user_prompt)
-        or not _prompt_supports_canonical_forms(assistant_prompt)
-    )
-    if not needs_upgrade:
-        await db.set_setting("grounding_prompt_version", GROUNDING_PROMPT_VERSION)
-        all_settings["grounding_prompt_version"] = GROUNDING_PROMPT_VERSION
         return all_settings
 
     await db.set_setting("grounding_system_prompt", DEFAULT_GROUNDING_SYSTEM_PROMPT)
@@ -126,10 +93,11 @@ async def _upgrade_grounding_prompts_if_needed(
         "grounding_user_prompt_template_assistant",
         DEFAULT_GROUNDING_USER_PROMPT_TEMPLATE_ASSISTANT,
     )
-    await db.set_setting(
-        "grounding_user_prompt_template",
-        DEFAULT_GROUNDING_USER_PROMPT_TEMPLATE_USER,
-    )
+    # Remove stale pre-split prompt keys so settings cannot silently keep
+    # single-instance templates from an older Docker volume.
+    await db.delete_setting("grounding_user_prompt_template")
+    await db.delete_setting("grounding_system_prompt_user")
+    await db.delete_setting("grounding_system_prompt_assistant")
     await db.set_setting("grounding_prompt_version", GROUNDING_PROMPT_VERSION)
 
     all_settings["grounding_system_prompt"] = DEFAULT_GROUNDING_SYSTEM_PROMPT
@@ -139,9 +107,9 @@ async def _upgrade_grounding_prompts_if_needed(
     all_settings["grounding_user_prompt_template_assistant"] = (
         DEFAULT_GROUNDING_USER_PROMPT_TEMPLATE_ASSISTANT
     )
-    all_settings["grounding_user_prompt_template"] = (
-        DEFAULT_GROUNDING_USER_PROMPT_TEMPLATE_USER
-    )
+    all_settings.pop("grounding_user_prompt_template", None)
+    all_settings.pop("grounding_system_prompt_user", None)
+    all_settings.pop("grounding_system_prompt_assistant", None)
     all_settings["grounding_prompt_version"] = GROUNDING_PROMPT_VERSION
     return all_settings
 
@@ -164,10 +132,9 @@ async def _save_settings(db: DatabaseStore, settings: AppSettings) -> None:
         "grounding_user_prompt_template_assistant",
         settings.grounding.user_prompt_template_assistant,
     )
-    # Persist legacy key for compatibility with older clients.
-    await db.set_setting(
-        "grounding_user_prompt_template", settings.grounding.user_prompt_template_user
-    )
+    await db.delete_setting("grounding_user_prompt_template")
+    await db.delete_setting("grounding_system_prompt_user")
+    await db.delete_setting("grounding_system_prompt_assistant")
     await db.set_setting("grounding_api_key", settings.grounding.api_key)
     await db.set_setting("grounding_prompt_version", GROUNDING_PROMPT_VERSION)
 

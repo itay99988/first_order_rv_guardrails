@@ -58,12 +58,18 @@ export interface ObjectMention {
   canonical_form?: string;
 }
 
+export interface GroundingInstance {
+  instance_id: string;
+  object_mentions: ObjectMention[];
+}
+
 export interface GroundingDetail {
   prop_id: string;
   match: boolean;
   confidence: number;
   reasoning: string;
   method: string;
+  instances?: GroundingInstance[];
   object_mentions?: ObjectMention[];
 }
 

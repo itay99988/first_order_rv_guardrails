@@ -9,70 +9,141 @@ interface GroundingPromptEditorProps {
 
 const DEFAULT_SYSTEM_PROMPT = `You are a text annotation assistant for first-order grounding.
 
-Classify whether the message expresses the predicate exactly. If found=true, extract exact verbatim object mentions and a canonical_form for each object. Use related-object context and current-conversation history to choose a prior canonical form when the current mention refers to the same entity/value; otherwise create a concise stable canonical form. If found=false, return object_mentions=[]. Return JSON only.`;
+Your task:
+- Decide whether a message expresses a given predicate description.
+- If it does, extract each complete predicate instance expressed in the message.
+- For each instance, extract exact verbatim mentions for each required object_id.
+- For each extracted mention, also provide a canonical_form.
 
-const DEFAULT_USER_PROMPT_USER = `You are a text annotation assistant. Determine whether a user message matches a predicate description. If it matches, extract exact verbatim object mentions.
-
-Rules:
+Strict rules:
 - Read the predicate literally and precisely.
-- Only mark found=true if the message explicitly satisfies the exact predicate.
-- Mentions must be exact substrings copied from the message.
-- Every object_mentions item must include object_id, mention, and canonical_form.
-- To choose canonical_form, use the related object context and related object mention/canonical history below.
-- Pick an existing canonical_form from history if the current mention refers to the same entity/value/concept.
-- Define a new concise stable canonical_form if no prior canonical_form fits.
-- If found=false, object_mentions must be [].
-- Return JSON only.
+- Only return found=true if the message explicitly satisfies the exact predicate (not adjacent or related meaning).
+- If found=false, instances must be [].
+- If found=true, instances must include one item for each complete predicate occurrence in the message.
+- Each instance must include all required object_ids with exact substrings from the message and canonical forms.
+- Do not merge objects across different predicate occurrences.
+- Preserve object pairings/groups exactly as expressed in the message.
+- Do not paraphrase mentions.
+- The mention must be copied exactly from the message.
+- The canonical_form is the normalized identity/value for that mention, chosen using the related-object context and history when provided.
+- Output JSON only.
 
-Predicate-specific few-shot examples:
-{few_shot_examples}
-
-Message: "{message_text}"
-Predicate: {proposition_description}
-{objects_section}Related object context:
-{related_object_context_block}
-Related object mention and canonical history:
-{related_object_history_block}
 Output schema:
-{{
+{
   "reasoning": "brief rationale",
   "found": true,
-  "object_mentions": [
-    {{"object_id": "o1", "mention": "exact span", "canonical_form": "canonical identity or value"}}
+  "instances": [
+    {
+      "instance_id": "i1",
+      "object_mentions": [
+        {
+          "object_id": "o1",
+          "mention": "exact span",
+          "canonical_form": "canonical identity or value"
+        }
+      ]
+    }
   ]
-}}`;
+}`;
 
-const DEFAULT_USER_PROMPT_ASSISTANT = `You are a text annotation assistant. Determine whether an assistant message matches a predicate description. If it matches, extract exact verbatim object mentions.
+const DEFAULT_USER_PROMPT_USER = `You are a text annotation assistant. Your task is to determine if a user message matches a predicate description, and if so, extract each complete predicate instance from the message.
 
 Rules:
-- Read the predicate literally and precisely.
-- Only mark found=true if the message explicitly satisfies the exact predicate.
-- Subtle mismatches are NOT found.
-- Mentions must be exact substrings copied from the message.
-- Every object_mentions item must include object_id, mention, and canonical_form.
-- To choose canonical_form, use the related object context and related object mention/canonical history below.
-- Pick an existing canonical_form from history if the current mention refers to the same entity/value/concept.
-- Define a new concise stable canonical_form if no prior canonical_form fits.
-- If found=false, object_mentions must be [].
-- Return JSON only.
+- Read the predicate description LITERALLY and PRECISELY. Only mark found=true if the message explicitly and specifically satisfies the exact predicate - not something adjacent, related, or similar.
+- Subtle mismatches count as NOT found. E.g. "asking about an outage" != "asking about coverage"; "departing from airport" != "arriving at airport"; "requests acceptance rate" != "requests enrollment information".
+- Mentions must be exact substrings copied verbatim from the message - do not paraphrase or generalize.
+- If the predicate is expressed multiple times in the same message, return one instances item per complete predicate occurrence.
+- Each instance must include all required object_ids for that occurrence.
+- Do not merge objects across different occurrences.
+- Preserve the object pairings/groups exactly as expressed in the message.
+- For every extracted object mention, include a canonical_form.
+- To choose canonical_form for each object, use the related object context and related object history below.
+- For each current object, the related object context gives:
+  - the related predicate
+  - the related object from that predicate
+- The related object history gives prior mention strings and their canonical forms for that related object, when such history exists.
+- For each current mention, do one of two things:
+  - pick one canonical_form from the related object history if the current mention refers to the same entity/value/concept
+  - define a new canonical_form if no prior canonical_form fits
+- canonical_form should be concise, stable, and not tied to the wording of this one message unless the mention itself is already the best canonical form.
+- If found is false, instances must be [].
+- Output a JSON object with fields: "reasoning" (brief check of whether the predicate matches), "found" (bool), "instances" (list). No other text.
+- Each instances item must have fields: "instance_id" and "object_mentions".
+- Each object_mentions item must have fields: "object_id", "mention", "canonical_form".
 
-Predicate-specific few-shot examples:
-{few_shot_examples}
+Examples:
+{{USER_EXAMPLES_BLOCK}}
 
-Message: "{message_text}"
-Predicate: {proposition_description}
-{objects_section}Related object context:
-{related_object_context_block}
+Additional multi-instance example:
+Message: "I'm considering Toyota under 12000$ and Skoda under 12500$."
+Predicate: the user requests a car brand under a maximum price
+Objects:
+  - o1: car brand
+  - o2: maximum price
+Output: {"reasoning": "The user gives two complete car-brand/maximum-price requests. Toyota pairs with 12000$, and Skoda pairs with 12500$.", "found": true, "instances": [{"instance_id": "i1", "object_mentions": [{"object_id": "o1", "mention": "Toyota", "canonical_form": "Toyota"}, {"object_id": "o2", "mention": "12000$", "canonical_form": "12000 USD"}]}, {"instance_id": "i2", "object_mentions": [{"object_id": "o1", "mention": "Skoda", "canonical_form": "Skoda"}, {"object_id": "o2", "mention": "12500$", "canonical_form": "12500 USD"}]}]}
+
+Now annotate the following:
+
+Message: "{{TEXT}}"
+Predicate: {{PREDICATE_DESCRIPTION}}
+Objects:
+{{OBJECTS_BLOCK}}
+Related object context:
+{{RELATED_OBJECT_CONTEXT_BLOCK}}
 Related object mention and canonical history:
-{related_object_history_block}
-Output schema:
-{{
-  "reasoning": "brief rationale",
-  "found": true,
-  "object_mentions": [
-    {{"object_id": "o1", "mention": "exact span", "canonical_form": "canonical identity or value"}}
-  ]
-}}`;
+{{RELATED_OBJECT_HISTORY_BLOCK}}
+Output:`;
+
+const DEFAULT_USER_PROMPT_ASSISTANT = `You are a text annotation assistant.
+
+Examples:
+{{ASSISTANT_EXAMPLES_BLOCK}}
+
+Task: determine if an assistant message matches a predicate description and extract each complete predicate instance from the message.
+Rules:
+- Read the predicate LITERALLY. Only mark found=true if the message explicitly satisfies the exact predicate - not something adjacent or similar.
+- Subtle mismatches = NOT found: "transferred from team" != "plays for team"; "no version given" != "provides version"; "workstation IP" != "C2 server IP"; "nominated for award" != "won award".
+- If the message explicitly says it CANNOT confirm or it does NOT satisfy the predicate fact -> NOT found.
+- A shopping list, food pairing suggestion, or ingredient substitution != a recipe using a product as an ingredient.
+- Mentions must be exact verbatim substrings - do not paraphrase.
+- If the predicate is expressed multiple times in the same message, return one instances item per complete predicate occurrence.
+- Each instance must include all required object_ids for that occurrence.
+- Do not merge objects across different occurrences.
+- Preserve the object pairings/groups exactly as expressed in the message.
+- For every extracted object mention, include a canonical_form.
+- To choose canonical_form for each object, use the related object context and related object history below.
+- For each current object, the related object context gives:
+  - the related predicate
+  - the related object from that predicate
+- The related object history gives prior mention strings and their canonical forms for that related object, when such history exists.
+- For each current mention, do one of two things:
+  - pick one canonical_form from the related object history if the current mention refers to the same entity/value/concept
+  - define a new canonical_form if no prior canonical_form fits
+- canonical_form should be concise, stable, and not tied to the wording of this one message unless the mention itself is already the best canonical form.
+- If found is false, instances must be [].
+- Output a JSON object with fields: "reasoning" (brief check), "found" (bool), "instances" (list). No other text.
+- Each instances item must have fields: "instance_id" and "object_mentions".
+- Each object_mentions item must have fields: "object_id", "mention", "canonical_form".
+
+Additional multi-instance example:
+Message: "The Toyota Corolla is available for 11500$, and the Skoda Octavia is listed at 12400$."
+Predicate: the assistant provides a car model and price
+Objects:
+  - o1: car model
+  - o2: price
+Output: {"reasoning": "The assistant provides two complete car-model/price facts. Toyota Corolla pairs with 11500$, and Skoda Octavia pairs with 12400$.", "found": true, "instances": [{"instance_id": "i1", "object_mentions": [{"object_id": "o1", "mention": "Toyota Corolla", "canonical_form": "Toyota Corolla"}, {"object_id": "o2", "mention": "11500$", "canonical_form": "11500 USD"}]}, {"instance_id": "i2", "object_mentions": [{"object_id": "o1", "mention": "Skoda Octavia", "canonical_form": "Skoda Octavia"}, {"object_id": "o2", "mention": "12400$", "canonical_form": "12400 USD"}]}]}
+
+Annotate:
+
+Message: "{{TEXT}}"
+Predicate: {{PREDICATE_DESCRIPTION}}
+Objects:
+{{OBJECTS_BLOCK}}
+Related object context:
+{{RELATED_OBJECT_CONTEXT_BLOCK}}
+Related object mention and canonical history:
+{{RELATED_OBJECT_HISTORY_BLOCK}}
+Output:`;
 
 export default function GroundingPromptEditor({
   settings,

@@ -162,7 +162,21 @@ async def _load_canonical_history(db: DatabaseStore, session_id: str) -> list[di
             if not isinstance(detail, dict) or not detail.get("match"):
                 continue
             prop_id = str(detail.get("prop_id", "")).strip()
-            for mention in detail.get("object_mentions", []) or []:
+            mentions: list[dict] = []
+            raw_instances = detail.get("instances", []) or []
+            if isinstance(raw_instances, list):
+                for instance in raw_instances:
+                    if not isinstance(instance, dict):
+                        continue
+                    raw_mentions = instance.get("object_mentions", [])
+                    if isinstance(raw_mentions, list):
+                        mentions.extend(m for m in raw_mentions if isinstance(m, dict))
+            if not mentions:
+                raw_mentions = detail.get("object_mentions", []) or []
+                if isinstance(raw_mentions, list):
+                    mentions.extend(m for m in raw_mentions if isinstance(m, dict))
+
+            for mention in mentions:
                 if not isinstance(mention, dict):
                     continue
                 object_id = str(mention.get("object_id", "")).strip()

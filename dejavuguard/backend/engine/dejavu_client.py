@@ -85,6 +85,8 @@ class DejaVuClient:
             session_id: DejaVu session identifier.
             events: List of {"name": str, "args": list[str]} dicts.
                     args can carry extracted entity data for first-order specs.
+                    Multiple same-predicate instances are represented as
+                    repeated event objects in this same composite list.
 
         Returns:
             DejaVuVerdict with per-property verdicts and violations.

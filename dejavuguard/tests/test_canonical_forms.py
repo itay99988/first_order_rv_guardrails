@@ -80,6 +80,55 @@ class RecordingDejaVuClient:
         return True
 
 
+class MultiInstanceGrounding(GroundingMethod):
+    async def evaluate(
+        self,
+        message: MessageEvent,
+        proposition: Proposition,
+        related_object_context_block: str = "NONE",
+        related_object_history_block: str = "NONE",
+    ) -> GroundingResult:
+        return GroundingResult(
+            match=True,
+            confidence=1.0,
+            reasoning="two instances",
+            method="test",
+            prop_id=proposition.prop_id,
+            instances=[
+                {
+                    "instance_id": "i1",
+                    "object_mentions": [
+                        {
+                            "object_id": "o1",
+                            "mention": "Toyota",
+                            "canonical_form": "Toyota",
+                        },
+                        {
+                            "object_id": "o2",
+                            "mention": "12000$",
+                            "canonical_form": "12000 USD",
+                        },
+                    ],
+                },
+                {
+                    "instance_id": "i2",
+                    "object_mentions": [
+                        {
+                            "object_id": "o1",
+                            "mention": "Skoda",
+                            "canonical_form": "Skoda",
+                        },
+                        {
+                            "object_id": "o2",
+                            "mention": "12500$",
+                            "canonical_form": "12500 USD",
+                        },
+                    ],
+                },
+            ],
+        )
+
+
 @pytest.fixture
 async def db():
     store = DatabaseStore(":memory:")
@@ -228,6 +277,44 @@ async def test_monitor_uses_related_history_and_sends_canonical_forms_to_dejavu(
     assert dejavu_client.events[-1][0]["args"] == ["acct-123"]
 
 
+@pytest.mark.asyncio
+async def test_monitor_sends_same_predicate_instances_in_one_dejavu_composite_call():
+    proposition = Proposition(
+        prop_id="p_car",
+        description="the user requests a car brand under a maximum price",
+        role="user",
+        arity=2,
+        arg_descriptions=["car brand", "maximum price"],
+    )
+    policy = Policy(
+        policy_id="policy-1",
+        name="Car requests",
+        formula_str="exists brand . exists price . p_car(brand, price)",
+        propositions=["p_car"],
+        enabled=True,
+    )
+    dejavu_client = RecordingDejaVuClient()
+    monitor = ConversationMonitor(
+        policies=[policy],
+        propositions=[proposition],
+        grounding=MultiInstanceGrounding(),
+        dejavu_client=dejavu_client,  # type: ignore[arg-type]
+        session_id="session-1",
+    )
+
+    verdict = await monitor.process_message(
+        "user",
+        "I'm considering Toyota under 12000$ and Skoda under 12500$.",
+    )
+
+    assert verdict.grounding_details[0]["instances"][0]["instance_id"] == "i1"
+    assert len(dejavu_client.events) == 1
+    assert dejavu_client.events[-1] == [
+        {"name": "p_car", "args": ["Toyota", "12000 USD"]},
+        {"name": "p_car", "args": ["Skoda", "12500 USD"]},
+    ]
+
+
 def test_lora_style_response_parses_canonical_form():
     grounding = LLMGrounding(client=None)  # type: ignore[arg-type]
     result = grounding._parse_response(
@@ -244,6 +331,36 @@ def test_lora_style_response_parses_canonical_form():
         "mention": "IBM",
         "canonical_form": "International Business Machines",
     }]
+    assert result.instances == [{
+        "instance_id": "i1",
+        "object_mentions": [{
+            "object_id": "o1",
+            "mention": "IBM",
+            "canonical_form": "International Business Machines",
+        }],
+    }]
+
+
+def test_multi_instance_response_parses_all_instances():
+    grounding = LLMGrounding(client=None)  # type: ignore[arg-type]
+    result = grounding._parse_response(
+        (
+            '{"found": true, "reasoning": "two cars", "instances": ['
+            '{"instance_id": "i1", "object_mentions": ['
+            '{"object_id": "o1", "mention": "Toyota", "canonical_form": "Toyota"}, '
+            '{"object_id": "o2", "mention": "12000$", "canonical_form": "12000 USD"}]}, '
+            '{"instance_id": "i2", "object_mentions": ['
+            '{"object_id": "o1", "mention": "Skoda", "canonical_form": "Skoda"}, '
+            '{"object_id": "o2", "mention": "12500$", "canonical_form": "12500 USD"}]}'
+            "]}"
+        ),
+        "p_car",
+    )
+
+    assert result.match is True
+    assert len(result.instances) == 2
+    assert result.instances[0]["object_mentions"][0]["canonical_form"] == "Toyota"
+    assert result.instances[1]["object_mentions"][1]["canonical_form"] == "12500 USD"
 
 
 def test_prompt_preview_can_preserve_related_object_placeholders():
@@ -284,6 +401,9 @@ async def test_settings_upgrade_persisted_old_prompts_to_canonical_defaults(db):
     settings = await _load_settings(db)
 
     assert "canonical_form" in settings.grounding.user_prompt_template_user
-    assert "related_object_context_block" in settings.grounding.user_prompt_template_user
+    assert "instances" in settings.grounding.user_prompt_template_user
+    assert "RELATED_OBJECT_CONTEXT_BLOCK" in settings.grounding.user_prompt_template_user
     assert "canonical_form" in settings.grounding.user_prompt_template_assistant
-    assert await db.get_setting("grounding_prompt_version") == "canonical_forms_v1"
+    assert "instances" in settings.grounding.user_prompt_template_assistant
+    assert await db.get_setting("grounding_prompt_version") == "multi_instances_v1"
+    assert await db.get_setting("grounding_user_prompt_template") is None

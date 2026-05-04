@@ -187,6 +187,69 @@ describe("MessageBubble", () => {
     expect(screen.getByText("No match")).toBeInTheDocument();
   });
 
+  it("shows grounding instances with mentions and canonical forms", async () => {
+    const user = userEvent.setup();
+    const details = [
+      createGroundingDetail({
+        prop_id: "p_car",
+        match: true,
+        reasoning: "Two car requests detected",
+        instances: [
+          {
+            instance_id: "i1",
+            object_mentions: [
+              {
+                object_id: "o1",
+                mention: "Toyota",
+                canonical_form: "Toyota",
+              },
+              {
+                object_id: "o2",
+                mention: "12000$",
+                canonical_form: "12000 USD",
+              },
+            ],
+          },
+          {
+            instance_id: "i2",
+            object_mentions: [
+              {
+                object_id: "o1",
+                mention: "Skoda",
+                canonical_form: "Skoda",
+              },
+              {
+                object_id: "o2",
+                mention: "12500$",
+                canonical_form: "12500 USD",
+              },
+            ],
+          },
+        ],
+      }),
+    ];
+
+    render(
+      <MessageBubble
+        role="user"
+        content="I'm considering Toyota under 12000$ and Skoda under 12500$."
+        blocked={false}
+        violationInfo={null}
+        groundingDetails={details}
+        monitorState={null}
+      />,
+    );
+
+    await user.click(screen.getByTestId("toggle-details"));
+
+    expect(screen.getByText("i1")).toBeInTheDocument();
+    expect(screen.getByText("i2")).toBeInTheDocument();
+    expect(screen.getAllByText("Toyota").length).toBeGreaterThan(0);
+    expect(screen.getByText("12000 USD")).toBeInTheDocument();
+    expect(screen.getAllByText("Skoda").length).toBeGreaterThan(0);
+    expect(screen.getByText("12500 USD")).toBeInTheDocument();
+  });
+
   it("shows monitor state in expanded panel", async () => {
     const user = userEvent.setup();
     render(
