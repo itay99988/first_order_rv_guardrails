@@ -18,8 +18,12 @@ or:
 
 - `dataset.jsonl` - copied from `extended_grounding_dataset/opus.ft.set/dataset.jsonl`.
 - `prompt.py` - prompt construction and target splitting logic.
+- `prompt_fewshot.py` - copied few-shot prompt implementation from `extended_grounding_dataset/prompt.py`, used by `evaluate_hf.py`.
 - `train_lora.py` - QLoRA/LoRA fine-tuning script.
 - `evaluate_lora.py` - local adapter evaluation with extended-grounding metrics.
+- `evaluate_hf.py` - direct Hugging Face model evaluation without fine-tuning.
+- `test.dataset.validated.jsonl` - copied extended grounding test set.
+- `test.few_shot_examples.json` - copied few-shot examples for the test predicates.
 - `requirements.txt` - Python packages for the GPU machine.
 
 ## Linux GPU Setup
@@ -186,6 +190,113 @@ python evaluate_lora.py \
   --adapter output/qwen35_2b_extended_run1/adapter \
   --output-dir output/qwen35_2b_extended_run1/eval_50 \
   --limit 50
+```
+
+## Evaluate A Hugging Face Model Without Fine-Tuning
+
+Use `evaluate_hf.py` for a zero-shot/base-model baseline. This loads the model
+directly from Hugging Face and does not require a LoRA adapter. It is useful for
+checking how much fine-tuning improves over the base/instruct model.
+
+Important: `evaluate_hf.py` uses `prompt_fewshot.py`, which is the same prompting
+approach as `extended_grounding_dataset/prompt.py`. It uses predicate-specific
+few-shot examples from `test.few_shot_examples.json`, not the training prompt
+used by `train_lora.py`.
+
+Required arguments:
+
+- `--model-id`: Hugging Face model id.
+- `--dataset`, `--dataset-name`, or `--datasetname`: path to a JSONL dataset.
+- `--few-shot`: path to the few-shot JSON file. Defaults to `test.few_shot_examples.json`.
+
+Useful optional arguments:
+
+- `--limit`: evaluate only the first N records.
+- `--output-dir`: where logs and errors are written.
+- `--max-new-tokens`: generation budget per record.
+- `--temperature`: keep `0.0` for deterministic evaluation.
+- `--no-use-4bit`: disable 4-bit loading if you have enough VRAM.
+
+Smoke test on 50 records:
+
+```bash
+python evaluate_hf.py \
+  --dataset test.dataset.validated.jsonl \
+  --few-shot test.few_shot_examples.json \
+  --model-id Qwen/Qwen3.5-2B \
+  --output-dir output/hf_qwen35_2b_eval_50 \
+  --limit 50
+```
+
+Full dataset:
+
+```bash
+python evaluate_hf.py \
+  --dataset test.dataset.validated.jsonl \
+  --few-shot test.few_shot_examples.json \
+  --model-id Qwen/Qwen3.5-2B \
+  --output-dir output/hf_qwen35_2b_eval_full
+```
+
+The dataset argument also supports the aliases `--dataset-name` and `--datasetname`:
+
+```bash
+python evaluate_hf.py \
+  --dataset-name test.dataset.validated.jsonl \
+  --few-shot test.few_shot_examples.json \
+  --model-id meta-llama/Llama-3.2-3B-Instruct \
+  --output-dir output/hf_llama32_3b_eval_100 \
+  --limit 100
+```
+
+For larger models on limited VRAM, keep 4-bit loading enabled, which is the default.
+To disable it:
+
+```bash
+python evaluate_hf.py \
+  --dataset test.dataset.validated.jsonl \
+  --few-shot test.few_shot_examples.json \
+  --model-id Qwen/Qwen3.5-2B \
+  --no-use-4bit \
+  --output-dir output/hf_qwen35_2b_no4bit_eval
+```
+
+Example `models_list` file:
+
+```text
+Qwen/Qwen3.5-2B
+Qwen/Qwen2.5-3B-Instruct
+meta-llama/Llama-3.2-3B-Instruct
+google/gemma-3-4b-it
+```
+
+Run a small baseline for every model in `models_list`:
+
+```bash
+while read -r MODEL_ID; do
+  [ -z "$MODEL_ID" ] && continue
+  SAFE_NAME=$(echo "$MODEL_ID" | tr '/:' '__')
+  python evaluate_hf.py \
+    --dataset test.dataset.validated.jsonl \
+    --few-shot test.few_shot_examples.json \
+    --model-id "$MODEL_ID" \
+    --output-dir "output/hf_${SAFE_NAME}_eval_100" \
+    --limit 100
+done < models_list
+```
+
+Run the full dataset for every model in `models_list`:
+
+```bash
+while read -r MODEL_ID; do
+  [ -z "$MODEL_ID" ] && continue
+  SAFE_NAME=$(echo "$MODEL_ID" | tr '/:' '__')
+  python evaluate_hf.py \
+    --dataset test.dataset.validated.jsonl \
+    --few-shot test.few_shot_examples.json \
+    --model-id "$MODEL_ID" \
+    --output-dir "output/hf_${SAFE_NAME}_eval_full"
+done < models_list
 ```
 
 ## Evaluation Metrics
