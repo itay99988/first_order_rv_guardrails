@@ -1,0 +1,9 @@
+﻿torch
+transformers>=4.45.0
+datasets
+peft
+accelerate
+bitsandbytes
+safetensors
+sentencepiece
+protobuf
