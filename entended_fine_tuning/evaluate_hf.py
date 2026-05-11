@@ -13,6 +13,7 @@ import json
 import logging
 from pathlib import Path
 import re
+import statistics
 import sys
 import time
 from typing import Any
@@ -133,7 +134,7 @@ def load_model(args: argparse.Namespace):
     return model, tokenizer
 
 
-def predict_one(model, tokenizer, record: dict[str, Any], args: argparse.Namespace) -> tuple[dict[str, Any], str]:
+def predict_one(model, tokenizer, record: dict[str, Any], args: argparse.Namespace) -> tuple[dict[str, Any], str, int, float]:
     prompt_text = render_prompt(tokenizer, record, args.few_shot)
     inputs = tokenizer(prompt_text, return_tensors="pt").to(model.device)
     generation_kwargs = {
@@ -144,11 +145,13 @@ def predict_one(model, tokenizer, record: dict[str, Any], args: argparse.Namespa
     }
     if args.temperature > 0:
         generation_kwargs["temperature"] = args.temperature
+    start = time.perf_counter()
     with torch.no_grad():
         output_ids = model.generate(**inputs, **generation_kwargs)
+    latency_seconds = time.perf_counter() - start
     new_ids = output_ids[0, inputs["input_ids"].shape[1] :]
     raw = tokenizer.decode(new_ids, skip_special_tokens=True).strip()
-    return parse_json_object(raw), raw
+    return parse_json_object(raw), raw, int(new_ids.numel()), latency_seconds
 
 
 def _normalize(s: str) -> str:
@@ -378,16 +381,34 @@ def main() -> int:
 
     predictions: list[dict[str, Any]] = []
     raw_outputs: list[str] = []
+    generation_tokens: list[int] = []
+    latency_seconds: list[float] = []
     api_errors: dict[int, str] = {}
     t0 = time.time()
     for idx, record in enumerate(records, 1):
         try:
-            pred, raw = predict_one(model, tokenizer, record, args)
+            pred, raw, n_tokens, latency = predict_one(model, tokenizer, record, args)
+            status = "ok"
         except Exception as exc:
-            pred, raw = {"found": False}, ""
+            pred, raw, n_tokens, latency = {"found": False}, "", 0, 0.0
+            status = "error"
             api_errors[idx - 1] = str(exc)
         predictions.append(pred)
         raw_outputs.append(raw)
+        generation_tokens.append(n_tokens)
+        latency_seconds.append(latency)
+        tok_per_sec = n_tokens / latency if latency > 0 else 0.0
+        logger.info(
+            "Sample %d/%d complete | record_id=%s | status=%s | latency=%.3fs | generated_tokens=%d | tok/s=%.2f | pred_found=%s",
+            idx,
+            len(records),
+            record.get("record_id"),
+            status,
+            latency,
+            n_tokens,
+            tok_per_sec,
+            bool(pred.get("found")),
+        )
         if idx % args.progress_every == 0 or idx == len(records):
             logger.info("Progress: %d/%d | elapsed=%.1fs", idx, len(records), time.time() - t0)
 
@@ -431,6 +452,8 @@ def main() -> int:
                 "error_type": error_type,
                 "generation_error": api_errors.get(idx),
                 "raw_output": raw,
+                "latency_seconds": latency_seconds[idx],
+                "generated_tokens": generation_tokens[idx],
                 "text": record.get("text"),
                 "predicate_id": record.get("predicate_id"),
                 "predicate_description": record.get("predicate_description"),
@@ -450,6 +473,24 @@ def main() -> int:
     canonical_recall = pct(canonical_correct, gt_history_mentions)
 
     elapsed = time.time() - t0
+    successful_latencies = [lat for idx, lat in enumerate(latency_seconds) if idx not in api_errors and lat > 0]
+    successful_tokens = [tok for idx, tok in enumerate(generation_tokens) if idx not in api_errors]
+    total_generation_latency = sum(successful_latencies)
+    total_generated_tokens = sum(successful_tokens)
+    average_latency = statistics.mean(successful_latencies) if successful_latencies else 0.0
+    median_latency = statistics.median(successful_latencies) if successful_latencies else 0.0
+    min_latency = min(successful_latencies) if successful_latencies else 0.0
+    max_latency = max(successful_latencies) if successful_latencies else 0.0
+    aggregate_tokens_per_second = (
+        total_generated_tokens / total_generation_latency if total_generation_latency > 0 else 0.0
+    )
+    per_sample_tokens_per_second = [
+        tok / lat for tok, lat in zip(generation_tokens, latency_seconds) if lat > 0
+    ]
+    mean_per_sample_tokens_per_second = (
+        statistics.mean(per_sample_tokens_per_second) if per_sample_tokens_per_second else 0.0
+    )
+
     logger.info("Errors written to %s (%d errors)", args.errors, len(errors))
     logger.info("---")
     log_metric(logger, "sample_general_accuracy", sample_correct, n)
@@ -481,6 +522,14 @@ def main() -> int:
     logger.info("n_pred_history_canonical_mentions:  %d", pred_history_mentions)
     logger.info("n_generation_errors:                %d", len(api_errors))
     logger.info("elapsed_seconds:                    %.1f", elapsed)
+    logger.info("total_generation_latency_seconds:   %.3f", total_generation_latency)
+    logger.info("average_latency_seconds:            %.3f", average_latency)
+    logger.info("median_latency_seconds:             %.3f", median_latency)
+    logger.info("min_latency_seconds:                %.3f", min_latency)
+    logger.info("max_latency_seconds:                %.3f", max_latency)
+    logger.info("total_generated_tokens:             %d", total_generated_tokens)
+    logger.info("aggregate_tokens_per_second:        %.3f", aggregate_tokens_per_second)
+    logger.info("mean_per_sample_tokens_per_second:  %.3f", mean_per_sample_tokens_per_second)
     logger.info("error_breakdown:                    %s", json.dumps(error_counts, sort_keys=True))
 
     role_stats: dict[str, list[bool]] = defaultdict(list)

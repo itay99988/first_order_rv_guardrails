@@ -217,6 +217,22 @@ Useful optional arguments:
 - `--temperature`: keep `0.0` for deterministic evaluation.
 - `--no-use-4bit`: disable 4-bit loading if you have enough VRAM.
 
+The script logs one completion line per sample:
+
+```text
+Sample 12/1045 complete | record_id=r0000012 | status=ok | latency=0.842s | generated_tokens=131 | tok/s=155.58 | pred_found=True
+```
+
+The final report includes latency statistics for paper reporting:
+
+- `average_latency_seconds`
+- `median_latency_seconds`
+- `min_latency_seconds`
+- `max_latency_seconds`
+- `total_generated_tokens`
+- `aggregate_tokens_per_second`
+- `mean_per_sample_tokens_per_second`
+
 Smoke test on 50 records:
 
 ```bash
