@@ -22,6 +22,9 @@ or:
 - `train_lora.py` - QLoRA/LoRA fine-tuning script.
 - `evaluate_lora.py` - local adapter evaluation with extended-grounding metrics.
 - `evaluate_hf.py` - direct Hugging Face model evaluation without fine-tuning.
+- `setup_vllm.sh` - installs/configures vLLM for a requested model.
+- `evaluate_vllm.py` - evaluates a vLLM-served/local vLLM model with the same extended-grounding metrics.
+- `evaluate_qwen35_4b_no_think.py` - Qwen/Qwen3.5-4B evaluator with thinking disabled via the Qwen chat template.
 - `test.dataset.validated.jsonl` - copied extended grounding test set.
 - `test.few_shot_examples.json` - copied few-shot examples for the test predicates.
 - `requirements.txt` - Python packages for the GPU machine.
@@ -313,6 +316,83 @@ while read -r MODEL_ID; do
     --model-id "$MODEL_ID" \
     --output-dir "output/hf_${SAFE_NAME}_eval_full"
 done < models_list
+```
+
+## Evaluate With vLLM
+
+Use vLLM when Hugging Face `generate()` is too slow for batch evaluation. The
+script uses the same few-shot prompt and the same metrics, but runs generation
+through vLLM for better GPU throughput.
+
+First make the setup script executable:
+
+```bash
+chmod +x setup_vllm.sh
+```
+
+Install/setup vLLM for the model:
+
+```bash
+./setup_vllm.sh Qwen/Qwen3.5-2B
+```
+
+Run evaluation:
+
+```bash
+python evaluate_vllm.py \
+  --model-id Qwen/Qwen3.5-2B \
+  --dataset test.dataset.validated.jsonl \
+  --few-shot test.few_shot_examples.json \
+  --output-dir output/vllm_qwen35_2b
+```
+
+For a quick smoke test:
+
+```bash
+python evaluate_vllm.py \
+  --model-id Qwen/Qwen3.5-2B \
+  --dataset test.dataset.validated.jsonl \
+  --few-shot test.few_shot_examples.json \
+  --output-dir output/vllm_qwen35_2b_50 \
+  --limit 50
+```
+
+The output directory contains the evaluation log and error file, similar to the
+HF evaluator.
+
+## Evaluate Qwen3.5-4B Without Thinking
+
+Use this script when you specifically want `Qwen/Qwen3.5-4B` with thinking disabled.
+It uses the same few-shot prompt and metrics as `evaluate_hf.py`, but calls the
+Qwen chat template with `enable_thinking=False` when supported.
+
+Smoke test:
+
+```bash
+python evaluate_qwen35_4b_no_think.py \
+  --dataset test.dataset.validated.jsonl \
+  --few-shot test.few_shot_examples.json \
+  --output-dir output/qwen35_4b_no_think_eval_50 \
+  --limit 50
+```
+
+Full test set:
+
+```bash
+python evaluate_qwen35_4b_no_think.py \
+  --dataset test.dataset.validated.jsonl \
+  --few-shot test.few_shot_examples.json \
+  --output-dir output/qwen35_4b_no_think_eval_full
+```
+
+If VRAM allows on the RTX 4090, test fp16/bf16 instead of 4-bit:
+
+```bash
+python evaluate_qwen35_4b_no_think.py \
+  --dataset test.dataset.validated.jsonl \
+  --few-shot test.few_shot_examples.json \
+  --output-dir output/qwen35_4b_no_think_eval_no4bit \
+  --no-use-4bit
 ```
 
 ## Evaluation Metrics
