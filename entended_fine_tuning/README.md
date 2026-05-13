@@ -20,6 +20,7 @@ or:
 - `prompt.py` - prompt construction and target splitting logic.
 - `prompt_fewshot.py` - copied few-shot prompt implementation from `extended_grounding_dataset/prompt.py`, used by `evaluate_hf.py`.
 - `train_lora.py` - QLoRA/LoRA fine-tuning script.
+- `train_merge_push.py` - runs LoRA training, merges the adapter into the base model, and optionally uploads the merged model to Hugging Face.
 - `evaluate_lora.py` - local adapter evaluation with extended-grounding metrics.
 - `evaluate_hf.py` - direct Hugging Face model evaluation without fine-tuning.
 - `setup_vllm.sh` - installs/configures vLLM for a requested model.
@@ -137,6 +138,107 @@ The training script also writes:
 output/qwen35_2b_extended_run1/train_records.jsonl
 output/qwen35_2b_extended_run1/eval_records.jsonl
 output/qwen35_2b_extended_run1/train.log
+```
+
+## Train, Merge, And Push A vLLM-Ready Model
+
+Use `train_merge_push.py` when you want a standalone merged model that can be
+loaded directly by vLLM. The script does three steps:
+
+1. Runs `train_lora.py` and saves an adapter under `--output-dir/adapter`.
+2. Reloads the clean base model in bf16/fp16 and calls `merge_and_unload()`.
+3. Saves the merged model and optionally pushes it to Hugging Face Hub.
+
+Important: merging is done from a clean bf16/fp16 base model, not from the 4-bit
+training model. This is the correct workflow for a vLLM-ready checkpoint.
+
+One-time Hugging Face setup on the Linux machine:
+
+```bash
+pip install -U huggingface_hub
+huggingface-cli login
+```
+
+Alternatively, set a token:
+
+```bash
+export HF_TOKEN=hf_your_token_here
+```
+
+Recommended RTX 4090 smoke test:
+
+```bash
+cd /workspace/entended_fine_tuning
+source /workspace/.venv/bin/activate
+
+python train_merge_push.py \
+  --dataset dataset.jsonl \
+  --base-model Qwen/Qwen3.5-2B \
+  --output-dir output/qwen35_2b_extended_smoke \
+  --merged-dir output/qwen35_2b_extended_smoke_merged \
+  --max-samples 300 \
+  --epochs 1 \
+  --batch-size 2 \
+  --grad-accum 8 \
+  --max-length 2048 \
+  --merge-dtype bf16
+```
+
+Full train, merge, and upload:
+
+```bash
+python train_merge_push.py \
+  --dataset dataset.jsonl \
+  --base-model Qwen/Qwen3.5-2B \
+  --output-dir output/qwen35_2b_extended_run1 \
+  --merged-dir output/qwen35_2b_extended_run1_merged \
+  --epochs 2 \
+  --batch-size 2 \
+  --grad-accum 8 \
+  --max-length 2048 \
+  --eval-ratio 0.05 \
+  --merge-dtype bf16 \
+  --hub-repo YOUR_HF_USERNAME/qwen35-2b-extended-grounding \
+  --push
+```
+
+Push to a private repo:
+
+```bash
+python train_merge_push.py \
+  --dataset dataset.jsonl \
+  --base-model Qwen/Qwen3.5-2B \
+  --output-dir output/qwen35_2b_extended_run1 \
+  --merged-dir output/qwen35_2b_extended_run1_merged \
+  --epochs 2 \
+  --batch-size 2 \
+  --grad-accum 8 \
+  --max-length 2048 \
+  --hub-repo YOUR_HF_USERNAME/qwen35-2b-extended-grounding \
+  --push \
+  --private
+```
+
+If training already finished and you only need to merge/push the existing adapter:
+
+```bash
+python train_merge_push.py \
+  --base-model Qwen/Qwen3.5-2B \
+  --output-dir output/qwen35_2b_extended_run1 \
+  --merged-dir output/qwen35_2b_extended_run1_merged \
+  --hub-repo YOUR_HF_USERNAME/qwen35-2b-extended-grounding \
+  --skip-train \
+  --push
+```
+
+After upload, use the merged repo directly in vLLM:
+
+```bash
+python evaluate_vllm.py \
+  --model-id YOUR_HF_USERNAME/qwen35-2b-extended-grounding \
+  --dataset test.dataset.validated.jsonl \
+  --few-shot test.few_shot_examples.json \
+  --output-dir output/vllm_qwen35_2b_merged
 ```
 
 ## Keep Training Running If SSH Disconnects
