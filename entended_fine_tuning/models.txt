@@ -1,0 +1,14 @@
+# Extended grounding eval — model suite.
+# Run with:
+#   ./run_suite.sh models.txt
+# One Hugging Face repo id per line.  Lines starting with '#' and blank lines
+# are ignored.  Order is preserved — list models in the order you want them
+# evaluated.
+
+Qwen/Qwen3.5-2B
+Qwen/Qwen3.5-4B
+mistralai/Ministral-3-3B-Instruct-2512
+google/gemma-3-1b-it
+google/gemma-3-4b-it
+meta-llama/Llama-3.2-1B-Instruct
+meta-llama/Llama-3.2-3B-Instruct

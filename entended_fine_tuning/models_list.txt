@@ -1,0 +1,35 @@
+# Extended grounding eval — extended model list (9 models).
+# Run with:
+#   ./run_suite.sh models_list.txt
+# One Hugging Face repo id per line.  Lines starting with '#' and blank lines
+# are ignored.  Order is preserved.  Grouped by family, smallest first.
+
+# Qwen family
+Qwen/Qwen2.5-0.5B-Instruct
+Qwen/Qwen3.5-2B
+Qwen/Qwen3.5-4B
+
+# Mistral family
+mistralai/Ministral-3-3B-Instruct-2512
+
+# Gemma family
+google/gemma-3-270m
+google/gemma-3-1b-it
+google/gemma-3-4b-it
+
+# Llama family
+meta-llama/Llama-3.2-1B-Instruct
+meta-llama/Llama-3.2-3B-Instruct
+
+# Phi family (Microsoft)
+# Phi-4-mini IS the smallest in the Phi-4 line — no smaller sibling exists.
+microsoft/Phi-4-mini-instruct
+
+# SmolLM family (HuggingFace) — full size ladder
+HuggingFaceTB/SmolLM2-135M-Instruct
+HuggingFaceTB/SmolLM2-360M-Instruct
+HuggingFaceTB/SmolLM2-1.7B-Instruct
+
+# Nemotron family (NVIDIA)
+# Nemotron-Mini-4B is the only "Mini" series Nemotron — no smaller sibling.
+nvidia/Nemotron-Mini-4B-Instruct

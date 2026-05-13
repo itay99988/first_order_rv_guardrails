@@ -25,6 +25,8 @@ or:
 - `evaluate_hf.py` - direct Hugging Face model evaluation without fine-tuning.
 - `setup_vllm.sh` - installs/configures vLLM for a requested model.
 - `evaluate_vllm.py` - evaluates a vLLM-served/local vLLM model with the same extended-grounding metrics.
+- `evaluate_vllm_finetuned.py` - evaluates a merged/fine-tuned vLLM model using the supervised fine-tuning prompt from `prompt.py`.
+- `run_finetuned_vllm.sh` - starts vLLM for one or more merged HF models and runs `evaluate_vllm_finetuned.py`.
 - `evaluate_qwen35_4b_no_think.py` - Qwen/Qwen3.5-4B evaluator with thinking disabled via the Qwen chat template.
 - `test.dataset.validated.jsonl` - copied extended grounding test set.
 - `test.few_shot_examples.json` - copied few-shot examples for the test predicates.
@@ -461,6 +463,52 @@ python evaluate_vllm.py \
 
 The output directory contains the evaluation log and error file, similar to the
 HF evaluator.
+
+## Evaluate A Fine-Tuned Merged Model With vLLM
+
+Use this for models produced by `train_merge_push.py`. This path intentionally
+uses the supervised fine-tuning prompt from `prompt.py`, not the few-shot prompt
+from `prompt_fewshot.py`.
+
+If a vLLM server is already running for the merged model:
+
+```bash
+python evaluate_vllm_finetuned.py \
+  --model-id YOUR_HF_USERNAME/qwen35-2b-extended-grounding \
+  --dataset test.dataset.validated.jsonl \
+  --host 127.0.0.1 \
+  --port 8000 \
+  --output-dir output/vllm_finetuned_qwen35_2b
+```
+
+To start vLLM automatically, download/load the model from Hugging Face, run the
+evaluation, and stop the server:
+
+```bash
+chmod +x run_finetuned_vllm.sh
+
+./run_finetuned_vllm.sh YOUR_HF_USERNAME/qwen35-2b-extended-grounding
+```
+
+Useful environment variables:
+
+```bash
+export DATASET=test.dataset.validated.jsonl
+export OUTPUT_BASE=output/finetuned_vllm
+export CONCURRENCY=16
+export SPEED_TEST_SAMPLES=100
+export HF_TOKEN=hf_your_token_here
+```
+
+Evaluate multiple merged models:
+
+```bash
+MODELS="YOUR_HF_USERNAME/model-a YOUR_HF_USERNAME/model-b" ./run_finetuned_vllm.sh
+```
+
+The runner uses `setup_vllm.sh` if it exists and is executable. If not, it falls
+back to launching `vllm serve` directly from the active/selected vLLM
+environment.
 
 ## Evaluate Qwen3.5-4B Without Thinking
 

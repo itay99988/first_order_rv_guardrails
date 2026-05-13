@@ -24,7 +24,7 @@ MAX_MODEL_LEN=4096
 TENSOR_PARALLEL=1
 DTYPE="bfloat16"
 GENERATION_CONFIG="vllm"
-LANGUAGE_MODEL_ONLY=true
+LANGUAGE_MODEL_ONLY=false
 HF_TOKEN="${HF_TOKEN:-}"
 
 # ---------------------------------------------------------------------------
@@ -100,8 +100,11 @@ echo "==> Installing vLLM (this pulls torch + CUDA kernels, may take a few minut
 pip install vllm
 
 if [[ -n "$HF_TOKEN" ]]; then
-    echo "==> Logging in to Hugging Face"
-    huggingface-cli login --token "$HF_TOKEN"
+    # huggingface_hub picks up the token from these env vars; the old
+    # `huggingface-cli login` command is deprecated and exits non-zero.
+    export HF_TOKEN
+    export HUGGING_FACE_HUB_TOKEN="$HF_TOKEN"
+    echo "==> HF token exported to env (HF_TOKEN, HUGGING_FACE_HUB_TOKEN)"
 fi
 
 # ---------------------------------------------------------------------------

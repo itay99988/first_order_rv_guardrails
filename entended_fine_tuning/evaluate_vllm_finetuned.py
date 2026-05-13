@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""Evaluate a model served by vLLM on the extended grounding task.
+"""Evaluate a fine-tuned model served by vLLM using the supervised fine-tuning prompt.
+
+This is the vLLM evaluator for merged LoRA/fine-tuned models. It intentionally
+uses entended_fine_tuning/prompt.py, not prompt_fewshot.py, so the inference
+prompt matches the prompt used during supervised fine-tuning.
+
+Original base evaluator docstring:
 
 The vLLM server must already be running and reachable at --host:--port before
 this script is started.  Example server command:
@@ -30,7 +36,7 @@ from typing import Any
 import urllib.error
 import urllib.request
 
-import prompt_fewshot as grounding_prompt
+import prompt as grounding_prompt
 
 
 DEFAULT_MODEL = "Qwen/Qwen3.5-2B"
@@ -57,8 +63,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--model-id", default=DEFAULT_MODEL, help="Model id as passed to vllm serve")
     p.add_argument("--host", default="127.0.0.1", help="vLLM server host")
     p.add_argument("--port", type=int, default=8000, help="vLLM server port")
-    p.add_argument("--output-dir", type=Path, default=Path("output/eval_vllm"))
-    p.add_argument("--few-shot", type=Path, default=Path("test.few_shot_examples.json"))
+    p.add_argument("--output-dir", type=Path, default=Path("output/eval_vllm_finetuned"))
     p.add_argument("--errors", type=Path, default=None)
     p.add_argument("--log-file", type=Path, default=None)
     p.add_argument("--limit", type=int, default=None)
@@ -93,7 +98,7 @@ def parse_args() -> argparse.Namespace:
 
 def setup_logging(log_file: Path) -> logging.Logger:
     log_file.parent.mkdir(parents=True, exist_ok=True)
-    logger = logging.getLogger("extended_vllm_eval")
+    logger = logging.getLogger("extended_vllm_finetuned_eval")
     logger.setLevel(logging.INFO)
     logger.handlers.clear()
     logger.propagate = False
@@ -217,7 +222,7 @@ def predict_one(
     record: dict[str, Any],
     args: argparse.Namespace,
 ) -> tuple[dict[str, Any], str, int, float]:
-    messages = grounding_prompt.build_messages(record, few_shot_path=args.few_shot)
+    messages = grounding_prompt.build_messages(record, include_answer=False)
     if _model_needs_system_folded(model_id):
         messages = fold_system_into_user(messages)
     extra_body: dict[str, Any] = {}
@@ -608,7 +613,7 @@ def main() -> int:
     args = parse_args()
     args.output_dir.mkdir(parents=True, exist_ok=True)
     if args.errors is None:
-        args.errors = args.output_dir / "errors_vllm.jsonl"
+        args.errors = args.output_dir / "errors_vllm_finetuned.jsonl"
     if args.log_file is None:
         args.log_file = args.output_dir / "eval_vllm.log"
     logger = setup_logging(args.log_file)
@@ -835,7 +840,7 @@ def main() -> int:
     summary = {
         "model_id": args.model_id,
         "dataset": str(args.dataset),
-        "few_shot": str(args.few_shot),
+        "prompt": "fine_tuning_prompt",
         "n_records": n,
         "concurrency": args.concurrency,
         "speed_test_samples": args.speed_test_samples,
