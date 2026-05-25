@@ -7,6 +7,8 @@ DejaVu runtime verification engine, and monitor orchestrator.
 
 from __future__ import annotations
 
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 
@@ -28,6 +30,7 @@ class Proposition(BaseModel):
     arg_descriptions: list[str] = Field(default_factory=list)
     few_shot_positive: list[str] = Field(default_factory=list)
     few_shot_negative: list[str] = Field(default_factory=list)
+    few_shot_examples: list[dict[str, Any]] = Field(default_factory=list)
     few_shot_generated_at: str | None = None
 
 

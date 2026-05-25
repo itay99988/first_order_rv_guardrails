@@ -171,6 +171,18 @@ class TestPropositionsCRUD:
         assert result == []
 
     @pytest.mark.asyncio
+    async def test_create_proposition_persists_structured_few_shots(self, db):
+        examples = [{"text": "Use account A.", "role": "user", "found": False}]
+        await db.create_proposition(
+            "p_account",
+            "the user supplies an account",
+            "user",
+            few_shot_examples=examples,
+        )
+        prop = await db.get_proposition("p_account")
+        assert json.loads(prop["few_shot_examples"]) == examples
+
+    @pytest.mark.asyncio
     async def test_list_propositions(self, db):
         """List all propositions."""
         await db.create_proposition("p1", "desc1", "user")

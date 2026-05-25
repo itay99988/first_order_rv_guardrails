@@ -28,6 +28,7 @@ export interface Proposition {
   arg_descriptions?: string[];
   few_shot_positive?: string[];
   few_shot_negative?: string[];
+  few_shot_examples?: Array<Record<string, unknown>>;
   few_shot_generated_at?: string | null;
   created_at?: string;
   updated_at?: string;
@@ -56,6 +57,10 @@ export interface ObjectMention {
   object_id: string;
   mention: string;
   canonical_form?: string;
+  canonical_source?: {
+    type: "new" | "history";
+    matched_history_index?: number;
+  };
 }
 
 export interface GroundingInstance {

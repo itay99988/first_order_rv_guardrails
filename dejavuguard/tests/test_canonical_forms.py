@@ -1,9 +1,14 @@
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from backend.engine.dejavu_client import DejaVuVerdict
 from backend.engine.grounding import (
+    DEFAULT_SYSTEM_PROMPT,
+    DEFAULT_USER_PROMPT_TEMPLATE_ASSISTANT,
+    DEFAULT_USER_PROMPT_TEMPLATE_USER,
     GroundingMethod,
     GroundingResult,
     LLMGrounding,
@@ -12,7 +17,7 @@ from backend.engine.grounding import (
 from backend.engine.monitor import ConversationMonitor
 from backend.engine.trace import MessageEvent
 from backend.models.policy import Policy, Proposition
-from backend.routers.policies import _extract_related_object_relations
+from backend.routers.policies import _extract_related_object_relations, _parse_few_shot_examples
 from backend.routers.settings import _load_settings
 from backend.store.db import DatabaseStore
 
@@ -273,6 +278,7 @@ async def test_monitor_uses_related_history_and_sends_canonical_forms_to_dejavu(
 
     assistant_call = next(c for c in grounding.calls if c["prop_id"] == "q_assistant_account")
     assert "p_user_account" in assistant_call["context"]
+    assert "the user provides an account" in assistant_call["context"]
     assert "acct-123" in assistant_call["history"]
     assert dejavu_client.events[-1][0]["args"] == ["acct-123"]
 
@@ -393,6 +399,100 @@ def test_prompt_preview_can_preserve_related_object_placeholders():
     assert "Related object context:\nNONE" not in prompt
 
 
+def test_optimized_prompt_renders_structured_few_shot_examples_and_objects():
+    system_prompt, prompt = build_grounding_prompts(
+        proposition=Proposition(
+            prop_id="p_car",
+            description="the user requests a car under a maximum price",
+            role="user",
+            arity=2,
+            arg_descriptions=["car brand", "maximum price"],
+            few_shot_examples=[{
+                "text": "Toyota under 12000$",
+                "role": "user",
+                "found": True,
+                "instances": [{
+                    "instance_id": "i1",
+                    "object_mentions": [
+                        {
+                            "object_id": "o1",
+                            "mention": "Toyota",
+                            "canonical_form": "Toyota",
+                            "canonical_source": {"type": "new"},
+                        },
+                        {
+                            "object_id": "o2",
+                            "mention": "12000$",
+                            "canonical_form": "12000 USD",
+                            "canonical_source": {"type": "new"},
+                        },
+                    ],
+                }],
+            }],
+        ),
+        message_role="user",
+        message_text="Honda under 11000$",
+        system_prompt=DEFAULT_SYSTEM_PROMPT,
+        user_prompt_template_user=DEFAULT_USER_PROMPT_TEMPLATE_USER,
+        user_prompt_template_assistant=DEFAULT_USER_PROMPT_TEMPLATE_ASSISTANT,
+        related_object_context_block=(
+            "- p_allergy: the user mentions a specific allergy; "
+            "related object o1 (allergen)"
+        ),
+        related_object_history_block="[]",
+    )
+
+    assert "strict JSON-only extraction model" in system_prompt
+    assert '"description": "car brand"' in prompt
+    assert '"text": "Toyota under 12000$"' in prompt
+    assert '"canonical_source"' in prompt
+    assert "the user mentions a specific allergy" in prompt
+    assert "Honda under 11000$" in prompt
+
+
+def test_structured_few_shot_generation_output_validation():
+    positives = []
+    for index in range(3):
+        source = {"type": "new"}
+        history = []
+        canonical_form = "ACCT-7"
+        if index == 0:
+            source = {"type": "history", "matched_history_index": 0}
+            history = [{"mention": "Account Seven", "canonical_form": "ACCT-7"}]
+        positives.append({
+            "text": "Use account seven for this request.",
+            "role": "user",
+            "related_object_context": [],
+            "related_object_history": history,
+            "found": True,
+            "instances": [{
+                "instance_id": "i1",
+                "object_mentions": [{
+                    "object_id": "o1",
+                    "mention": "account seven",
+                    "canonical_form": canonical_form,
+                    "canonical_source": source,
+                }],
+            }],
+        })
+    negatives = [{
+        "text": "Where can I find my account number?",
+        "role": "user",
+        "related_object_context": [],
+        "related_object_history": [],
+        "found": False,
+    } for _ in range(3)]
+
+    examples = _parse_few_shot_examples(
+        json.dumps({"examples": [*positives, *negatives]}),
+        "user",
+        ["o1"],
+    )
+
+    assert len(examples) == 6
+    assert examples[0]["instances"][0]["object_mentions"][0]["canonical_source"]["type"] == "history"
+
+
 @pytest.mark.asyncio
 async def test_settings_upgrade_persisted_old_prompts_to_canonical_defaults(db):
     await db.set_setting("grounding_user_prompt_template_user", "old {message_text}")
@@ -400,10 +500,11 @@ async def test_settings_upgrade_persisted_old_prompts_to_canonical_defaults(db):
 
     settings = await _load_settings(db)
 
-    assert "canonical_form" in settings.grounding.user_prompt_template_user
-    assert "instances" in settings.grounding.user_prompt_template_user
-    assert "RELATED_OBJECT_CONTEXT_BLOCK" in settings.grounding.user_prompt_template_user
-    assert "canonical_form" in settings.grounding.user_prompt_template_assistant
+    assert "few_shot_block" in settings.grounding.user_prompt_template_user
+    assert "predicate_block" in settings.grounding.user_prompt_template_user
+    assert "related_object_context" in settings.grounding.user_prompt_template_user
+    assert "related_object_history" in settings.grounding.user_prompt_template_user
+    assert "few_shot_block" in settings.grounding.user_prompt_template_assistant
     assert "instances" in settings.grounding.user_prompt_template_assistant
-    assert await db.get_setting("grounding_prompt_version") == "multi_instances_v1"
+    assert await db.get_setting("grounding_prompt_version") == "optimized_related_context_v3"
     assert await db.get_setting("grounding_user_prompt_template") is None

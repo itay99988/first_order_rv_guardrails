@@ -705,14 +705,20 @@ class TestLLMGroundingDefaultPrompts:
         assert (
             "classifier" in DEFAULT_SYSTEM_PROMPT.lower()
             or "classify" in DEFAULT_SYSTEM_PROMPT.lower()
+            or "decide whether" in DEFAULT_SYSTEM_PROMPT.lower()
+            or "decide found=true" in DEFAULT_SYSTEM_PROMPT.lower()
         )
 
     def test_default_user_template_has_placeholders(self):
         """Default user prompt templates contain expected placeholders."""
-        assert "{proposition_description}" in DEFAULT_USER_PROMPT_TEMPLATE_USER
-        assert "{message_text}" in DEFAULT_USER_PROMPT_TEMPLATE_USER
-        assert "{proposition_description}" in DEFAULT_USER_PROMPT_TEMPLATE_ASSISTANT
-        assert "{message_text}" in DEFAULT_USER_PROMPT_TEMPLATE_ASSISTANT
+        assert "{predicate_block}" in DEFAULT_USER_PROMPT_TEMPLATE_USER
+        assert "{related_object_context}" in DEFAULT_USER_PROMPT_TEMPLATE_USER
+        assert "{text}" in DEFAULT_USER_PROMPT_TEMPLATE_USER
+        assert "{few_shot_block}" in DEFAULT_USER_PROMPT_TEMPLATE_USER
+        assert "{predicate_block}" in DEFAULT_USER_PROMPT_TEMPLATE_ASSISTANT
+        assert "{related_object_context}" in DEFAULT_USER_PROMPT_TEMPLATE_ASSISTANT
+        assert "{text}" in DEFAULT_USER_PROMPT_TEMPLATE_ASSISTANT
+        assert "{few_shot_block}" in DEFAULT_USER_PROMPT_TEMPLATE_ASSISTANT
 
     def test_default_user_template_mentions_json(self):
         """Default user prompt templates ask for JSON response."""

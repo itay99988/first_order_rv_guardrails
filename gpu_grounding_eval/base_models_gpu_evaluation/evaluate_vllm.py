@@ -1,0 +1,896 @@
+#!/usr/bin/env python3
+"""Evaluate a model served by vLLM on the extended grounding task.
+
+The vLLM server must already be running and reachable at --host:--port before
+this script is started.  Example server command:
+
+    vllm serve Qwen/Qwen3.5-2B \
+        --host 127.0.0.1 --port 8000 \
+        --tensor-parallel-size 1 --dtype bfloat16 \
+        --gpu-memory-utilization 0.90 --max-model-len 4096 \
+        --language-model-only --generation-config vllm
+
+The script calls the OpenAI-compatible /v1/chat/completions endpoint and uses
+the same metrics as evaluate_hf.py.
+"""
+
+from __future__ import annotations
+
+import argparse
+from collections import Counter, defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import json
+import logging
+from pathlib import Path
+import re
+import statistics
+import sys
+import time
+from typing import Any
+import urllib.error
+import urllib.request
+
+import prompt_fewshot as grounding_prompt
+
+
+DEFAULT_MODEL = "Qwen/Qwen3.5-2B"
+FUZZY_THRESHOLD = 0.15
+WORD_OVERLAP_MIN = 2 / 3
+_LEADING_ARTICLE = re.compile(r"^(a|an|the)\s+", re.IGNORECASE)
+
+
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+
+def parse_args() -> argparse.Namespace:
+    p = argparse.ArgumentParser(description="Evaluate a vLLM-served model for extended grounding")
+    p.add_argument(
+        "--dataset",
+        "--dataset-name",
+        "--datasetname",
+        dest="dataset",
+        type=Path,
+        required=True,
+        help="Path to JSONL dataset",
+    )
+    p.add_argument("--model-id", default=DEFAULT_MODEL, help="Model id as passed to vllm serve")
+    p.add_argument("--host", default="127.0.0.1", help="vLLM server host")
+    p.add_argument("--port", type=int, default=8000, help="vLLM server port")
+    p.add_argument("--output-dir", type=Path, required=True, help="Directory for evaluation outputs")
+    p.add_argument("--few-shot", type=Path, required=True, help="Predicate-specific few-shot JSON")
+    p.add_argument("--errors", type=Path, required=True, help="Output JSONL for failed predictions")
+    p.add_argument("--log-file", type=Path, required=True, help="Output evaluation log")
+    p.add_argument("--limit", type=int, default=None)
+    p.add_argument("--progress-every", type=int, default=100)
+    p.add_argument("--max-new-tokens", type=int, default=768)
+    p.add_argument("--temperature", type=float, default=0.0)
+    p.add_argument("--request-timeout", type=float, default=120.0, help="HTTP timeout per request in seconds")
+    p.add_argument(
+        "--concurrency",
+        type=int,
+        default=16,
+        help="Concurrent request count for the accuracy phase (1 = sequential)",
+    )
+    p.add_argument(
+        "--speed-test-samples",
+        type=int,
+        default=100,
+        help="Number of records used for the sequential speed-test phase (0 = skip speed phase)",
+    )
+    p.add_argument(
+        "--summary-file",
+        type=Path,
+        required=True,
+        help="Path to write the structured JSON summary",
+    )
+    return p.parse_args()
+
+
+# ---------------------------------------------------------------------------
+# Logging
+# ---------------------------------------------------------------------------
+
+def setup_logging(log_file: Path) -> logging.Logger:
+    log_file.parent.mkdir(parents=True, exist_ok=True)
+    logger = logging.getLogger("extended_vllm_eval")
+    logger.setLevel(logging.INFO)
+    logger.handlers.clear()
+    logger.propagate = False
+    formatter = logging.Formatter("%(asctime)s | %(levelname)s | %(message)s")
+    stream = logging.StreamHandler(sys.stdout)
+    stream.setFormatter(formatter)
+    file_handler = logging.FileHandler(log_file, encoding="utf-8")
+    file_handler.setFormatter(formatter)
+    logger.addHandler(stream)
+    logger.addHandler(file_handler)
+    return logger
+
+
+# ---------------------------------------------------------------------------
+# Data loading
+# ---------------------------------------------------------------------------
+
+def load_jsonl(path: Path, limit: int | None = None) -> list[dict[str, Any]]:
+    rows = []
+    with path.open("r", encoding="utf-8-sig") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            rows.append(json.loads(line))
+            if limit is not None and len(rows) >= limit:
+                break
+    return rows
+
+
+# ---------------------------------------------------------------------------
+# vLLM inference
+# ---------------------------------------------------------------------------
+
+def _chat_completions(
+    base_url: str,
+    model_id: str,
+    messages: list[dict[str, str]],
+    max_new_tokens: int,
+    temperature: float,
+    request_timeout: float,
+    extra_body: dict[str, Any] | None = None,
+) -> tuple[str, int]:
+    """POST to /v1/chat/completions; return (content, completion_tokens)."""
+    payload: dict[str, Any] = {
+        "model": model_id,
+        "messages": messages,
+        "max_tokens": max_new_tokens,
+        "temperature": temperature,
+    }
+    if extra_body:
+        payload.update(extra_body)
+    body = json.dumps(payload).encode("utf-8")
+    headers = {"Content-Type": "application/json"}
+    req = urllib.request.Request(
+        f"{base_url}/v1/chat/completions",
+        data=body,
+        headers=headers,
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=request_timeout) as resp:
+        data = json.loads(resp.read().decode("utf-8"))
+    content = data["choices"][0]["message"]["content"]
+    if not isinstance(content, str):
+        content = json.dumps(content)
+    n_tokens: int = data.get("usage", {}).get("completion_tokens", 0)
+    return content, n_tokens
+
+
+def strip_json_fences(text: str) -> str:
+    text = text.strip()
+    if text.startswith("```"):
+        text = re.sub(r"^```(?:json)?\s*", "", text)
+        text = re.sub(r"\s*```$", "", text)
+    return text.strip()
+
+
+def parse_json_object(text: str) -> dict[str, Any]:
+    cleaned = strip_json_fences(text)
+    try:
+        payload = json.loads(cleaned)
+    except json.JSONDecodeError:
+        match = re.search(r"\{[\s\S]*\}", cleaned)
+        if not match:
+            raise
+        payload = json.loads(match.group(0))
+    if not isinstance(payload, dict):
+        raise ValueError("prediction is not a JSON object")
+    return grounding_prompt.normalize_prediction(payload)
+
+
+def _model_needs_system_folded(model_id: str) -> bool:
+    mid = model_id.lower()
+    return "gemma" in mid or "mistral" in mid or "ministral" in mid
+
+
+def _model_is_qwen3(model_id: str) -> bool:
+    return "qwen3" in model_id.lower()
+
+
+def fold_system_into_user(messages: list[dict[str, str]]) -> list[dict[str, str]]:
+    """Merge a leading system message into the first user message.
+
+    Gemma and Mistral chat templates reject role='system'; folding the system
+    content as a prefix on the first user turn preserves the instructions.
+    """
+    if not messages or messages[0].get("role") != "system":
+        return messages
+    system_content = messages[0].get("content", "")
+    rest = messages[1:]
+    for i, msg in enumerate(rest):
+        if msg.get("role") == "user":
+            merged = {"role": "user", "content": f"{system_content}\n\n{msg.get('content', '')}"}
+            return rest[:i] + [merged] + rest[i + 1:]
+    return [{"role": "user", "content": system_content}] + rest
+
+
+def predict_one(
+    base_url: str,
+    model_id: str,
+    record: dict[str, Any],
+    args: argparse.Namespace,
+) -> tuple[dict[str, Any], str, int, float]:
+    messages = grounding_prompt.build_messages(record, few_shot_path=args.few_shot)
+    if _model_needs_system_folded(model_id):
+        messages = fold_system_into_user(messages)
+    extra_body: dict[str, Any] = {}
+    if _model_is_qwen3(model_id):
+        extra_body["chat_template_kwargs"] = {"enable_thinking": False}
+    start = time.perf_counter()
+    raw, n_tokens = _chat_completions(
+        base_url=base_url,
+        model_id=model_id,
+        messages=messages,
+        max_new_tokens=args.max_new_tokens,
+        temperature=args.temperature,
+        request_timeout=args.request_timeout,
+        extra_body=extra_body or None,
+    )
+    latency_seconds = time.perf_counter() - start
+    return parse_json_object(raw), raw, n_tokens, latency_seconds
+
+
+# ---------------------------------------------------------------------------
+# Sample execution (sequential or concurrent)
+# ---------------------------------------------------------------------------
+
+def execute_samples(
+    records: list[dict[str, Any]],
+    base_url: str,
+    args: argparse.Namespace,
+    logger: logging.Logger,
+    concurrency: int,
+    label: str,
+) -> tuple[list[dict[str, Any]], list[str], list[int], list[float], dict[int, str]]:
+    """Run inference on every record. Returns per-index arrays preserving order.
+
+    concurrency=1 runs the records sequentially (used for the honest per-record
+    speed measurement). concurrency>1 uses a ThreadPoolExecutor; vLLM batches
+    requests server-side so wall-clock drops dramatically with no quality loss.
+    """
+    n = len(records)
+    predictions: list[dict[str, Any]] = [{} for _ in range(n)]
+    raw_outputs: list[str] = [""] * n
+    tokens: list[int] = [0] * n
+    latencies: list[float] = [0.0] * n
+    api_errors: dict[int, str] = {}
+    t0 = time.time()
+
+    def _process(idx: int) -> None:
+        record = records[idx]
+        try:
+            pred, raw, n_tok, lat = predict_one(base_url, args.model_id, record, args)
+            status = "ok"
+        except Exception as exc:
+            pred, raw, n_tok, lat = {"found": False}, "", 0, 0.0
+            status = "error"
+            api_errors[idx] = str(exc)
+        predictions[idx] = pred
+        raw_outputs[idx] = raw
+        tokens[idx] = n_tok
+        latencies[idx] = lat
+        tok_per_sec = n_tok / lat if lat > 0 else 0.0
+        logger.info(
+            "[%s] %d/%d | record_id=%s | status=%s | latency=%.3fs"
+            " | tokens=%d | tok/s=%.2f | pred_found=%s",
+            label, idx + 1, n, record.get("record_id"), status, lat, n_tok,
+            tok_per_sec, bool(pred.get("found")),
+        )
+
+    if concurrency <= 1:
+        for idx in range(n):
+            _process(idx)
+            if (idx + 1) % args.progress_every == 0 or (idx + 1) == n:
+                logger.info(
+                    "[%s] progress: %d/%d | elapsed=%.1fs",
+                    label, idx + 1, n, time.time() - t0,
+                )
+    else:
+        with ThreadPoolExecutor(max_workers=concurrency) as ex:
+            futures = [ex.submit(_process, i) for i in range(n)]
+            done = 0
+            for fut in as_completed(futures):
+                fut.result()  # _process swallows per-record errors; this only re-raises on bugs
+                done += 1
+                if done % args.progress_every == 0 or done == n:
+                    logger.info(
+                        "[%s] progress: %d/%d | elapsed=%.1fs",
+                        label, done, n, time.time() - t0,
+                    )
+
+    return predictions, raw_outputs, tokens, latencies, api_errors
+
+
+def compute_latency_stats(
+    latencies: list[float],
+    tokens: list[int],
+    api_errors: dict[int, str],
+    wall_seconds: float,
+    n: int,
+) -> dict[str, Any]:
+    succ_lat = [lat for i, lat in enumerate(latencies) if i not in api_errors and lat > 0]
+    succ_tok = [t for i, t in enumerate(tokens) if i not in api_errors]
+    total_gen = sum(succ_lat)
+    total_tok = sum(succ_tok)
+
+    def quantile(values: list[float], q: float) -> float:
+        if not values:
+            return 0.0
+        s = sorted(values)
+        idx = max(0, min(len(s) - 1, int(round(q * (len(s) - 1)))))
+        return s[idx]
+
+    per_sample_tps = [t / l for t, l in zip(succ_tok, succ_lat) if l > 0]
+
+    return {
+        "n_samples": n,
+        "n_generation_errors": len(api_errors),
+        "wall_clock_seconds": wall_seconds,
+        "total_generation_seconds": total_gen,
+        "total_generated_tokens": total_tok,
+        "avg_latency_seconds": statistics.mean(succ_lat) if succ_lat else 0.0,
+        "median_latency_seconds": statistics.median(succ_lat) if succ_lat else 0.0,
+        "p95_latency_seconds": quantile(succ_lat, 0.95),
+        "p99_latency_seconds": quantile(succ_lat, 0.99),
+        "min_latency_seconds": min(succ_lat) if succ_lat else 0.0,
+        "max_latency_seconds": max(succ_lat) if succ_lat else 0.0,
+        "aggregate_tokens_per_second": total_tok / total_gen if total_gen > 0 else 0.0,
+        "mean_per_sample_tokens_per_second": statistics.mean(per_sample_tps) if per_sample_tps else 0.0,
+        "wall_clock_samples_per_second": n / wall_seconds if wall_seconds > 0 else 0.0,
+    }
+
+
+def log_latency_report(logger: logging.Logger, label: str, stats: dict[str, Any]) -> None:
+    logger.info("")
+    logger.info("--- %s ---", label)
+    logger.info("n_samples:                          %d", stats["n_samples"])
+    logger.info("n_generation_errors:                %d", stats["n_generation_errors"])
+    logger.info("wall_clock_seconds:                 %.3f", stats["wall_clock_seconds"])
+    logger.info("total_generation_seconds:           %.3f", stats["total_generation_seconds"])
+    logger.info("total_generated_tokens:             %d", stats["total_generated_tokens"])
+    logger.info("avg_latency_seconds:                %.3f", stats["avg_latency_seconds"])
+    logger.info("median_latency_seconds:             %.3f", stats["median_latency_seconds"])
+    logger.info("p95_latency_seconds:                %.3f", stats["p95_latency_seconds"])
+    logger.info("p99_latency_seconds:                %.3f", stats["p99_latency_seconds"])
+    logger.info("min_latency_seconds:                %.3f", stats["min_latency_seconds"])
+    logger.info("max_latency_seconds:                %.3f", stats["max_latency_seconds"])
+    logger.info("aggregate_tokens_per_second:        %.3f", stats["aggregate_tokens_per_second"])
+    logger.info("mean_per_sample_tokens_per_second:  %.3f", stats["mean_per_sample_tokens_per_second"])
+    logger.info("wall_clock_samples_per_second:      %.3f", stats["wall_clock_samples_per_second"])
+
+
+# ---------------------------------------------------------------------------
+# Matching helpers (identical to evaluate_hf.py)
+# ---------------------------------------------------------------------------
+
+def _normalize(s: str) -> str:
+    s = s.lower().strip()
+    s = re.sub(r"\s+", " ", s)
+    return s.strip(".,!?;:\"'()-")
+
+
+def _strip_article(s: str) -> str:
+    return _LEADING_ARTICLE.sub("", s)
+
+
+def _levenshtein(a: str, b: str) -> int:
+    if len(a) < len(b):
+        a, b = b, a
+    prev = list(range(len(b) + 1))
+    for ca in a:
+        curr = [prev[0] + 1]
+        for j, cb in enumerate(b):
+            curr.append(min(prev[j + 1] + 1, curr[j] + 1, prev[j] + (ca != cb)))
+        prev = curr
+    return prev[-1]
+
+
+def _word_overlap(a: str, b: str) -> float:
+    a_words = Counter(a.split())
+    b_words = Counter(b.split())
+    common = sum((a_words & b_words).values())
+    total = max(sum(a_words.values()), sum(b_words.values()))
+    return common / total if total > 0 else 1.0
+
+
+def mention_match(pred_mention: str, true_mention: str) -> bool:
+    a = _normalize(pred_mention)
+    b = _normalize(true_mention)
+    if a == b or _strip_article(a) == _strip_article(b):
+        return True
+    max_len = max(len(a), len(b))
+    if max_len > 0 and _levenshtein(a, b) <= max_len * FUZZY_THRESHOLD:
+        return True
+    return _word_overlap(a, b) >= WORD_OVERLAP_MIN
+
+
+def f1(precision: float, recall: float) -> float:
+    return 0.0 if precision + recall == 0 else 2 * precision * recall / (precision + recall)
+
+
+def pct(num: int, den: int) -> float:
+    return num / den if den else 0.0
+
+
+def get_instances(item: dict[str, Any]) -> list[dict[str, Any]]:
+    if item.get("found") is not True:
+        return []
+    instances = item.get("instances")
+    return instances if isinstance(instances, list) else []
+
+
+def mentions_by_id(instance: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    mentions = instance.get("object_mentions")
+    if not isinstance(mentions, list):
+        return {}
+    out = {}
+    for mention in mentions:
+        if isinstance(mention, dict) and isinstance(mention.get("object_id"), str):
+            out[mention["object_id"]] = mention
+    return out
+
+
+def gt_history_expected_canonical(record: dict[str, Any], true_mention: dict[str, Any]) -> str | None:
+    source = true_mention.get("canonical_source")
+    if not isinstance(source, dict) or source.get("type") != "history":
+        return None
+    idx = source.get("matched_history_index")
+    history = record.get("related_object_history")
+    if not isinstance(idx, int) or not isinstance(history, list) or idx < 0 or idx >= len(history):
+        return None
+    expected = history[idx].get("canonical_form")
+    return expected if isinstance(expected, str) else None
+
+
+def instance_mentions_match(pred_instance: dict[str, Any], true_instance: dict[str, Any]) -> bool:
+    pred_by_id = mentions_by_id(pred_instance)
+    true_by_id = mentions_by_id(true_instance)
+    if set(pred_by_id) != set(true_by_id):
+        return False
+    for object_id, true_mention in true_by_id.items():
+        pred_mention = pred_by_id[object_id].get("mention")
+        gt_mention = true_mention.get("mention")
+        if not isinstance(pred_mention, str) or not isinstance(gt_mention, str):
+            return False
+        if not mention_match(pred_mention, gt_mention):
+            return False
+    return True
+
+
+def instance_canonical_match(
+    pred_instance: dict[str, Any], true_instance: dict[str, Any], record: dict[str, Any]
+) -> bool:
+    pred_by_id = mentions_by_id(pred_instance)
+    for object_id, true_mention in mentions_by_id(true_instance).items():
+        expected = gt_history_expected_canonical(record, true_mention)
+        if expected is None:
+            continue
+        if pred_by_id.get(object_id, {}).get("canonical_form") != expected:
+            return False
+    return True
+
+
+def instance_full_match(
+    pred_instance: dict[str, Any], true_instance: dict[str, Any], record: dict[str, Any]
+) -> bool:
+    return instance_mentions_match(pred_instance, true_instance) and instance_canonical_match(
+        pred_instance, true_instance, record
+    )
+
+
+def max_bipartite_pairs(matrix: list[list[bool]]) -> list[tuple[int, int]]:
+    if not matrix:
+        return []
+    n_right = len(matrix[0]) if matrix[0] else 0
+    match_right = [-1] * n_right
+
+    def dfs(left: int, seen: set[int]) -> bool:
+        for right in range(n_right):
+            if not matrix[left][right] or right in seen:
+                continue
+            seen.add(right)
+            if match_right[right] == -1 or dfs(match_right[right], seen):
+                match_right[right] = left
+                return True
+        return False
+
+    for left in range(len(matrix)):
+        dfs(left, set())
+    return [(left, right) for right, left in enumerate(match_right) if left != -1]
+
+
+def match_instances(
+    prediction: dict[str, Any], record: dict[str, Any], full: bool = False
+) -> list[tuple[int, int]]:
+    pred_instances = get_instances(prediction)
+    true_instances = get_instances(record)
+    matrix = []
+    for pred_instance in pred_instances:
+        row = []
+        for true_instance in true_instances:
+            row.append(
+                instance_full_match(pred_instance, true_instance, record)
+                if full
+                else instance_mentions_match(pred_instance, true_instance)
+            )
+        matrix.append(row)
+    return max_bipartite_pairs(matrix)
+
+
+def count_gt_history_mentions(record: dict[str, Any]) -> int:
+    return sum(
+        1
+        for inst in get_instances(record)
+        for mention in mentions_by_id(inst).values()
+        if gt_history_expected_canonical(record, mention) is not None
+    )
+
+
+def count_pred_history_mentions(prediction: dict[str, Any]) -> int:
+    return sum(
+        1
+        for inst in get_instances(prediction)
+        for mention in mentions_by_id(inst).values()
+        if isinstance(mention.get("canonical_source"), dict)
+        and mention["canonical_source"].get("type") == "history"
+    )
+
+
+def count_correct_canonical_on_mention_matches(
+    prediction: dict[str, Any], record: dict[str, Any], pairs: list[tuple[int, int]]
+) -> int:
+    correct = 0
+    pred_instances = get_instances(prediction)
+    true_instances = get_instances(record)
+    for pred_idx, true_idx in pairs:
+        pred_by_id = mentions_by_id(pred_instances[pred_idx])
+        for object_id, true_mention in mentions_by_id(true_instances[true_idx]).items():
+            expected = gt_history_expected_canonical(record, true_mention)
+            if expected is not None and pred_by_id.get(object_id, {}).get("canonical_form") == expected:
+                correct += 1
+    return correct
+
+
+def is_sample_correct(prediction: dict[str, Any], record: dict[str, Any]) -> bool:
+    if bool(prediction.get("found")) != bool(record.get("found")):
+        return False
+    if not record.get("found"):
+        return True
+    if len(get_instances(prediction)) != len(get_instances(record)):
+        return False
+    return len(match_instances(prediction, record, full=True)) == len(get_instances(record))
+
+
+def classify_error(prediction: dict[str, Any], record: dict[str, Any]) -> str | None:
+    if is_sample_correct(prediction, record):
+        return None
+    pred_found = bool(prediction.get("found"))
+    gt_found = bool(record.get("found"))
+    if pred_found and not gt_found:
+        return "false_positive"
+    if not pred_found and gt_found:
+        return "false_negative"
+    if len(get_instances(prediction)) != len(get_instances(record)):
+        return "instance_count_error"
+    mention_pairs = match_instances(prediction, record, full=False)
+    if len(mention_pairs) != len(get_instances(record)):
+        return "mention_error"
+    return "canonical_error"
+
+
+# ---------------------------------------------------------------------------
+# Reporting helpers
+# ---------------------------------------------------------------------------
+
+def log_metric(logger: logging.Logger, name: str, numerator: int, denominator: int) -> None:
+    logger.info("%-38s %.6f  (%d/%d)", f"{name}:", pct(numerator, denominator), numerator, denominator)
+
+
+def write_errors(path: Path, errors: list[dict[str, Any]]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as f:
+        for e in errors:
+            f.write(json.dumps(e, ensure_ascii=False) + "\n")
+
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+
+def main() -> int:
+    args = parse_args()
+    args.output_dir.mkdir(parents=True, exist_ok=True)
+    logger = setup_logging(args.log_file)
+
+    base_url = f"http://{args.host}:{args.port}"
+    logger.info("Args: %s", vars(args))
+    logger.info("vLLM endpoint: %s", base_url)
+
+    records = load_jsonl(args.dataset, args.limit)
+    logger.info("Loaded %d records", len(records))
+
+    # ------------------------------------------------------------------
+    # PHASE 1: Speed test (sequential, first N samples)
+    # ------------------------------------------------------------------
+    speed_stats: dict[str, Any] | None = None
+    if args.speed_test_samples > 0 and len(records) > 0:
+        n_speed = min(args.speed_test_samples, len(records))
+        logger.info("")
+        logger.info("=" * 70)
+        logger.info("PHASE 1: Speed test — %d samples, sequential (concurrency=1)", n_speed)
+        logger.info("=" * 70)
+        t_speed = time.time()
+        _, _, sp_tokens, sp_latencies, sp_errors = execute_samples(
+            records[:n_speed],
+            base_url,
+            args,
+            logger,
+            concurrency=1,
+            label="speed",
+        )
+        sp_wall = time.time() - t_speed
+        speed_stats = compute_latency_stats(sp_latencies, sp_tokens, sp_errors, sp_wall, n_speed)
+        log_latency_report(logger, "Speed phase (sequential) latency", speed_stats)
+    else:
+        logger.info("PHASE 1: Speed test skipped (--speed-test-samples=%d)", args.speed_test_samples)
+
+    # ------------------------------------------------------------------
+    # PHASE 2: Accuracy test (all records, concurrent)
+    # ------------------------------------------------------------------
+    logger.info("")
+    logger.info("=" * 70)
+    logger.info(
+        "PHASE 2: Accuracy test — %d samples, concurrency=%d",
+        len(records),
+        args.concurrency,
+    )
+    logger.info("=" * 70)
+    t0 = time.time()
+    predictions, raw_outputs, generation_tokens, latency_seconds, api_errors = execute_samples(
+        records,
+        base_url,
+        args,
+        logger,
+        concurrency=max(1, args.concurrency),
+        label="eval",
+    )
+
+    # ------------------------------------------------------------------
+    # Aggregate metrics
+    # ------------------------------------------------------------------
+    n = len(records)
+    gt_found = sum(1 for r in records if bool(r.get("found")))
+    pred_found = sum(1 for p in predictions if bool(p.get("found")))
+    tp_found = sum(1 for p, r in zip(predictions, records) if bool(p.get("found")) and bool(r.get("found")))
+    fp_found = sum(1 for p, r in zip(predictions, records) if bool(p.get("found")) and not bool(r.get("found")))
+    fn_found = sum(1 for p, r in zip(predictions, records) if not bool(p.get("found")) and bool(r.get("found")))
+    tn_found = n - tp_found - fp_found - fn_found
+    found_correct = tp_found + tn_found
+
+    gt_instances = sum(len(get_instances(r)) for r in records)
+    pred_instances_count = sum(len(get_instances(p)) for p in predictions)
+    mention_pairs_by_row = [match_instances(p, r, full=False) for p, r in zip(predictions, records)]
+    full_pairs_by_row = [match_instances(p, r, full=True) for p, r in zip(predictions, records)]
+    mention_tp_instances = sum(len(pairs) for pairs in mention_pairs_by_row)
+    full_tp_instances = sum(len(pairs) for pairs in full_pairs_by_row)
+
+    gt_history_mentions = sum(count_gt_history_mentions(r) for r in records)
+    pred_history_mentions = sum(count_pred_history_mentions(p) for p in predictions)
+    canonical_correct = sum(
+        count_correct_canonical_on_mention_matches(p, r, pairs)
+        for p, r, pairs in zip(predictions, records, mention_pairs_by_row)
+    )
+    sample_correct_flags = [is_sample_correct(p, r) for p, r in zip(predictions, records)]
+    sample_correct = sum(sample_correct_flags)
+
+    errors = []
+    error_counts: Counter[str] = Counter()
+    for idx, (prediction, record, raw) in enumerate(zip(predictions, records, raw_outputs)):
+        error_type = classify_error(prediction, record)
+        if idx in api_errors:
+            error_type = "parse_or_generation_error"
+        if error_type is None:
+            continue
+        error_counts[str(error_type)] += 1
+        errors.append(
+            {
+                "record_id": record.get("record_id"),
+                "error_type": error_type,
+                "generation_error": api_errors.get(idx),
+                "raw_output": raw,
+                "latency_seconds": latency_seconds[idx],
+                "generated_tokens": generation_tokens[idx],
+                "text": record.get("text"),
+                "predicate_id": record.get("predicate_id"),
+                "predicate_description": record.get("predicate_description"),
+                "ground_truth": {"found": record.get("found"), "instances": record.get("instances", [])},
+                "prediction": prediction,
+            }
+        )
+    write_errors(args.errors, errors)
+
+    # ------------------------------------------------------------------
+    # Precision / recall / F1
+    # ------------------------------------------------------------------
+    found_precision = pct(tp_found, tp_found + fp_found)
+    found_recall = pct(tp_found, tp_found + fn_found)
+    mention_precision = pct(mention_tp_instances, pred_instances_count)
+    mention_recall = pct(mention_tp_instances, gt_instances)
+    full_precision = pct(full_tp_instances, pred_instances_count)
+    full_recall = pct(full_tp_instances, gt_instances)
+    canonical_precision = pct(canonical_correct, pred_history_mentions)
+    canonical_recall = pct(canonical_correct, gt_history_mentions)
+
+    # ------------------------------------------------------------------
+    # Latency stats
+    # ------------------------------------------------------------------
+    elapsed = time.time() - t0
+    successful_latencies = [lat for i, lat in enumerate(latency_seconds) if i not in api_errors and lat > 0]
+    successful_tokens = [tok for i, tok in enumerate(generation_tokens) if i not in api_errors]
+    total_generation_latency = sum(successful_latencies)
+    total_generated_tokens = sum(successful_tokens)
+    average_latency = statistics.mean(successful_latencies) if successful_latencies else 0.0
+    median_latency = statistics.median(successful_latencies) if successful_latencies else 0.0
+    min_latency = min(successful_latencies) if successful_latencies else 0.0
+    max_latency = max(successful_latencies) if successful_latencies else 0.0
+    aggregate_tokens_per_second = (
+        total_generated_tokens / total_generation_latency if total_generation_latency > 0 else 0.0
+    )
+    per_sample_tps = [tok / lat for tok, lat in zip(generation_tokens, latency_seconds) if lat > 0]
+    mean_per_sample_tps = statistics.mean(per_sample_tps) if per_sample_tps else 0.0
+
+    # ------------------------------------------------------------------
+    # Final report
+    # ------------------------------------------------------------------
+    logger.info("")
+    logger.info("=" * 70)
+    logger.info("FINAL REPORT — %s", args.model_id)
+    logger.info("=" * 70)
+    if speed_stats is not None:
+        log_latency_report(logger, "Speed phase (sequential) latency", speed_stats)
+    logger.info("")
+    logger.info("--- Accuracy phase (concurrency=%d) ---", args.concurrency)
+    logger.info("Errors written to %s (%d errors)", args.errors, len(errors))
+    log_metric(logger, "sample_general_accuracy", sample_correct, n)
+    log_metric(logger, "found_accuracy", found_correct, n)
+    log_metric(logger, "mention_instance_accuracy", mention_tp_instances, gt_instances)
+    log_metric(logger, "canonical_history_accuracy", canonical_correct, gt_history_mentions)
+    log_metric(logger, "full_instance_accuracy", full_tp_instances, gt_instances)
+    logger.info("")
+    logger.info("found_precision:                    %.6f  (%d/%d)", found_precision, tp_found, tp_found + fp_found)
+    logger.info("found_recall:                       %.6f  (%d/%d)", found_recall, tp_found, tp_found + fn_found)
+    logger.info("found_f1:                           %.6f", f1(found_precision, found_recall))
+    logger.info("mention_instance_precision:         %.6f  (%d/%d)", mention_precision, mention_tp_instances, pred_instances_count)
+    logger.info("mention_instance_recall:            %.6f  (%d/%d)", mention_recall, mention_tp_instances, gt_instances)
+    logger.info("mention_instance_f1:                %.6f", f1(mention_precision, mention_recall))
+    logger.info("canonical_history_precision:        %.6f  (%d/%d)", canonical_precision, canonical_correct, pred_history_mentions)
+    logger.info("canonical_history_recall:           %.6f  (%d/%d)", canonical_recall, canonical_correct, gt_history_mentions)
+    logger.info("canonical_history_f1:               %.6f", f1(canonical_precision, canonical_recall))
+    logger.info("full_instance_precision:            %.6f  (%d/%d)", full_precision, full_tp_instances, pred_instances_count)
+    logger.info("full_instance_recall:               %.6f  (%d/%d)", full_recall, full_tp_instances, gt_instances)
+    logger.info("full_instance_f1:                   %.6f", f1(full_precision, full_recall))
+    logger.info("")
+    logger.info("n_records:                          %d", n)
+    logger.info("n_sample_correct:                   %d", sample_correct)
+    logger.info("n_gt_found_records:                 %d", gt_found)
+    logger.info("n_pred_found_records:               %d", pred_found)
+    logger.info("n_gt_instances:                     %d", gt_instances)
+    logger.info("n_pred_instances:                   %d", pred_instances_count)
+    logger.info("n_gt_history_canonical_mentions:    %d", gt_history_mentions)
+    logger.info("n_pred_history_canonical_mentions:  %d", pred_history_mentions)
+    logger.info("n_generation_errors:                %d", len(api_errors))
+    logger.info("elapsed_seconds:                    %.1f", elapsed)
+    logger.info("total_generation_latency_seconds:   %.3f", total_generation_latency)
+    logger.info("average_latency_seconds:            %.3f", average_latency)
+    logger.info("median_latency_seconds:             %.3f", median_latency)
+    logger.info("min_latency_seconds:                %.3f", min_latency)
+    logger.info("max_latency_seconds:                %.3f", max_latency)
+    logger.info("total_generated_tokens:             %d", total_generated_tokens)
+    logger.info("aggregate_tokens_per_second:        %.3f", aggregate_tokens_per_second)
+    logger.info("mean_per_sample_tokens_per_second:  %.3f", mean_per_sample_tps)
+    logger.info("error_breakdown:                    %s", json.dumps(error_counts, sort_keys=True))
+
+    role_stats: dict[str, list[bool]] = defaultdict(list)
+    domain_stats: dict[str, list[bool]] = defaultdict(list)
+    for correct, record in zip(sample_correct_flags, records):
+        role_stats[str(record.get("predicate_role", "unknown"))].append(correct)
+        domain_stats[str(record.get("domain", "unknown"))].append(correct)
+    logger.info("")
+    logger.info("Per-role sample general accuracy:")
+    for role, vals in sorted(role_stats.items()):
+        logger.info("  %-12s %d/%d (%.4f)", role, sum(vals), len(vals), pct(sum(vals), len(vals)))
+    logger.info("")
+    logger.info("Per-domain sample general accuracy:")
+    for domain, vals in sorted(domain_stats.items()):
+        logger.info("  %-30s %d/%d (%.4f)", domain, sum(vals), len(vals), pct(sum(vals), len(vals)))
+
+    # ------------------------------------------------------------------
+    # Structured summary (machine-readable; one JSON per model)
+    # ------------------------------------------------------------------
+    accuracy_latency = {
+        "n_samples": n,
+        "n_generation_errors": len(api_errors),
+        "wall_clock_seconds": elapsed,
+        "total_generation_seconds": total_generation_latency,
+        "total_generated_tokens": total_generated_tokens,
+        "avg_latency_seconds": average_latency,
+        "median_latency_seconds": median_latency,
+        "min_latency_seconds": min_latency,
+        "max_latency_seconds": max_latency,
+        "aggregate_tokens_per_second": aggregate_tokens_per_second,
+        "mean_per_sample_tokens_per_second": mean_per_sample_tps,
+        "wall_clock_samples_per_second": (n / elapsed) if elapsed > 0 else 0.0,
+    }
+    summary = {
+        "model_id": args.model_id,
+        "dataset": str(args.dataset),
+        "few_shot": str(args.few_shot),
+        "n_records": n,
+        "concurrency": args.concurrency,
+        "speed_test_samples": args.speed_test_samples,
+        "speed_phase": speed_stats,
+        "accuracy_phase": {
+            "latency": accuracy_latency,
+            "metrics": {
+                "sample_general_accuracy": pct(sample_correct, n),
+                "found_accuracy": pct(found_correct, n),
+                "found_precision": found_precision,
+                "found_recall": found_recall,
+                "found_f1": f1(found_precision, found_recall),
+                "mention_instance_accuracy": pct(mention_tp_instances, gt_instances),
+                "mention_instance_precision": mention_precision,
+                "mention_instance_recall": mention_recall,
+                "mention_instance_f1": f1(mention_precision, mention_recall),
+                "full_instance_accuracy": pct(full_tp_instances, gt_instances),
+                "full_instance_precision": full_precision,
+                "full_instance_recall": full_recall,
+                "full_instance_f1": f1(full_precision, full_recall),
+                "canonical_history_accuracy": pct(canonical_correct, gt_history_mentions),
+                "canonical_history_precision": canonical_precision,
+                "canonical_history_recall": canonical_recall,
+                "canonical_history_f1": f1(canonical_precision, canonical_recall),
+                "n_sample_correct": sample_correct,
+                "n_gt_found_records": gt_found,
+                "n_pred_found_records": pred_found,
+                "n_gt_instances": gt_instances,
+                "n_pred_instances": pred_instances_count,
+                "n_gt_history_canonical_mentions": gt_history_mentions,
+                "n_pred_history_canonical_mentions": pred_history_mentions,
+                "error_breakdown": dict(error_counts),
+            },
+            "per_role_accuracy": {
+                role: {
+                    "correct": sum(vals),
+                    "total": len(vals),
+                    "accuracy": pct(sum(vals), len(vals)),
+                }
+                for role, vals in sorted(role_stats.items())
+            },
+            "per_domain_accuracy": {
+                domain: {
+                    "correct": sum(vals),
+                    "total": len(vals),
+                    "accuracy": pct(sum(vals), len(vals)),
+                }
+                for domain, vals in sorted(domain_stats.items())
+            },
+        },
+    }
+    summary_path = args.summary_file
+    summary_path.parent.mkdir(parents=True, exist_ok=True)
+    summary_path.write_text(json.dumps(summary, indent=2, sort_keys=True))
+    logger.info("")
+    logger.info("Summary written to %s", summary_path)
+
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

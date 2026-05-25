@@ -17,6 +17,7 @@ restarts via event replay.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import uuid
 
@@ -409,25 +410,20 @@ class ConversationMonitor:
                 )
 
         if not context_lines:
-            return "NONE", "NONE"
+            return "NONE", "[]"
 
-        history_lines: list[str] = []
+        history_entries: list[dict[str, str]] = []
         for item in self._canonical_history:
             key = (item["prop_id"], item["object_id"])
             if key not in related_keys:
                 continue
-            history_lines.append(
-                "- {prop_id}.{object_id}: mention={mention!r}, "
-                "canonical_form={canonical_form!r}, trace_index={trace_index}".format(
-                    prop_id=item["prop_id"],
-                    object_id=item["object_id"],
-                    mention=item["mention"],
-                    canonical_form=item["canonical_form"],
-                    trace_index=item["trace_index"],
-                )
-            )
+            history_entries.append({
+                "mention": item["mention"],
+                "canonical_form": item["canonical_form"],
+            })
 
-        return "\n".join(context_lines), "\n".join(history_lines) if history_lines else "NONE"
+        history_block = json.dumps(history_entries, ensure_ascii=False, indent=2)
+        return "\n".join(context_lines), history_block
 
     def _remember_object_history(
         self,

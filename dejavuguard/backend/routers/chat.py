@@ -54,6 +54,19 @@ def _parse_json_list_field(raw_value) -> list[str]:
     return []
 
 
+def _parse_json_object_list_field(raw_value) -> list[dict]:
+    """Parse stored structured few-shot examples."""
+    if not raw_value:
+        return []
+    try:
+        parsed = json.loads(raw_value)
+        if isinstance(parsed, list):
+            return [item for item in parsed if isinstance(item, dict)]
+    except Exception as e:
+        logger.debug("Failed to parse JSON object list field: %s", e)
+    return []
+
+
 def invalidate_monitors() -> None:
     """Clear all cached monitors.
 
@@ -102,6 +115,7 @@ async def _get_or_create_monitor(db: DatabaseStore, session_id: str) -> Conversa
             arg_descriptions=_parse_json_list_field(r.get("arg_descriptions")),
             few_shot_positive=_parse_json_list_field(r.get("few_shot_positive")),
             few_shot_negative=_parse_json_list_field(r.get("few_shot_negative")),
+            few_shot_examples=_parse_json_object_list_field(r.get("few_shot_examples")),
             few_shot_generated_at=r.get("few_shot_generated_at"),
         )
         for r in prop_rows

@@ -1,415 +1,179 @@
-# Extended Grounding Dataset
+# Grounding Dataset With Instances And Canonical Forms
 
-This directory contains the extended grounding dataset, dataset generation tools, few-shot example generation, and an LLM-based evaluation harness.
+This directory contains the dataset construction tools and retained datasets
+for the first-order grounding task used in this repository. A grounding model
+receives a message, a predicate definition, its objects, and any related-object
+context and history. It must determine whether the predicate is expressed and,
+when it is expressed, return every grounded instance with exact mentions and
+canonical forms.
 
-The extended task builds on the original grounding task. A model receives:
+Cloud-based evaluation has been moved to `../cloud_grounding_eval/`. Local GPU
+model evaluation has been moved to `../gpu_grounding_eval/`.
 
-- a text message
-- the message role, `user` or `assistant`
-- one predicate definition
-- the predicate objects and their descriptions
-- related-object context
-- related-object history
+## Record Format
 
-The model must return whether the predicate is found in the message. If found, it must also return all predicate instances, exact object mentions, and canonical forms.
+Each JSONL record contains:
 
-## What Changed
+| Field | Meaning |
+| --- | --- |
+| `record_id` | Unique record identifier in the file. |
+| `text` | Message being grounded. |
+| `role` | Message sender: `user` or `assistant`. |
+| `predicate_id` | Identifier of the predicate being checked. |
+| `predicate_description` | Declarative natural-language definition of the predicate. |
+| `predicate_role` | Role whose messages can satisfy the predicate. |
+| `objects` | Required predicate objects, including `object_id`, description, and entity type. |
+| `category`, `domain` | Data-generation metadata. |
+| `related_object_context` | Related predicate/object positions that may guide canonicalization. |
+| `related_object_history` | Previous related mentions and their canonical forms. |
+| `found` | Whether the current message expresses the predicate. |
+| `instances` | Complete grounded tuples, present only when `found` is `true`. |
 
-The original grounding task had one flat `object_mentions` list per record. The extended task adds two capabilities:
-
-- Multiple predicate instances in the same message.
-- Canonical forms for object mentions, including canonical forms selected from related-object history.
-
-Example:
+A positive record has one or more instances:
 
 ```json
 {
-  "text": "I need refunds for the tee, the sneakers, and the backpack.",
-  "predicate_description": "the user requests a refund for a product",
-  "related_object_history": [
-    {
-      "related_predicate_id": "p_related_order",
-      "related_object_id": "o1",
-      "mention": "Classic Cotton T-Shirt",
-      "canonical_form": "Classic Cotton T-Shirt"
-    },
-    {
-      "related_predicate_id": "p_related_order",
-      "related_object_id": "o1",
-      "mention": "Running Sneakers",
-      "canonical_form": "Running Sneakers"
-    }
+  "record_id": "r0000001",
+  "text": "Book a table for Jen at Luigi's and for Marcus at Blue Orchid.",
+  "role": "user",
+  "predicate_id": "p00001",
+  "predicate_description": "the user requests a restaurant reservation for a person at an organization",
+  "predicate_role": "user",
+  "objects": [
+    {"object_id": "o1", "description": "diner", "entity_type": "Person"},
+    {"object_id": "o2", "description": "restaurant", "entity_type": "Organization"}
   ],
+  "category": "scheduling",
+  "domain": "food and restaurants",
+  "related_object_context": [],
+  "related_object_history": [],
   "found": true,
   "instances": [
     {
       "instance_id": "i1",
       "object_mentions": [
-        {
-          "object_id": "o1",
-          "mention": "tee",
-          "canonical_form": "Classic Cotton T-Shirt",
-          "canonical_source": {
-            "type": "history",
-            "matched_history_index": 0
-          }
-        }
+        {"object_id": "o1", "mention": "Jen", "canonical_form": "Jen", "canonical_source": {"type": "new"}},
+        {"object_id": "o2", "mention": "Luigi's", "canonical_form": "Luigi's", "canonical_source": {"type": "new"}}
       ]
     },
     {
       "instance_id": "i2",
       "object_mentions": [
-        {
-          "object_id": "o1",
-          "mention": "sneakers",
-          "canonical_form": "Running Sneakers",
-          "canonical_source": {
-            "type": "history",
-            "matched_history_index": 1
-          }
-        }
+        {"object_id": "o1", "mention": "Marcus", "canonical_form": "Marcus", "canonical_source": {"type": "new"}},
+        {"object_id": "o2", "mention": "Blue Orchid", "canonical_form": "Blue Orchid", "canonical_source": {"type": "new"}}
       ]
     }
   ]
 }
 ```
 
-## Dataset Row Schema
+A negative record ends at `found: false`; it does not include `instances`.
 
-Each JSONL row has the following structure.
+Each instance is one complete occurrence of the predicate. Each required
+`object_id` must occur exactly once inside that instance. `mention` must be an
+exact substring of `text`.
 
-Positive row:
-
-```json
-{
-  "record_id": "r0000001",
-  "text": "...",
-  "role": "user",
-  "predicate_id": "p00001",
-  "predicate_description": "the user requests ...",
-  "predicate_role": "user",
-  "objects": [
-    {
-      "object_id": "o1",
-      "description": "product",
-      "entity_type": "Product"
-    }
-  ],
-  "category": "support",
-  "domain": "ecommerce",
-  "related_object_context": [],
-  "related_object_history": [],
-  "found": true,
-  "instances": [
-    {
-      "instance_id": "i1",
-      "object_mentions": [
-        {
-          "object_id": "o1",
-          "mention": "AirPods Pro",
-          "canonical_form": "Apple AirPods Pro 2nd Generation",
-          "canonical_source": {
-            "type": "new"
-          }
-        }
-      ]
-    }
-  ]
-}
-```
-
-Negative row:
-
-```json
-{
-  "record_id": "r0000002",
-  "text": "...",
-  "role": "assistant",
-  "predicate_id": "p00001",
-  "predicate_description": "the assistant provides ...",
-  "predicate_role": "assistant",
-  "objects": [
-    {
-      "object_id": "o1",
-      "description": "city",
-      "entity_type": "City"
-    }
-  ],
-  "category": "facts",
-  "domain": "energy and utilities",
-  "related_object_context": [],
-  "related_object_history": [],
-  "found": false
-}
-```
-
-Negative rows intentionally do not include `instances`.
-
-## Instances
-
-An instance is one complete occurrence of the predicate in the message.
-
-Rules:
-
-- Unary predicate: each separate satisfying entity or value is a separate instance.
-- Binary predicate: each complete tuple is a separate instance.
-- Each instance must include every required `object_id` exactly once.
-- Do not put multiple mentions with the same `object_id` inside one instance.
-- If the predicate is not explicitly expressed, `found=false` and no `instances` field is present.
-
-For example, if the predicate is `the user requests a refund for a product`, then:
-
-```text
-I'd like a refund for the AirPods Pro and the MagSafe charger.
-```
-
-has two instances:
-
-- `AirPods Pro`
-- `MagSafe charger`
-
-It is not one instance with two `o1` mentions.
-
-## Canonical Forms
-
-Every object mention in a positive instance has:
-
-- `mention`: exact substring from the message
-- `canonical_form`: normalized identity or value
-- `canonical_source`: where the canonical form came from
-
-Canonical source values:
+Canonical forms use one of these sources:
 
 ```json
 {"type": "new"}
 ```
 
-or:
-
 ```json
 {"type": "history", "matched_history_index": 0}
 ```
 
-When `type` is `history`, the canonical form must exactly equal:
+For a history-based canonical form, the value must equal
+`related_object_history[matched_history_index].canonical_form`.
 
-```python
-related_object_history[matched_history_index]["canonical_form"]
-```
+## Scripts
 
-Evaluation only checks canonical-form correctness for ground-truth mentions whose `canonical_source.type` is `history`.
+| File | Purpose |
+| --- | --- |
+| `generate_extended_grounding_dataset.py` | Generates records from the main domains and optionally validates/filter them with another OpenRouter model. |
+| `generate_extended_grounding_dataset_new_domains.py` | Same generation and validation pipeline restricted to the out-of-distribution domains: travel and hospitality, government and public services, legal services, human resources and employment, and food and restaurants. |
+| `generate_few_shot_examples.py` | Generates three positive and three challenging negative demonstrations for each predicate in an existing dataset. |
+| `CLAUDE_DATASET_GUIDE.md` | Instructions for creating structurally compatible data with an external generation workflow. |
 
-## Related Objects
+Both dataset generators use `openai/gpt-5.4` through OpenRouter by default.
+Their validator model defaults to `anthropic/claude-sonnet-4.6`. The few-shot
+generator also defaults to `openai/gpt-5.4`.
 
-`related_object_context` describes which current predicate objects are related to objects from other predicates.
+## Datasets And Results
 
-```json
-{
-  "object_id": "o1",
-  "related_predicate_id": "p_related_order",
-  "related_predicate_description": "the user placed an order for a product",
-  "related_object_id": "o1",
-  "related_object_description": "ordered product"
-}
-```
-
-`related_object_history` contains previous mentions and canonical forms for those related objects in the same conversation.
-
-```json
-{
-  "related_predicate_id": "p_related_order",
-  "related_object_id": "o1",
-  "mention": "Apple MagSafe Charger",
-  "canonical_form": "Apple MagSafe Charger"
-}
-```
-
-Rows may have empty context/history:
-
-```json
-"related_object_context": [],
-"related_object_history": []
-```
-
-## Files
-
-Main scripts:
-
-- `generate_extended_grounding_dataset.py`: creates the extended dataset.
-- `generate_few_shot_examples.py`: creates few-shot examples for each predicate in an existing dataset.
-- `prompt.py`: contains the LLM prompting approach for the Gemma evaluator.
-- `evaluate_gemma.py`: evaluates the LLM approach on the extended dataset.
-
-Typical output files:
-
-- `output/dataset.jsonl`: generated dataset before optional filtering.
-- `output/dataset.validated.jsonl`: LLM-validated dataset.
-- `output/few_shot_examples.json`: predicate-indexed few-shot examples.
-- `output/generation.log`: dataset generation log.
-- `output/few_shot_generation.log`: few-shot generation log.
-- `output/gemma_eval.log`: evaluation report.
-- `output/gemma_errors.jsonl`: detailed evaluation errors.
+| Directory | Current contents |
+| --- | --- |
+| `training.set.646/` | Development material for prompt optimization. `training.set.jsonl` contains 646 records across 82 predicates; `training.set.few.shot.json` contains demonstrations for all 82 predicates. |
+| `test.set.1045/` | Main evaluation collection. `dataset.validated.jsonl` contains 1,045 records across 131 predicates; its few-shot file covers all 131 predicates. Raw generation and prior evaluation logs are retained. |
+| `ood.test.set.250/` | Out-of-distribution evaluation collection. `dataset.validated.jsonl` contains 250 records across 32 predicates; its recorded few-shot generation succeeded for 31 predicates and failed for one. |
+| `test+ood.set.1295/` | Merged evaluation collection: 1,295 validated records across 163 predicates and a merged few-shot file containing 163 predicate entries. |
+| `opus.ft.set.5000/` | Fine-tuning collection: `dataset.jsonl` contains 5,000 records across 559 predicates; `validation_set.jsonl` contains 1,000 records across 116 predicates. A `.bak` copy of the dataset is retained. |
+| `few_shot_grounding_experiments_results/` | Saved prompting-experiment reports, aggregate metrics, and the prompt-optimization workflow artifacts. |
 
 ## Requirements
 
-Set:
+Set the OpenRouter key before running generation or few-shot creation:
 
 ```powershell
-$env:OPENROUTER_API_KEY="your_key"
+$env:OPENROUTER_API_KEY="your_openrouter_key"
 ```
 
-The scripts use OpenRouter directly.
+The scripts otherwise use Python standard-library dependencies only.
 
-Default models:
+## Generate A Dataset
 
-- Dataset generation: `openai/gpt-5.4`
-- Dataset validation: `anthropic/claude-sonnet-4.6`
-- Few-shot generation: `openai/gpt-5.4`
-- Evaluation model: `google/gemma-3-4b-it`
-
-All model names can be overridden with CLI arguments.
-
-## Generate Dataset
+Run from this directory so output paths match the dataset layout:
 
 ```powershell
-python extended_grounding_dataset/generate_extended_grounding_dataset.py `
-  --length 5000 `
-  --output-dir extended_grounding_dataset/output `
-  --workers 20 `
-  --run-validator `
-  --validator-workers 20
+cd extended_grounding_dataset
+python generate_extended_grounding_dataset.py `
+  --length 1045 `
+  --output-dataset test.set.new/dataset.jsonl `
+  --log-file test.set.new/generation.log `
+  --workers 20
 ```
 
-Validate an existing generated dataset:
+To keep both the unfiltered dataset and a separately validated dataset, run
+validation as a second step:
 
 ```powershell
-python extended_grounding_dataset/generate_extended_grounding_dataset.py `
+python generate_extended_grounding_dataset.py `
   --validate-only `
-  --input-dataset extended_grounding_dataset/output/dataset.jsonl `
-  --output-dataset extended_grounding_dataset/output/dataset.validated.jsonl `
+  --input-dataset test.set.new/dataset.jsonl `
+  --output-dataset test.set.new/dataset.validated.jsonl `
+  --log-file test.set.new/validation.log `
   --validator-workers 20
 ```
 
-## Generate Few-Shot Examples
+`--output-dataset` and `--log-file` are required for both generation and
+validation. `--run-validator` is also supported during generation, but it
+filters before writing the specified output dataset; it does not automatically
+write a second validated file.
 
-The few-shot script reads `dataset.validated.jsonl`, iterates over unique predicates, and generates six examples per predicate:
-
-- three positive
-- three challenging negative
-
-```powershell
-python extended_grounding_dataset/generate_few_shot_examples.py `
-  --input-dataset extended_grounding_dataset/output/dataset.validated.jsonl `
-  --output-json extended_grounding_dataset/output/few_shot_examples.json `
-  --workers 5 `
-  --max-attempts 3
-```
-
-Quick run:
+To generate data only from the OOD domains:
 
 ```powershell
-python extended_grounding_dataset/generate_few_shot_examples.py --limit-predicates 2
+python generate_extended_grounding_dataset_new_domains.py `
+  --length 250 `
+  --output-dataset ood.test.set.new/dataset.jsonl `
+  --log-file ood.test.set.new/generation.log `
+  --workers 20
 ```
 
-The output JSON is organized for retrieval by `predicate_id`.
+## Generate Predicate-Specific Few-Shot Examples
 
-## Evaluate Gemma Few-Shot Approach
+Use explicit input and output paths:
 
 ```powershell
-python extended_grounding_dataset/evaluate_gemma.py `
-  --dataset extended_grounding_dataset/output/dataset.validated.jsonl `
-  --few-shot extended_grounding_dataset/output/few_shot_examples.json `
-  --workers 10
+python generate_few_shot_examples.py `
+  --input-dataset test.set.new/dataset.validated.jsonl `
+  --output-json test.set.new/few_shot_examples.json `
+  --log-file test.set.new/few_shot_generation.log `
+  --workers 20
 ```
 
-Quick run:
+The output JSON stores predicate metadata and six demonstrations per successful
+predicate: three positive and three challenging negative records.
 
-```powershell
-python extended_grounding_dataset/evaluate_gemma.py --limit 20 --workers 5
-```
-
-The evaluator writes:
-
-- stdout report
-- `output/gemma_eval.log`
-- `output/gemma_errors.jsonl`
-
-Progress is printed every 100 samples by default. Change with:
-
-```powershell
---progress-every 50
-```
-
-## Evaluation Metrics
-
-The evaluator reports row-level, instance-level, mention-level, and canonical-form metrics.
-
-Found metrics:
-
-- `found_accuracy`
-- `found_precision`
-- `found_recall`
-- `found_f1`
-
-These are binary `found=true/false` metrics over dataset rows.
-
-Mention metrics:
-
-- `mention_instance_accuracy`
-- `mention_instance_precision`
-- `mention_instance_recall`
-- `mention_instance_f1`
-
-These are computed over predicate instances. A predicted instance matches a ground-truth instance if all required object IDs are present and every mention passes the fuzzy `mention_match` logic from the original `grounding_dataset/evaluate.py`.
-
-Canonical metrics:
-
-- `canonical_history_accuracy`
-- `canonical_history_precision`
-- `canonical_history_recall`
-- `canonical_history_f1`
-- `canonical_history_instance_accuracy`
-- `canonical_history_instance_precision`
-- `canonical_history_instance_recall`
-- `canonical_history_instance_f1`
-
-Canonical forms are checked only for ground-truth object mentions whose `canonical_source.type` is `history`. The predicted `canonical_form` must exactly equal the matched history canonical form.
-
-Full instance metrics:
-
-- `full_instance_accuracy`
-- `full_instance_precision`
-- `full_instance_recall`
-- `full_instance_f1`
-
-A full instance match requires both mention correctness and required history-canonical correctness.
-
-General sample accuracy:
-
-- `sample_general_accuracy`
-
-A sample is correct only if:
-
-- `found` is correct
-- all ground-truth instances are recovered
-- all object mentions match
-- all required history canonical forms match
-- no extra or missing instances exist
-
-## Error Types
-
-`gemma_errors.jsonl` includes:
-
-- `false_positive`: predicted found, but ground truth is not found.
-- `false_negative`: predicted not found, but ground truth is found.
-- `instance_count_error`: found is true but number of instances differs.
-- `mention_error`: instance count is compatible, but object mentions do not match.
-- `canonical_error`: mentions match, but a required history canonical form is wrong.
-- `api_error`: model/API call failed.
-
-## Notes
-
-- Mentions should be short exact spans; current filtering expects mentions of at most six words.
-- The dataset intentionally includes challenging near-miss negatives.
-- The dataset intentionally includes some rows with multiple predicate instances.
-- The dataset intentionally includes some rows where canonical forms depend on related-object history.
-- `found` and `instances` are kept as the final two fields for positive rows. Negative rows omit `instances`, so `found` is the final field.
+The script requires explicit `--input-dataset`, `--output-json`, and
+`--log-file` paths.

@@ -37,7 +37,6 @@ GENERATION_WORKERS = 5
 VALIDATOR_WORKERS = 5
 VALIDATOR_BATCH_SIZE = 8
 MAX_API_RETRIES = 3
-LOG_FILENAME = "generation.log"
 
 ALLOWED_ENTITY_TYPES = {
     "Address",
@@ -136,7 +135,8 @@ class PredicateSpec:
     objects: list[dict[str, str]]
 
 
-def setup_logging(output_dir: Path) -> logging.Logger:
+def setup_logging(log_file: Path) -> logging.Logger:
+    log_file.parent.mkdir(parents=True, exist_ok=True)
     logger = logging.getLogger("extended_grounding_gen")
     logger.setLevel(logging.INFO)
     logger.handlers.clear()
@@ -146,7 +146,7 @@ def setup_logging(output_dir: Path) -> logging.Logger:
     stream_handler.setFormatter(formatter)
     logger.addHandler(stream_handler)
 
-    file_handler = logging.FileHandler(output_dir / LOG_FILENAME, encoding="utf-8")
+    file_handler = logging.FileHandler(log_file, encoding="utf-8")
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
 
@@ -160,11 +160,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--length", type=int, help="Number of rows to generate")
     parser.add_argument(
-        "--output-dir",
+        "--output-dataset",
         type=Path,
-        default=Path("output"),
-        help="Output directory for dataset.jsonl and generation.log",
+        required=True,
+        help="Output JSONL path for generated or validated records",
     )
+    parser.add_argument("--log-file", type=Path, required=True, help="Output generation or validation log")
     parser.add_argument("--model", default=MODEL_NAME, help="OpenRouter generation model")
     parser.add_argument(
         "--temperature",
@@ -212,7 +213,6 @@ def build_parser() -> argparse.ArgumentParser:
         help="Validate an existing extended dataset JSONL without generating",
     )
     parser.add_argument("--input-dataset", type=Path, help="Input JSONL for validation")
-    parser.add_argument("--output-dataset", type=Path, help="Filtered output JSONL")
     return parser
 
 
@@ -1165,9 +1165,8 @@ def main() -> int:
         print("worker counts and validator batch size must be positive", file=sys.stderr)
         return 2
 
-    output_dir = args.output_dir
-    output_dir.mkdir(parents=True, exist_ok=True)
-    logger = setup_logging(output_dir)
+    args.output_dataset.parent.mkdir(parents=True, exist_ok=True)
+    logger = setup_logging(args.log_file)
 
     api_key = os.getenv("OPENROUTER_API_KEY")
     if not api_key:
@@ -1178,9 +1177,7 @@ def main() -> int:
         if args.input_dataset is None:
             print("--input-dataset is required with --validate-only", file=sys.stderr)
             return 2
-        output_path = args.output_dataset or args.input_dataset.with_name(
-            f"{args.input_dataset.stem}.validated{args.input_dataset.suffix or '.jsonl'}"
-        )
+        output_path = args.output_dataset
         rows = read_jsonl(args.input_dataset)
         filtered, removed = validate_and_filter_dataset(
             api_key,
@@ -1294,7 +1291,7 @@ def main() -> int:
         )
         logger.info("Validator removed %d rows", removed)
 
-    output_path = output_dir / "dataset.jsonl"
+    output_path = args.output_dataset
     write_jsonl(output_path, rows)
     logger.info("Wrote %d rows to %s", len(rows), output_path)
     logger.info("Summary: %s", json.dumps(summarize(rows), ensure_ascii=True))

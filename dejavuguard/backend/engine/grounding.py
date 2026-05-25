@@ -17,12 +17,11 @@ from dataclasses import dataclass, field
 from backend.engine.trace import MessageEvent
 from backend.models.policy import Proposition
 from backend.models.settings import (
-    _ASSISTANT_EXAMPLES_TEXT,
-    _USER_EXAMPLES_TEXT,
     DEFAULT_GROUNDING_SYSTEM_PROMPT,
     DEFAULT_GROUNDING_USER_PROMPT_TEMPLATE_ASSISTANT,
     DEFAULT_GROUNDING_USER_PROMPT_TEMPLATE_USER,
 )
+from backend.prompts.optimized_grounding import INSTANCE_RULES
 from backend.services.grounding_client import GroundingClientProtocol
 
 # Default Prompts
@@ -316,27 +315,38 @@ class LLMGrounding(GroundingMethod):
                 "object_id": str(item["object_id"]),
                 "mention": mention,
                 "canonical_form": str(canonical_form),
+                **(
+                    {"canonical_source": item["canonical_source"]}
+                    if isinstance(item.get("canonical_source"), dict)
+                    else {}
+                ),
             })
         return mentions
 
 
 def render_few_shots(proposition: Proposition, role: str) -> str:
-    """Render predicate few-shot examples in the exact structure used by evaluator scripts."""
-    role_label = "USER" if (role or "").strip().lower() != "assistant" else "ASSISTANT"
-    positives = proposition.few_shot_positive or []
-    negatives = proposition.few_shot_negative or []
-    if not positives and not negatives:
-        return "NONE"
+    """Render structured predicate examples as used by the optimized evaluator."""
+    examples = proposition.few_shot_examples or []
+    if not examples:
+        return "[]"
 
-    lines: list[str] = []
-    i = 1
-    for txt in positives:
-        lines.append(f"Example {i}:\nLabel: MATCH\n{role_label} MESSAGE: {txt}")
-        i += 1
-    for txt in negatives:
-        lines.append(f"Example {i}:\nLabel: NO_MATCH\n{role_label} MESSAGE: {txt}")
-        i += 1
-    return "\n\n".join(lines)
+    def instance_count(example: dict) -> int:
+        return len(example.get("instances") or []) if example.get("found") else 0
+
+    compact: list[dict] = []
+    for example in sorted(examples, key=instance_count, reverse=True)[:6]:
+        found = bool(example.get("found"))
+        output: dict = {"found": found}
+        if found:
+            output["instances"] = example.get("instances", [])
+        compact.append({
+            "input": {
+                "text": example.get("text"),
+                "role": example.get("role", role),
+            },
+            "output": output,
+        })
+    return json.dumps(compact, ensure_ascii=False, indent=2)
 
 
 def _build_objects_block(proposition: Proposition) -> str:
@@ -363,6 +373,23 @@ def _build_objects_section(proposition: Proposition) -> str:
         return ""
 
     return "Objects:\n" + _build_objects_block(proposition) + "\n"
+
+
+def _build_predicate_block(proposition: Proposition) -> str:
+    """Build the predicate-and-objects JSON block used by the optimized prompt."""
+    objects: list[dict[str, str]] = []
+    for i in range(proposition.arity):
+        description = (
+            proposition.arg_descriptions[i]
+            if i < len(proposition.arg_descriptions)
+            else f"argument {i + 1}"
+        )
+        objects.append({"object_id": f"o{i + 1}", "description": description})
+    return json.dumps(
+        {"predicate_description": proposition.description, "objects": objects},
+        ensure_ascii=False,
+        indent=2,
+    )
 
 
 def _replace_prompt_template_aliases(rendered_prompt: str, alias_values: dict[str, str]) -> str:
@@ -403,6 +430,7 @@ def build_grounding_prompts(
     few_shot_examples = render_few_shots(proposition, role)
     objects_section = _build_objects_section(proposition)
     objects_block = _build_objects_block(proposition)
+    predicate_block = _build_predicate_block(proposition)
     alias_values = {
         "TEXT": message_text,
         "PREDICATE_DESCRIPTION": proposition.description,
@@ -412,8 +440,6 @@ def build_grounding_prompts(
         "OBJECTS_BLOCK": objects_block,
         "OBJECTS_SECTION": objects_section,
         "FEW_SHOT_EXAMPLES": few_shot_examples,
-        "USER_EXAMPLES_BLOCK": _USER_EXAMPLES_TEXT,
-        "ASSISTANT_EXAMPLES_BLOCK": _ASSISTANT_EXAMPLES_TEXT,
         "RELATED_OBJECT_CONTEXT_BLOCK": related_object_context_block,
         "RELATED_OBJECT_HISTORY_BLOCK": related_object_history_block,
         "proposition_description": proposition.description,
@@ -426,6 +452,14 @@ def build_grounding_prompts(
         "objects_block": objects_block,
         "related_object_context_block": related_object_context_block,
         "related_object_history_block": related_object_history_block,
+        "predicate_block": predicate_block,
+        "related_object_context": related_object_context_block,
+        "related_object_history": related_object_history_block,
+        "few_shot_block": few_shot_examples,
+        "instance_rules": INSTANCE_RULES,
+        "predicate_description": proposition.description,
+        "role": message_role,
+        "text": message_text,
     }
 
     user_prompt = _replace_prompt_template_aliases(user_template, alias_values)

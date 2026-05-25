@@ -2,489 +2,429 @@
 
 Runtime verification for LLM conversations using first-order past-time temporal logic.
 
-DejaVuGuard is a web-based chat interface backed by a formal runtime verification engine. Users chat with any LLM model via OpenRouter while [DejaVu](https://github.com/havelund/dejavu) continuously monitors the conversation trace against user-defined safety policies. Atomic propositions are semantically grounded by a dedicated grounding model — either a local LLM (Ollama, LM Studio, vLLM, or any OpenAI-compatible server) or a cloud model via OpenRouter — keeping the monitor independent of the chat model. When a policy violation is detected, the offending message is blocked before reaching the user.
+DejaVuGuard is a monitored chat application. A user converses with an assistant model through OpenRouter, while a separate grounding model converts natural-language messages into canonicalized first-order events. These events are checked incrementally by [DejaVu](https://github.com/havelund/dejavu). If an active policy is violated, DejaVuGuard blocks the user message before it reaches the assistant, or blocks the assistant response before it reaches the user.
 
-## Key Features
+## Current Capabilities
 
-- **First-Order Temporal Logic** — Define safety policies using DejaVu's first-order past-time LTL with quantification (`Forall`, `Exists`), temporal operators (`H`, `P`, `@`, `S`), timed constraints (`P[<=n]`, `H[>n]`), and recursive rules
-- **200+ Chat Models** — Connect to any model on OpenRouter (GPT-4, Claude, Llama, Mistral, etc.)
-- **Flexible Grounding** — Semantic proposition evaluation runs on a local LLM for privacy, or via OpenRouter for convenience
-- **Persistent Sessions** — Monitor sessions survive server restarts via DejaVu's event replay. Conversations can pause for days and resume with full state
-- **Live Formula Validation** — Real-time formula syntax checking as you type
-- **Searchable Model Selection** — ModelCombobox with search, context length badges, and pricing for 300+ models
+- **First-order temporal policies** using quantified DejaVu predicates and past-time operators.
+- **Role-specific grounding** for user and assistant messages.
+- **Structured grounding instances**: a single message may produce multiple instances of the same predicate.
+- **Canonical object forms**: extracted mentions are normalized before being forwarded to DejaVu.
+- **Conversation-aware canonicalization** using related-object context and prior canonical history.
+- **Predicate-specific few-shot generation** when a predicate is created.
+- **Composite events**: all matching predicate instances from one message are sent to DejaVu at one temporal position.
+- **Editable grounding prompts** in Settings, with active optimized defaults automatically loaded for upgraded installations.
+- **Persistent conversations and monitoring state** backed by SQLite and DejaVu session storage.
 
 ## Architecture
 
+```text
+User message
+   |
+   v
+DejaVuGuard backend
+   |-- grounds all user-role predicates with the grounding LLM
+   |-- extracts zero, one, or multiple canonicalized instances
+   |-- sends one composite event to DejaVu
+   |-- blocks immediately if a policy is violated
+   |
+   v
+Chat LLM via OpenRouter
+   |
+   v
+Assistant response
+   |
+   v
+DejaVuGuard backend
+   |-- grounds all assistant-role predicates with the grounding LLM
+   |-- sends canonicalized instances as one composite event to DejaVu
+   |-- blocks the response if a policy is violated
+   |
+   v
+User
 ```
-  User                  DejaVuGuard             Grounding LLM       DejaVu         Chat LLM
-   |                    (FastAPI backend)          (local/cloud)      (HTTP server)   (OpenRouter)
-   |                         |                          |                 |               |
-   |  user message           |                          |                 |               |
-   |------------------------>|                          |                 |               |
-   |                         |  ground user props       |                 |               |
-   |                         |------------------------->|                 |               |
-   |                         |  {p: T/F, ...}           |                 |               |
-   |                         |<-------------------------|                 |               |
-   |                         |                          |                 |               |
-   |                         |  send true props as composite events       |               |
-   |                         |--------------------------------------->|               |
-   |                         |  verdicts: {prop: T/F}                 |               |
-   |                         |<---------------------------------------|               |
-   |                         |  VIOLATION? --> BLOCK                      |               |
-   |                         |                          |                 |               |
-   |                         |  forward message (PASS)                    |               |
-   |                         |-------------------------------------------------------->|
-   |                         |                          |                 |  LLM response |
-   |                         |<--------------------------------------------------------|
-   |                         |                          |                 |               |
-   |                         |  [repeat grounding + DejaVu for assistant response]       |
-   |                         |                          |                 |               |
-   |  response or            |                          |                 |               |
-   |  violation alert        |                          |                 |               |
-   |<------------------------|                          |                 |               |
-```
+
+The chat model and grounding model are independent. The grounding model may run locally through Ollama, LM Studio, vLLM, or another OpenAI-compatible endpoint, or remotely through OpenRouter.
 
 ## Quick Start
 
-### Docker (recommended — no setup required)
+### Docker
 
 ```bash
 docker compose up --build
 ```
 
 This starts:
-- **DejaVuGuard** (frontend + backend) on http://localhost:8001
-- **DejaVu** (runtime verification server) on port 8080
 
-Open http://localhost:8001, go to **Settings**, enter your OpenRouter API key, and start chatting.
+- DejaVuGuard frontend/backend on `http://localhost:8001`
+- DejaVu runtime verification server on `http://localhost:8080`
 
-### Prerequisites (for development)
+Open `http://localhost:8001`, then configure:
 
-- Python 3.11+
-- Node.js 18+
-- A grounding model (any one of):
-  - [Ollama](https://ollama.ai) (recommended) — `ollama pull mistral`
-  - [LM Studio](https://lmstudio.ai)
-  - [vLLM](https://github.com/vllm-project/vllm)
-  - Any OpenAI-compatible server
-  - OpenRouter (uses your API key — no local setup needed)
-- An [OpenRouter](https://openrouter.ai) API key
-- DejaVu server running (see below)
+1. The OpenRouter API key and chat model.
+2. The grounding provider and grounding model.
+3. Optionally, which model generates predicate few-shot examples.
+
+The Settings page also loads the active optimized grounding prompt templates. Existing databases containing stale prompt templates are migrated when settings are loaded after an application upgrade.
 
 ### Development Setup
 
+Prerequisites:
+
+- Python 3.11+
+- Node.js 18+
+- Java 17+ for running the bundled DejaVu server outside Docker
+- An OpenRouter API key for the chat model
+- A configured grounding model
+
 ```bash
-# Start DejaVu server (requires Java 17+)
-java -jar backend/libs/dejavu.jar --server --port 8080 --storage ./sessions &
+# Start DejaVu
+java -jar backend/libs/dejavu.jar --server --port 8080 --storage ./sessions
 
 # Backend
 python -m venv .venv
-source .venv/bin/activate
+source .venv/bin/activate          # Windows PowerShell: .venv\Scripts\Activate.ps1
 pip install -e ".[dev]"
-
-# Frontend
-cd frontend
-npm install
-cd ..
-
-# Seed example policies (optional)
-python scripts/seed_examples.py
-
-# Start backend (terminal 1)
 uvicorn backend.main:app --reload
 
-# Start frontend (terminal 2)
-cd frontend && npm run dev
+# Frontend, in another terminal
+cd frontend
+npm install
+npm run dev
 ```
 
-Open http://localhost:5173.
+Open `http://localhost:5173`.
 
-## Usage
+## Environment Configuration
 
-### 1. Configure Settings
+The application can be configured in the UI. Environment variables are also supported:
 
-- **Chat Model**: Enter your OpenRouter API key and select a model from the searchable combobox
-- **Grounding Model**: Select your provider (Ollama, LM Studio, vLLM, Custom, or OpenRouter), configure the base URL and model
-- **Grounding Prompt**: Optionally customize the system/user prompts for the LLM judge
+```env
+# Chat model
+OPENROUTER_API_KEY=sk-or-v1-...
+OPENROUTER_MODEL=mistralai/mistral-7b-instruct
+OPENROUTER_MODEL_CUSTOM=
 
-### 2. Define Predicates
+# Grounding model
+GROUNDING_PROVIDER=ollama          # ollama | lmstudio | vllm | custom | openrouter
+GROUNDING_BASE_URL=http://localhost:11434
+GROUNDING_MODEL=mistral
+GROUNDING_API_KEY=                 # optional separate key for OpenRouter grounding
 
-Create predicates that describe observable behaviors. Each predicate has a name, role, arity (number of data arguments), and descriptions for each argument:
-
-| ID | Role | Arity | Arg Descriptions | Description |
-|----|------|-------|-----------------|-------------|
-| `p_fraud` | user | 0 | — | The user requests methods for committing financial fraud |
-| `p_transfer` | user | 2 | account, destination | The user requests a money transfer to a destination |
-| `q_provide_instructions` | assistant | 1 | topic | The assistant provides step-by-step instructions on a topic |
-| `p_report_bug` | user | 2 | software product, bug description | The user reports a software bug |
-
-When arity > 0, the grounding LLM extracts verbatim mentions of each argument from the message. For example, if the user says "Transfer $50,000 from account 1234 to offshore", the grounding extracts `p_transfer("1234", "offshore")`.
-
-### 3. Build Policies
-
-Combine predicates into first-order temporal logic formulas using DejaVu syntax:
-
-```
-forall x . forall y . (p_transfer(x, y) -> @ P p_auth(x))
+# Storage and server
+DATABASE_PATH=./dejavuguard.db
+HOST=0.0.0.0
+PORT=8000
 ```
 
-"For every transfer of account x to destination y, account x must have been authenticated at some previous step."
+## Predicates
 
+A predicate defines an observable natural-language fact:
+
+- `prop_id`: unique predicate identifier used in formulas.
+- `description`: declarative description of the fact to ground.
+- `role`: whether the predicate can be matched in `user` or `assistant` messages.
+- `arity`: number of object positions.
+- `arg_descriptions`: description of each object position.
+
+Example predicates:
+
+| Predicate | Role | Objects | Description |
+|---|---|---|---|
+| `p_allergy(a)` | user | allergen | the user mentions a specific allergy they have |
+| `q_recipe(d, i)` | assistant | dish, ingredient | the assistant provides a cooking recipe for a dish containing an ingredient |
+| `p_budget(m, b)` | user | manufacturer, maximum price | the user requests a vehicle manufacturer under a maximum price |
+| `q_offer(m, p)` | assistant | manufacturer, price | the assistant offers a vehicle from a manufacturer at a price |
+
+### Predicate-Specific Few-Shot Examples
+
+When a new predicate is created, DejaVuGuard attempts to generate structured few-shot examples for that predicate using the configured few-shot generation model. The generated demonstrations contain:
+
+- Three positive examples.
+- Three challenging negative near-misses.
+- Positive examples in the same `found`/`instances` output format used at runtime.
+- Multi-instance examples where semantically plausible.
+- Related-object history canonicalization examples where appropriate.
+
+The generated examples are validated before they are stored. Validation checks include exact mention spans, required object completeness, canonical source format, and valid history references.
+
+If example generation fails or no usable generation model is configured, the predicate is still saved and the UI reports that it will be grounded without predicate-specific few-shot examples.
+
+## Policies and Related Objects
+
+Policies are DejaVu formulas over predicate events. For example:
+
+```text
+forall m . forall p .
+  (q_offer(m,p) -> exists b . (P p_budget(m,b) & !(b < p)))
 ```
-H (P p_fraud -> forall t . !q_provide_instructions(t))
+
+This policy requires an assistant offer to correspond to a previously requested manufacturer and to respect the stated maximum price.
+
+DejaVuGuard derives **related object positions** from active policies:
+
+- Positions using the same logical variable are related.
+- Positions using different variables are related when those variables are compared by `=`, `!=`, `<`, `<=`, `>`, or `>=`.
+
+In the policy above:
+
+- `q_offer.o1` and `p_budget.o1` are related through `m`.
+- `q_offer.o2` and `p_budget.o2` are related because `p` and `b` are compared by `b < p`.
+
+The related-object database is updated when policies are added, updated, removed, or when referenced predicates are removed.
+
+## Grounding Output
+
+For every relevant predicate and message, the grounding LLM receives:
+
+- The predicate description.
+- The required objects and their descriptions.
+- The message text and message role.
+- Predicate-specific few-shot demonstrations.
+- The related-object context, including related predicate descriptions and object descriptions.
+- Related-object history from the current conversation, including earlier mentions and their canonical forms.
+
+The grounding LLM returns JSON only.
+
+### No Match
+
+```json
+{
+  "found": false
+}
 ```
 
-"If the user ever requested fraud, the assistant must never provide instructions on any topic."
+### One or More Matches
 
-```
-forall prod . forall bug . (p_report_bug(prod, bug) -> P q_acknowledge(prod))
-```
-
-"For every bug report about a product, the assistant must have previously acknowledged that product."
-
-Formulas are validated by DejaVu's own parser when you click Save — syntax and wellformedness errors are shown immediately.
-
-### 4. Chat
-
-The monitor evaluates every message in real time. If a policy is violated, the message is blocked and a red alert explains which policy was breached. Sessions persist across server restarts — you can close the browser, restart the server, and continue the same conversation with the same monitor state.
-
-## Temporal Logic Operators
-
-DejaVu supports a rich set of first-order past-time temporal logic operators:
-
-| Operator | Syntax | Meaning |
-|----------|--------|---------|
-| Historically | `H phi` | phi held at every step up to now |
-| Previously | `P phi` | phi held at some past step or now |
-| Yesterday/Previous | `@ phi` | phi held at the previous step |
-| Since | `phi S psi` | psi occurred and phi held continuously since |
-| Timed Previously | `P[<=n] phi` | phi held within the last n steps |
-| Timed Historically | `H[>n] phi` | phi held at all steps beyond n ago |
-| For all seen | `forall x . phi(x)` | phi holds for all **seen** values of x (recommended default) |
-| Exists seen | `exists x . phi(x)` | phi holds for some **seen** value of x (recommended default) |
-| For all (infinite) | `Forall x . phi(x)` | phi holds for **all** values of x (infinite domain) |
-| Exists (infinite) | `Exists x . phi(x)` | phi holds for **some** value of x (infinite domain) |
-| Not | `!phi` | negation |
-| And | `phi & psi` | conjunction |
-| Or | `phi \| psi` | disjunction |
-| Implies | `phi -> psi` | implication |
-
-### Example Policies
-
-**Per-Account Transfer Authorization:**
-```
-forall acc . forall dest . (p_transfer(acc, dest) -> @ P p_auth(acc))
-```
-Predicates: `p_transfer(account, destination)` (user, arity 2), `p_auth(account)` (user, arity 1).
-For every transfer request, the referenced account must have been authenticated in a previous step.
-
-**Bug Report Tracking:**
-```
-forall prod . (p_report_bug(prod) -> P q_acknowledge(prod))
-```
-Predicates: `p_report_bug(software product)` (user, arity 1), `q_acknowledge(product)` (assistant, arity 1).
-For every bug reported about a product, the assistant must have previously acknowledged that product.
-
-**Enrollment Compliance:**
-```
-forall student . forall org . (p_enroll(student, org) -> P p_consent(student))
-```
-Predicates: `p_enroll(student, organization)` (user, arity 2), `p_consent(student)` (user, arity 1).
-A student can only be enrolled in an organization if they previously gave consent.
-
-**Medical Safety — No Diagnosis Without Caveat:**
-```
-H (@ p_symptom -> !q_diagnosis)
-```
-Predicates: `p_symptom` (user, arity 0), `q_diagnosis` (assistant, arity 0).
-If the user described symptoms at the previous step, the assistant must not provide a diagnosis (without caveats).
-
-**Fraud Prevention (Boolean):**
-```
-H (P p_fraud -> !q_comply)
-```
-Predicates: `p_fraud` (user, arity 0), `q_comply` (assistant, arity 0).
-If the user ever requested fraud techniques, the assistant must never comply. Arity-0 predicates work as Boolean flags.
-
-**Important:** Cross-role formulas must use temporal operators (`P`, `@`, `S`) to reference predicates from a different role. Each step only grounds predicates matching the message's role — other predicates default to `False`.
-
-## How It Works
-
-### Runtime Verification with DejaVu
-
-DejaVuGuard uses [DejaVu](https://github.com/havelund/dejavu) as its runtime verification engine. DejaVu is a first-order past-time linear temporal logic monitor that uses Binary Decision Diagrams (BDDs) for efficient evaluation of quantified formulas over potentially infinite data domains.
-
-For each conversation:
-1. A **DejaVu session** is created with the policies compiled into a specification
-2. Each message is **grounded**: the grounding LLM evaluates each predicate against the message text and extracts argument data
-3. Matched predicates are sent to DejaVu as **composite events** with extracted arguments
-4. DejaVu evaluates all temporal properties and returns **per-property verdicts**
-5. If any property is violated, the message is **blocked**
-
-### Semantic Grounding with Data Extraction
-
-The grounding engine uses an LLM-as-judge approach to evaluate each predicate against the message text. For predicates with arguments (arity > 0), the LLM also extracts **verbatim mentions** of each argument from the message.
-
-For example, given:
-- Predicate: `p_transfer(account, destination)` — "the user requests a money transfer"
-- Message: "Please transfer funds from account 1234 to the offshore branch"
-
-The grounding LLM returns:
 ```json
 {
   "found": true,
-  "reasoning": "User requests a transfer; account=1234, destination=offshore branch",
-  "object_mentions": [
-    {"object_id": "o1", "mention": "1234"},
-    {"object_id": "o2", "mention": "offshore branch"}
+  "instances": [
+    {
+      "instance_id": "i1",
+      "object_mentions": [
+        {
+          "object_id": "o1",
+          "mention": "Toyota",
+          "canonical_form": "Toyota",
+          "canonical_source": {"type": "new"}
+        },
+        {
+          "object_id": "o2",
+          "mention": "$12,000",
+          "canonical_form": "12000 USD",
+          "canonical_source": {"type": "new"}
+        }
+      ]
+    },
+    {
+      "instance_id": "i2",
+      "object_mentions": [
+        {
+          "object_id": "o1",
+          "mention": "Skoda",
+          "canonical_form": "Skoda",
+          "canonical_source": {"type": "new"}
+        },
+        {
+          "object_id": "o2",
+          "mention": "$12,500",
+          "canonical_form": "12500 USD",
+          "canonical_source": {"type": "new"}
+        }
+      ]
+    }
   ]
 }
 ```
 
-The extracted mentions are sent to DejaVu as event arguments: `p_transfer("1234", "offshore branch")`. This enables first-order quantification — DejaVu can track which specific accounts, products, or entities are involved across the conversation.
+Each instance must contain one exact mention for every object required by the predicate. Mentions are copied verbatim from the message. The canonical form, not the mention, is forwarded to DejaVu.
 
-The grounding prompts include **built-in few-shot examples** (separate sets for user-role and assistant-role predicates) that teach the LLM to:
-- Match predicates **literally** — subtle mismatches are rejected
-- Distinguish requests from refusals, education, or adjacent topics
-- Extract **exact verbatim substrings** from the message, not paraphrases
-- Return empty `object_mentions` when `found=false`
+## Canonicalization Across Predicates
 
-### Session Persistence
+Canonical forms allow policies to compare logically equivalent values even when their wording differs across messages or predicates.
 
-DejaVu sessions persist to disk as JSON event logs. If the server restarts, sessions are automatically restored by replaying stored events through a fresh monitor. Since DejaVu monitors are deterministic (same spec + same events = same state), replay produces the exact same BDD state. This means conversations survive server restarts, container recreations, and even machine reboots — important for chatbot monitoring where messages can arrive days apart.
+For example, suppose the active policy relates:
 
-## DejaVu: The Runtime Verification Engine
+- `p_allergy(a)`: an allergen named by the user.
+- `q_recipe(d, i)`: an ingredient in a recipe returned by the assistant.
 
-DejaVu is the formal engine that powers DejaVuGuard. It implements first-order past-time linear temporal logic with recursive rules and time constraints. The implementation uses BDDs (Binary Decision Diagrams) for representing assignments to quantified variables, enabling efficient monitoring over large data domains.
+Conversation:
 
-### The Specification Logic
-
-A DejaVu specification consists of predicate declarations, optional macros, and property definitions:
-
-```
-pred open(file, mode)
-pred close(file)
-
-pred isOpen(f) = !close(f) S open(f)
-
-prop filePolicy : Forall f . (close(f) -> Exists m . @ [open(f,m), close(f)))
+```text
+User: I am allergic to sesame.
+Assistant: Try a noodle bowl with tahini dressing.
 ```
 
-#### Grammar
+When grounding the assistant message, the prompt includes:
 
-```
-<doc> ::= <def> ... <def>
-<def> ::= <eventdef> | <macrodef> | <propertydef>
+- Related-object context indicating that `q_recipe`'s ingredient is related to `p_allergy`'s allergen.
+- Related-object history containing a prior canonical value for `sesame`.
 
-<eventdef>    ::= 'pred' <event>,...,<event>
-<event>       ::= <id> [ '(' <id> ',' ... ',' <id> ')' ]
+Although `tahini` would ordinarily be kept as its own ingredient name, the relationship context makes the policy-relevant canonicalization `sesame` appropriate:
 
-<macrodef>    ::= 'pred' <id> [ '(' <id> ',' ... ',' <id> ')' ] '=' <form>
-
-<propertydef> ::= 'prop' <id> ':' <form> ['where' <ruledef> ',' ... ',' <ruledef>]
-<ruledef>     ::= <id> ['(' <id> ',' ... ',' <id> ')'] ':=' <form>
-
-<form> ::= 
-     'true' | 'false' 
-   | <id> [ '(' <param> ',' ... ',' <param> ')' ]
-   | <form> <binop> <form> 
-   | '[' <form> ',' <form> ')'
-   | <unop> <form>
-   | <id> <oper> (<id> | <const>)
-   | '(' <form> ')'
-   | <quantifier> <id> '.' <form>
-
-<param>      ::= <id> | <const>
-<const>      ::= <string> | <integer>
-<binop>      ::= '->' | '|' | '&' | 'S' [<time>] | 'Z' <timeLE>
-<unop>       ::= '!' | '@' | 'P' [<time>] | 'H' [<time>] 
-<oper>       ::= '<' | '<=' | '=' | '>' | '>='    
-<quantifier> ::= 'exists' | 'forall' | 'Exists' | 'Forall'
-<time>       ::= <timeLE> | <timeGT>
-<timeLE>     ::= '[<=' <number> ']'
-<timeGT>     ::= '[>' <number> ']'    
+```json
+{
+  "object_id": "o2",
+  "mention": "tahini",
+  "canonical_form": "sesame",
+  "canonical_source": {
+    "type": "history",
+    "matched_history_index": 0
+  }
+}
 ```
 
-#### Formula Semantics
+The monitor therefore evaluates the assistant's ingredient against the same logical allergen value previously identified in the user message.
 
-```
-true, false        Boolean truth and falsehood 
-id(v1,...,vn)      event or call of predicate macro
-p -> q             p implies q
-p | q              p or q
-p & q              p and q
-p S q              p since q (q was true in the past, p held continuously since)
-p S[<=d] q         p since q, where q occurred within d time units
-p S[>d] q          p since q, where q occurred earlier than d time units
-[p, q)             interval notation, equivalent to: !q S p
-! p                not p
-@ p                in previous state p is true
-P p                in some previous state p is true
-P[<=d] p           in some previous state within d time units p is true
-P[>d] p            in some previous state earlier than d time units p is true
-H p                in all previous states p is true
-H[<=d] p           in all previous states within d time units p is true
-H[>d] p            in all previous states earlier than d time units p is true
-x op k             x is related to variable or constant k (e.g.: x < 10, x <= y)
-exists x . p(x)    there exists an x such that seen(x) and p(x)
-forall x . p(x)    for all x, if seen(x) then p(x)
-Exists x . p(x)    there exists an x such that p(x) (infinite domain)
-Forall x . p(x)    for all x, p(x) (infinite domain)
+## Composite Events Sent to DejaVu
+
+A single message may satisfy several predicates or satisfy one predicate multiple times. DejaVuGuard sends all grounded instances for that message in one composite event, preserving their shared conversation position.
+
+For:
+
+```text
+User: I want a Toyota under $12,000 and a Skoda under $12,500.
 ```
 
-Note: `seen(x)` holds if the value `x` has been observed in any event in the past.
+the grounded instances may be sent to DejaVu as:
 
-#### Rules (Recursive Definitions)
-
-Rules allow expressing recursive temporal relationships such as transitive closure:
-
-```
-prop spawning :
-  Forall x . Forall y . Forall d . report(y,x,d) -> spawned(x,y) 
-  where 
-    spawned(x,y) := 
-        @ spawned(x,y) 
-      | spawn(x,y) 
-      | Exists z . (@spawned(x,z) & spawn(z,y))
+```json
+[
+  {"name": "p_budget", "args": ["Toyota", "12000 USD"]},
+  {"name": "p_budget", "args": ["Skoda", "12500 USD"]}
+]
 ```
 
-This defines `spawned(x,y)` recursively: either it held in the previous state, or there is a direct `spawn(x,y)` now, or there is a transitive chain through some intermediate thread `z`.
+Arguments use canonical forms. They are flat argument arrays for separate instances, not nested instance arrays inside one event.
 
-#### Macros
+## Monitoring Flow
 
-Macros provide named shorthands for formulas:
+For each message:
 
-```
-pred isOpen(f) = !close(f) S open(f)
+1. DejaVuGuard selects predicates whose role matches the message sender.
+2. It loads each predicate's structured few-shot examples.
+3. It computes related-object context from active policy relations.
+4. It loads canonical history for related object positions from the current conversation.
+5. The grounding LLM returns zero or more canonicalized predicate instances.
+6. DejaVuGuard sends all matching instances from the message as a composite DejaVu event.
+7. DejaVu evaluates the active policies incrementally.
+8. If any policy is violated, the current message or response is blocked.
+9. Grounding details displayed in the UI include matches, object mentions, and canonical forms.
 
-prop filePolicy : Forall f . (close(f) -> isOpen(f))
-```
+The current grounding code also prints the related-object context and history blocks to standard output whenever a grounding prompt is submitted, to support inspection and debugging of canonicalization.
 
-Macros can call other macros but cannot be recursive. Use rules for recursion.
+## Temporal Logic Operators
 
-### DejaVu Server API
+| Operator | Syntax | Meaning |
+|---|---|---|
+| Historically | `H phi` | `phi` held at every observed position up to now |
+| Previously | `P phi` | `phi` held at some observed position up to now |
+| Previous position | `@ phi` | `phi` held at the previous position |
+| Since | `phi S psi` | `psi` occurred and `phi` held continuously since |
+| Timed Previously | `P[<=n] phi` | `phi` held within the last `n` steps |
+| Timed Historically | `H[>n] phi` | `phi` held at all positions earlier than `n` steps ago |
+| For all seen | `forall x . phi(x)` | `phi` holds for all observed values of `x` |
+| Exists seen | `exists x . phi(x)` | `phi` holds for some observed value of `x` |
+| For all infinite | `Forall x . phi(x)` | `phi` holds over the unrestricted domain |
+| Exists infinite | `Exists x . phi(x)` | `phi` holds for some unrestricted-domain value |
+| Not | `!phi` | Negation |
+| And | `phi & psi` | Conjunction |
+| Or | `phi \| psi` | Disjunction |
+| Implies | `phi -> psi` | Implication |
 
-DejaVuGuard communicates with DejaVu through its HTTP server API. The server manages persistent monitor sessions:
+Cross-role formulas generally need temporal operators. At a user position, assistant-role predicates are not grounded at that same position, and vice versa.
 
-```
-POST   /sessions              Create a new monitor session
-POST   /sessions/{id}/event   Send one event, get verdict
-POST   /sessions/{id}/events  Send composite events (simultaneous), get verdict
-POST   /validate              Validate a spec without creating a session
+## DejaVu HTTP API
+
+DejaVuGuard communicates with the DejaVu server through:
+
+```text
+POST   /sessions              Create a monitor session
+POST   /sessions/{id}/event   Send one event
+POST   /sessions/{id}/events  Send a composite event
+POST   /validate              Validate a specification
 GET    /sessions/{id}         Get session status
-GET    /sessions/{id}/history Get full event log with per-event verdicts
-DELETE /sessions/{id}         Close and delete a session
-GET    /sessions              List all sessions
+GET    /sessions/{id}/history Get event history
+DELETE /sessions/{id}         Delete a session
+GET    /sessions              List sessions
 GET    /health                Health check
 ```
 
-**Create a session:**
-```bash
-curl -X POST localhost:8080/sessions \
-  -d '{"spec": "prop file : Forall f . (close(f) -> P open(f))", "bits": 20}'
-# → {"session_id":"a1b2c3d4","properties":["file"],"status":"ready"}
-```
+Composite-event example:
 
-**Send an event:**
-```bash
-curl -X POST localhost:8080/sessions/a1b2c3d4/event \
-  -d '{"name": "open", "args": ["file1"]}'
-# → {"event_number":1,"verdicts":{"file":true},"violations":[]}
-```
-
-**Send composite events (simultaneous):**
 ```bash
 curl -X POST localhost:8080/sessions/a1b2c3d4/events \
-  -d '[{"name":"open","args":["f1"]},{"name":"close","args":["f2"]}]'
-# → {"event_number":2,"verdicts":{"file":false},"violations":["file"]}
+  -H "Content-Type: application/json" \
+  -d '[{"name":"p_budget","args":["Toyota","12000 USD"]},{"name":"p_budget","args":["Skoda","12500 USD"]}]'
 ```
-
-**Validate a formula (no session created):**
-```bash
-curl -X POST localhost:8080/validate \
-  -d '{"spec": "pred p_fraud\nprop test : H (P p_fraud -> !q_comply)"}'
-# → {"valid":true,"properties":["test"]}
-```
-
-**Session persistence:** Sessions are saved as JSON event logs. On server restart, they are restored by replaying all stored events through a fresh monitor, producing the exact same state.
-
-### How DejaVuGuard Maps to DejaVu
-
-| DejaVuGuard Concept | DejaVu Concept |
-|---------------------|---------------|
-| Chat conversation | DejaVu session |
-| Chat message (user/assistant) | Composite event (all true predicates sent simultaneously) |
-| Predicate (e.g., `p_fraud`) | Event predicate in the spec |
-| Policy formula | Property in the spec (`prop name : formula`) |
-| Grounding result (true/false) | Event present/absent in the composite |
-| Violation detected | Property evaluates to false |
-| Session persistence | JSON event log + replay on restore |
 
 ## Project Structure
 
-```
+```text
 dejavuguard/
   backend/
     engine/
-      dejavu_client.py   # HTTP client for DejaVu RV server
-      spec_builder.py    # Converts policies to DejaVu spec format
-      grounding.py       # LLM-as-judge semantic grounding
-      monitor.py         # Orchestrator: grounding -> DejaVu -> verdict
-      trace.py           # Conversation trace model
-    libs/
-      dejavu.jar         # Pre-built DejaVu runtime (self-contained)
-      Dockerfile.dejavu  # Minimal Docker image for DejaVu server
-    routers/             # FastAPI endpoints (chat, policies, settings)
-    services/            # OpenRouter + local LLM + grounding clients
-    store/db.py          # SQLite persistence (aiosqlite)
+      dejavu_client.py          # DejaVu HTTP client
+      grounding.py              # Prompt rendering and LLM grounding parsing
+      monitor.py                # Conversation-to-composite-event orchestration
+      spec_builder.py           # DejaVu specification construction
+      trace.py                  # Conversation trace representation
+    prompts/
+      optimized_grounding.py    # Active system/user/assistant grounding prompts
+    routers/
+      chat.py                   # Monitored conversation endpoints
+      policies.py               # Predicate/policy CRUD and few-shot generation
+      settings.py               # Model settings and prompt migration
+    services/                   # OpenRouter and grounding model clients
+    store/db.py                 # SQLite persistence and schema migrations
+    libs/                       # Bundled DejaVu server artifacts
   frontend/
     src/
-      components/        # React components (chat, rules, settings, shared)
-      hooks/             # Custom hooks (useChat, usePolicies, useSettings)
-      api/client.ts      # Typed API client
-  tests/                 # pytest + Playwright E2E
-  docker-compose.yml     # DejaVuGuard + DejaVu services
+      components/               # Chat, policy, and settings views
+      api/                      # Typed API client
+      hooks/                    # UI state hooks
+  tests/                        # Backend and end-to-end tests
+  docker-compose.yml
 ```
 
 ## Testing
 
 ```bash
-# All backend tests
-pytest tests/ --ignore=tests/e2e
+# Backend
+python -m pytest tests/ --ignore=tests/e2e
+python -m ruff check backend tests
 
-# Frontend tests
-cd frontend && npx vitest run
-
-# E2E tests (requires running app)
-cd tests/e2e && python -m pytest
-
-# Lint
-ruff check backend/ tests/
-cd frontend && npx tsc --noEmit
+# Frontend
+cd frontend
+npm test
+npm run build
 ```
+
+End-to-end tests require running DejaVuGuard and DejaVu.
 
 ## Troubleshooting
 
-| Problem | Solution |
-|---------|----------|
-| "Grounding model not configured" banner | Go to Settings, select a grounding provider and model. For Ollama: ensure `ollama serve` is running and a model is pulled. |
-| "No models found" in model selector | Enter your OpenRouter API key first, then click the model selector. |
-| Chat input disabled | Enter your OpenRouter API key in Settings. |
-| DejaVu server unreachable | Ensure DejaVu is running (`docker compose up` or `java -jar backend/libs/dejavu.jar --server`). Check `DEJAVU_URL` env var. |
-| Policy always passes | Check that proposition roles match message roles. Use `P()` or `@` for cross-turn formulas. |
-| `H()` violation won't clear | By design — `H()` is irrevocable. Start a new session to reset. |
-| Docker shows "Not Found" | Access via http://localhost:8001. Ensure `docker compose up --build` completed. |
+| Problem | Action |
+|---|---|
+| Updated prompts do not appear | Open Settings once after updating; prompt migration is applied when settings are loaded. |
+| New predicate has no demonstrations | Check the selected few-shot generation model and its API/server connectivity; the predicate remains usable without demonstrations. |
+| Grounding model unavailable | Configure and test the grounding provider in Settings. |
+| OpenRouter chat fails | Check the chat-model OpenRouter API key and chosen model. |
+| Related canonicalization is unexpected | Inspect the related-object context/history printed by the backend and shown through grounding details. |
+| DejaVu is unreachable | Ensure the `dejavu` container or Java process is running and verify `DEJAVU_URL`. |
+| Policy unexpectedly ignores another role | Use a temporal operator such as `P`, `@`, or `S` when linking events from different message positions. |
+| Historical violation remains active | This is expected for irrevocable historical formulas such as `H (...)`; create a new conversation session to reset monitoring. |
 
 ## Technology Stack
 
 | Layer | Technology |
-|-------|-----------|
-| Frontend | React 18, TypeScript, Tailwind CSS, Vite |
-| Backend | FastAPI, Python 3.11+, SQLite (aiosqlite) |
-| Runtime Verification | DejaVu (Scala 3, first-order past-time LTL, BDD-based) |
-| Chat LLM | OpenRouter API (200+ models) |
-| Grounding | Local LLM (Ollama / LM Studio / vLLM / custom) or OpenRouter |
-| Testing | pytest, Vitest, Playwright |
+|---|---|
+| Frontend | React, TypeScript, Tailwind CSS, Vite |
+| Backend | FastAPI, Python, SQLite (`aiosqlite`) |
+| Runtime verification | DejaVu, first-order past-time temporal logic |
+| Chat model | OpenRouter |
+| Grounding model | Ollama, LM Studio, vLLM, custom OpenAI-compatible server, or OpenRouter |
 
 ## License
 

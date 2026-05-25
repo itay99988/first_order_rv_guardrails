@@ -28,12 +28,9 @@ from generate_extended_grounding_dataset import (  # noqa: E402
 )
 
 
-DEFAULT_INPUT_DATASET = SCRIPT_DIR / "ood.set" / "dataset.validated.jsonl"
-DEFAULT_OUTPUT_JSON = SCRIPT_DIR / "ood.set" / "few_shot_examples.json"
 DEFAULT_WORKERS = 5
 DEFAULT_TEMPERATURE = 0.8
 DEFAULT_MAX_ATTEMPTS = 3
-LOG_FILENAME = "few_shot_generation.log"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -43,15 +40,16 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--input-dataset",
         type=Path,
-        default=DEFAULT_INPUT_DATASET,
-        help=f"Extended dataset JSONL path (default: {DEFAULT_INPUT_DATASET})",
+        required=True,
+        help="Extended dataset JSONL path",
     )
     parser.add_argument(
         "--output-json",
         type=Path,
-        default=DEFAULT_OUTPUT_JSON,
-        help=f"Output JSON path (default: {DEFAULT_OUTPUT_JSON})",
+        required=True,
+        help="Output JSON path",
     )
+    parser.add_argument("--log-file", type=Path, required=True, help="Output generation log")
     parser.add_argument(
         "--model",
         default=MODEL_NAME,
@@ -90,8 +88,8 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def setup_logging(output_path: Path) -> logging.Logger:
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+def setup_logging(log_file: Path) -> logging.Logger:
+    log_file.parent.mkdir(parents=True, exist_ok=True)
     logger = logging.getLogger("extended_few_shot_gen")
     logger.setLevel(logging.INFO)
     logger.handlers.clear()
@@ -101,7 +99,7 @@ def setup_logging(output_path: Path) -> logging.Logger:
     stream_handler.setFormatter(formatter)
     logger.addHandler(stream_handler)
 
-    file_handler = logging.FileHandler(output_path.parent / LOG_FILENAME, encoding="utf-8")
+    file_handler = logging.FileHandler(log_file, encoding="utf-8")
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
 
@@ -578,7 +576,7 @@ def main() -> int:
         print("OPENROUTER_API_KEY is not set", file=sys.stderr)
         return 2
 
-    logger = setup_logging(args.output_json)
+    logger = setup_logging(args.log_file)
     if not args.input_dataset.exists():
         print(f"Input dataset not found: {args.input_dataset}", file=sys.stderr)
         return 2

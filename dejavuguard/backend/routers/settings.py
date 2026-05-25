@@ -25,7 +25,7 @@ from backend.services.openrouter import OpenRouterClient, OpenRouterError
 from backend.store.db import DatabaseStore
 
 router = APIRouter(tags=["settings"])
-GROUNDING_PROMPT_VERSION = "multi_instances_v1"
+GROUNDING_PROMPT_VERSION = "optimized_related_context_v3"
 
 
 def _get_db(request: Request) -> DatabaseStore:
@@ -75,11 +75,11 @@ async def _upgrade_grounding_prompts_if_needed(
     db: DatabaseStore,
     all_settings: dict[str, str],
 ) -> dict[str, str]:
-    """Move existing installations to the active multi-instance prompt defaults.
+    """Move existing installations to the active optimized prompt defaults.
 
     Older Docker volumes can persist previous prompt templates indefinitely.
-    The multi-instance feature changes the required response schema, so stale
-    prompts are overwritten once and then marked with a version key.
+    Prompt optimization and structured few-shot support change both input and
+    output formats, so stale prompts are overwritten once and versioned.
     """
     if all_settings.get("grounding_prompt_version") == GROUNDING_PROMPT_VERSION:
         return all_settings

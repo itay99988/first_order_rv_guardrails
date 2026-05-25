@@ -80,6 +80,10 @@ class DatabaseStore:
             await self._db.execute(
                 "ALTER TABLE propositions ADD COLUMN few_shot_generated_at TEXT"
             )
+        if "few_shot_examples" not in columns:
+            await self._db.execute(
+                "ALTER TABLE propositions ADD COLUMN few_shot_examples TEXT"
+            )
         if "arity" not in columns:
             await self._db.execute(
                 "ALTER TABLE propositions ADD COLUMN arity INTEGER DEFAULT 0"
@@ -140,6 +144,7 @@ class DatabaseStore:
         arg_descriptions: list[str] | None = None,
         few_shot_positive: list[str] | None = None,
         few_shot_negative: list[str] | None = None,
+        few_shot_examples: list[dict] | None = None,
         few_shot_generated_at: str | None = None,
     ) -> None:
         """Create a new predicate."""
@@ -149,14 +154,17 @@ class DatabaseStore:
         few_shot_negative_json = (
             json.dumps(few_shot_negative) if few_shot_negative is not None else None
         )
+        few_shot_examples_json = (
+            json.dumps(few_shot_examples) if few_shot_examples is not None else None
+        )
         arg_descriptions_json = (
             json.dumps(arg_descriptions) if arg_descriptions is not None else None
         )
         await self._db.execute(
             "INSERT INTO propositions ("
             "prop_id, description, role, arity, arg_descriptions, "
-            "few_shot_positive, few_shot_negative, few_shot_generated_at"
-            ") VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            "few_shot_positive, few_shot_negative, few_shot_examples, few_shot_generated_at"
+            ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 prop_id,
                 description,
@@ -165,6 +173,7 @@ class DatabaseStore:
                 arg_descriptions_json,
                 few_shot_positive_json,
                 few_shot_negative_json,
+                few_shot_examples_json,
                 few_shot_generated_at,
             ),
         )
@@ -186,6 +195,7 @@ class DatabaseStore:
         arg_descriptions: list[str] | None = None,
         few_shot_positive: list[str] | None = None,
         few_shot_negative: list[str] | None = None,
+        few_shot_examples: list[dict] | None = None,
         few_shot_generated_at: str | None = None,
     ) -> None:
         """Update a predicate's fields. Only updates non-None fields."""
@@ -206,6 +216,9 @@ class DatabaseStore:
         if few_shot_negative is not None:
             updates.append("few_shot_negative = ?")
             params.append(json.dumps(few_shot_negative))
+        if few_shot_examples is not None:
+            updates.append("few_shot_examples = ?")
+            params.append(json.dumps(few_shot_examples))
         if few_shot_generated_at is not None:
             updates.append("few_shot_generated_at = ?")
             params.append(few_shot_generated_at)
@@ -482,6 +495,7 @@ CREATE TABLE IF NOT EXISTS propositions (
     role TEXT NOT NULL CHECK(role IN ('user', 'assistant')),
     few_shot_positive TEXT,
     few_shot_negative TEXT,
+    few_shot_examples TEXT,
     few_shot_generated_at TEXT,
     created_at TEXT DEFAULT (datetime('now')),
     updated_at TEXT DEFAULT (datetime('now'))

@@ -9,7 +9,8 @@ from __future__ import annotations
 import json
 import re
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
@@ -273,8 +274,20 @@ def _parse_json_list_field(raw_value) -> list[str]:
         parsed = json.loads(raw_value)
         if isinstance(parsed, list):
             return [str(x) for x in parsed if str(x).strip()]
-    except Exception:
-        pass
+    except (TypeError, json.JSONDecodeError):
+        return []
+    return []
+
+
+def _parse_json_object_list_field(raw_value) -> list[dict[str, Any]]:
+    if not raw_value:
+        return []
+    try:
+        parsed = json.loads(raw_value)
+        if isinstance(parsed, list):
+            return [item for item in parsed if isinstance(item, dict)]
+    except (TypeError, json.JSONDecodeError):
+        return []
     return []
 
 
@@ -287,6 +300,7 @@ def _row_to_proposition(row: dict) -> Proposition:
         arg_descriptions=_parse_json_list_field(row.get("arg_descriptions")),
         few_shot_positive=_parse_json_list_field(row.get("few_shot_positive")),
         few_shot_negative=_parse_json_list_field(row.get("few_shot_negative")),
+        few_shot_examples=_parse_json_object_list_field(row.get("few_shot_examples")),
         few_shot_generated_at=row.get("few_shot_generated_at"),
     )
 
@@ -303,10 +317,10 @@ def _extract_json_object(text: str) -> dict | None:
 
     try:
         obj = json.loads(t)
-        if isinstance(obj, dict):
-            return obj
-    except Exception:
-        pass
+    except json.JSONDecodeError:
+        obj = None
+    if isinstance(obj, dict):
+        return obj
 
     match = re.search(r"\{[\s\S]*\}", t)
     if not match:
@@ -320,49 +334,169 @@ def _extract_json_object(text: str) -> dict | None:
     return None
 
 
-def _parse_few_shot_examples(raw_response: str) -> tuple[list[str], list[str]]:
+def _predicate_objects(
+    arity: int,
+    arg_descriptions: list[str],
+) -> list[dict[str, str]]:
+    return [
+        {
+            "object_id": f"o{idx + 1}",
+            "description": (
+                arg_descriptions[idx]
+                if idx < len(arg_descriptions) and arg_descriptions[idx].strip()
+                else f"argument {idx + 1}"
+            ),
+        }
+        for idx in range(arity)
+    ]
+
+
+def _validate_few_shot_example(
+    example: dict[str, Any],
+    role: str,
+    object_ids: list[str],
+) -> tuple[bool, str]:
+    if not isinstance(example.get("text"), str) or not example["text"].strip():
+        return False, "missing text"
+    if example.get("role") != role:
+        return False, "wrong role"
+    if not isinstance(example.get("related_object_context", []), list):
+        return False, "bad related_object_context"
+    history = example.get("related_object_history", [])
+    if not isinstance(history, list):
+        return False, "bad related_object_history"
+    if not isinstance(example.get("found"), bool):
+        return False, "missing found"
+    if not example["found"]:
+        if "instances" in example:
+            return False, "negative examples must omit instances"
+        return True, "ok"
+
+    instances = example.get("instances")
+    if not isinstance(instances, list) or (object_ids and not instances):
+        return False, "positive examples need instances"
+    for instance in instances:
+        if not isinstance(instance, dict) or not isinstance(
+            instance.get("object_mentions"), list
+        ):
+            return False, "bad instance"
+        mentions = instance["object_mentions"]
+        if sorted(str(m.get("object_id")) for m in mentions if isinstance(m, dict)) != sorted(object_ids):
+            return False, "instance object ids do not match predicate"
+        for mention in mentions:
+            if not isinstance(mention, dict):
+                return False, "bad object mention"
+            span = mention.get("mention")
+            canonical_form = mention.get("canonical_form")
+            source = mention.get("canonical_source")
+            if not isinstance(span, str) or not span or span not in example["text"]:
+                return False, "mention is not an exact text span"
+            if not isinstance(canonical_form, str) or not canonical_form.strip():
+                return False, "missing canonical form"
+            if not isinstance(source, dict) or source.get("type") not in ("new", "history"):
+                return False, "bad canonical source"
+            if source["type"] == "history":
+                history_index = source.get("matched_history_index")
+                if not isinstance(history_index, int) or not (0 <= history_index < len(history)):
+                    return False, "bad history index"
+                history_item = history[history_index]
+                if not isinstance(history_item, dict) or history_item.get("canonical_form") != canonical_form:
+                    return False, "history canonical form mismatch"
+    return True, "ok"
+
+
+def _parse_few_shot_examples(
+    raw_response: str,
+    role: str,
+    object_ids: list[str],
+) -> list[dict[str, Any]]:
     obj = _extract_json_object(raw_response)
     if not obj:
         raise ValueError("Could not parse JSON from chat model response")
 
-    pos = obj.get("positive_examples", [])
-    neg = obj.get("negative_examples", [])
-    if not isinstance(pos, list) or not isinstance(neg, list):
-        raise ValueError("Missing positive_examples/negative_examples arrays")
+    examples = obj.get("examples", [])
+    if not isinstance(examples, list):
+        raise ValueError("Missing examples array")
+    valid: list[dict[str, Any]] = []
+    for idx, example in enumerate(examples, start=1):
+        if not isinstance(example, dict):
+            raise ValueError(f"Example {idx} is not an object")
+        is_valid, reason = _validate_few_shot_example(example, role, object_ids)
+        if not is_valid:
+            raise ValueError(f"Example {idx} invalid: {reason}")
+        valid.append(example)
+    positives = [example for example in valid if example["found"]]
+    negatives = [example for example in valid if not example["found"]]
+    if len(positives) < 3 or len(negatives) < 3:
+        raise ValueError("Need three valid positive and three valid negative examples")
+    return positives[:3] + negatives[:3]
 
-    positives = [str(x).strip() for x in pos if str(x).strip()]
-    negatives = [str(x).strip() for x in neg if str(x).strip()]
-    if len(positives) < 5 or len(negatives) < 5:
-        raise ValueError("Need at least 5 positive and 5 tricky negative examples")
-    return positives[:5], negatives[:5]
 
+def _few_shot_generation_prompt(
+    prop_id: str,
+    prop_description: str,
+    role: str,
+    objects: list[dict[str, str]],
+) -> str:
+    return f"""Generate six structured few-shot examples for the extended grounding task.
 
-def _few_shot_generation_prompt(prop_description: str, role: str) -> str:
-    role_norm = (role or "user").strip().lower()
-    role_desc = "user messages" if role_norm == "user" else "assistant messages"
-    return (
-        "Create few-shot examples for proposition classification.\n\n"
-        'PROPOSITION: "{}"\n'
-        "ROLE: {}\n\n"
-        "Generate exactly:\n"
-        "1) 5 positive examples where proposition is clearly true.\n"
-        "2) 5 negative examples that are tricky: same domain/terms, but proposition is false.\n\n"
-        "Examples must be realistic {} and 1-2 sentences.\n\n"
-        "Return JSON exactly:\n"
-        "{{\n"
-        '  "positive_examples": ["...", "...", "...", "...", "..."],\n'
-        '  "negative_examples": ["...", "...", "...", "...", "..."]\n'
-        "}}"
-    ).format(prop_description, role_norm, role_desc)
+Predicate:
+{json.dumps({"predicate_id": prop_id, "predicate_description": prop_description, "predicate_role": role, "objects": objects}, indent=2)}
+
+Generate exactly three positive and three negative examples.
+- Every example must use role "{role}".
+- Positive examples must directly express this predicate and include found=true plus an instances array.
+- For positive examples, each instance is one complete predicate occurrence and includes every required object exactly once.
+- Mentions are exact verbatim substrings of text.
+- canonical_form is a stable normalized value and canonical_source is either {{"type": "new"}} or {{"type": "history", "matched_history_index": N}}.
+- Include a multi-instance positive example when it is semantically plausible.
+- Include at least one positive example with a plausible related_object_history reuse when objects are present: provide related_object_context and history, reuse the history canonical_form exactly, and use canonical_source type "history".
+- Negative examples must be challenging near-misses using similar domain vocabulary, with found=false and no instances field.
+- related_object_context and related_object_history are arrays; use [] when not needed.
+
+Return only this JSON form:
+{{
+  "examples": [
+    {{
+      "text": "...",
+      "role": "{role}",
+      "related_object_context": [],
+      "related_object_history": [],
+      "found": true,
+      "instances": [
+        {{
+          "instance_id": "i1",
+          "object_mentions": [
+            {{
+              "object_id": "o1",
+              "mention": "exact substring from text",
+              "canonical_form": "normalized value",
+              "canonical_source": {{"type": "new"}}
+            }}
+          ]
+        }}
+      ]
+    }},
+    {{
+      "text": "...",
+      "role": "{role}",
+      "related_object_context": [],
+      "related_object_history": [],
+      "found": false
+    }}
+  ]
+}}"""
 
 
 async def _generate_few_shots_with_chat_model(
     openrouter_api_key: str,
     chat_model: str,
+    proposition_id: str,
     proposition_description: str,
     role: str,
+    objects: list[dict[str, str]],
     retries: int = 3,
-) -> tuple[list[str], list[str]]:
+) -> list[dict[str, Any]]:
     if not openrouter_api_key:
         raise HTTPException(
             400,
@@ -374,7 +508,10 @@ async def _generate_few_shots_with_chat_model(
         "You generate synthetic few-shot examples for proposition matching. "
         "Return ONLY valid JSON."
     )
-    user_prompt = _few_shot_generation_prompt(proposition_description, role)
+    user_prompt = _few_shot_generation_prompt(
+        proposition_id, proposition_description, role, objects
+    )
+    object_ids = [obj["object_id"] for obj in objects]
 
     last_error = ""
     for attempt in range(1, retries + 1):
@@ -385,7 +522,7 @@ async def _generate_few_shots_with_chat_model(
                     ChatMessage(role="user", content=user_prompt),
                 ]
             )
-            return _parse_few_shot_examples(raw)
+            return _parse_few_shot_examples(raw, role, object_ids)
         except (OpenRouterError, ValueError) as e:
             last_error = str(e)
             if attempt < retries:
@@ -393,7 +530,7 @@ async def _generate_few_shots_with_chat_model(
 
     raise HTTPException(
         502,
-        "Failed to generate few-shot examples using chat model: {}".format(last_error),
+        f"Failed to generate few-shot examples using chat model: {last_error}",
     )
 
 
@@ -436,14 +573,14 @@ async def _validate_formula(db: DatabaseStore, formula_str: str) -> tuple[list[s
             else:
                 pred_lines.append(f"pred {pid}")
 
-    spec_parts = pred_lines + [f"prop _validate : {formula_str}"]
+    spec_parts = [*pred_lines, f"prop _validate : {formula_str}"]
     spec = "\n".join(spec_parts)
 
     config = get_config()
     dejavu_url = config.dejavu_url
     client = DejaVuClient(base_url=dejavu_url)
     try:
-        valid, properties, error = await client.validate_spec(spec)
+        valid, _properties, error = await client.validate_spec(spec)
         if not valid:
             return sorted(candidate_ids), error
     except DejaVuError as e:
@@ -506,8 +643,8 @@ async def create_proposition(request: Request, body: CreatePropositionRequest) -
     if existing:
         raise HTTPException(409, f"Predicate '{body.prop_id}' already exists.")
 
-    few_shot_positive: list[str] = []
-    few_shot_negative: list[str] = []
+    objects = _predicate_objects(body.arity, body.arg_descriptions)
+    few_shot_examples: list[dict[str, Any]] = []
     warning: str | None = None
     settings = await _load_settings(db)
 
@@ -522,11 +659,13 @@ async def create_proposition(request: Request, body: CreatePropositionRequest) -
             model = grounding_settings.model
             if api_key:
                 try:
-                    few_shot_positive, few_shot_negative = await _generate_few_shots_with_chat_model(
+                    few_shot_examples = await _generate_few_shots_with_chat_model(
                         openrouter_api_key=api_key,
                         chat_model=model,
+                        proposition_id=body.prop_id,
                         proposition_description=body.description,
                         role=body.role,
+                        objects=objects,
                     )
                 except HTTPException as e:
                     warning = (
@@ -551,9 +690,13 @@ async def create_proposition(request: Request, body: CreatePropositionRequest) -
                     "You generate synthetic few-shot examples for predicate matching. "
                     "Return ONLY valid JSON."
                 )
-                user_prompt = _few_shot_generation_prompt(body.description, body.role)
+                user_prompt = _few_shot_generation_prompt(
+                    body.prop_id, body.description, body.role, objects
+                )
                 raw = await grounding_client.chat(system_prompt, user_prompt)
-                few_shot_positive, few_shot_negative = _parse_few_shot_examples(raw)
+                few_shot_examples = _parse_few_shot_examples(
+                    raw, body.role, [obj["object_id"] for obj in objects]
+                )
             except Exception as e:
                 warning = (
                     f"Few-shot generation failed with local grounding model ({e}). "
@@ -565,11 +708,13 @@ async def create_proposition(request: Request, body: CreatePropositionRequest) -
         effective_chat_model = settings.openrouter_model_custom or settings.openrouter_model
         if settings.openrouter_api_key:
             try:
-                few_shot_positive, few_shot_negative = await _generate_few_shots_with_chat_model(
+                few_shot_examples = await _generate_few_shots_with_chat_model(
                     openrouter_api_key=settings.openrouter_api_key,
                     chat_model=effective_chat_model,
+                    proposition_id=body.prop_id,
                     proposition_description=body.description,
                     role=body.role,
+                    objects=objects,
                 )
             except HTTPException as e:
                 warning = (
@@ -582,15 +727,14 @@ async def create_proposition(request: Request, body: CreatePropositionRequest) -
                 "To generate few-shot examples, add your API key in Settings."
             )
 
-    generated_at = datetime.now(timezone.utc).isoformat()
+    generated_at = datetime.now(UTC).isoformat()
     await db.create_proposition(
         body.prop_id,
         body.description,
         body.role,
         arity=body.arity,
         arg_descriptions=body.arg_descriptions if body.arg_descriptions else None,
-        few_shot_positive=few_shot_positive,
-        few_shot_negative=few_shot_negative,
+        few_shot_examples=few_shot_examples,
         few_shot_generated_at=generated_at,
     )
     invalidate_monitors()

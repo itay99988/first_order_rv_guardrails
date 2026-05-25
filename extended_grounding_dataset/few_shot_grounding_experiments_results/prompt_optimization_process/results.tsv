@@ -1,0 +1,47 @@
+commit	sample_general_accuracy	found_accuracy	mention_instance_accuracy	canonical_history_accuracy	full_instance_accuracy	status	description
+8f16752	0.227941	0.654412	0.410853	0.237288	0.379845	baseline	baseline gemma few-shot prompt (136 records)
+d90b0a9	0.205882	0.676471	0.348837	0.186441	0.302326	discard	negative-decision gate in system prompt — worse, barely moved false positives
+9d794b8	0.448529	0.735294	0.558140	0.389831	0.527132	keep	shorten+reorder: false-first decision, trim instance rules
+3e9bda3	0.360294	0.691176	0.496124	0.372881	0.472868	discard	list-splitting + domain-confusion guard — extra instructions hurt model
+13db6fb	0.404412	0.713235	0.511628	0.322034	0.480620	discard	rules before few-shots — worse, model benefits from examples-first ordering
+96a9452	0.529412	0.816176	0.550388	0.389831	0.519380	keep	negative reminder before message text — big FP reduction 36->23
+cf2702b	0.426471	0.639706	0.379845	0.288136	0.364341	discard	list-split in reminder — 37 api errors, model confused by longer reminder
+2eb68f4	0.500000	0.779412	0.558140	0.389831	0.534884	discard	multi-instance few-shots first — slight instance gain but more FP, net worse
+0957b48	0.514706	0.794118	0.503876	0.389831	0.472868	discard	count-first list-split in instance_rules — barely moved instance_count, more FN
+788f2a9	0.389706	0.683824	0.558140	0.406780	0.519380	discard	negatives-first few-shots — disrupted ordering, more FP (43)
+84d5d75	0.558824	0.852941	0.542636	0.389831	0.511628	keep	action-must-match reminder — new best, FP 23->19
+b79984c	0.492647	0.779412	0.558140	0.389831	0.519380	discard	current-intent framing — generic version weaker than specific examples
+0fc2ee0	0.566176	0.852941	0.573643	0.389831	0.534884	keep	expanded reminder examples — new best 0.566
+8b7e1ab	0.617647	0.867647	0.635659	0.406780	0.596899	keep	dynamic predicate reminder — new best 0.618, FP 19->17, instance_count 38->32
+4c902de	0.477941	0.757353	0.682171	0.491525	0.627907	discard	3 few-shots — found discrimination collapses without enough examples
+a81688a	0.580882	0.860294	0.612403	0.440678	0.573643	discard	multi-instance sort + dynamic reminder — slightly worse than dynamic alone
+df2bd36	0.514706	0.801471	0.573643	0.389831	0.542636	discard	exp16: adjacent-action list in reminder — more FP 17->26, much worse
+a1f12df	0.485294	0.779412	0.596899	0.423729	0.550388	discard	exp17: counting reminder — increased FP 17->28, net worse
+073f143	0.529412	0.845588	0.542636	0.338983	0.496124	discard	exp18: two-pass detection+extraction — worse FP 17->20, canonical hurt
+b29f3a1	0.661765	0.882353	0.643411	0.423729	0.604651	keep	exp19: trim INSTANCE_RULES to 2 lines — new best 0.662, FP 17->11, IC 32->27
+cca12b5	0.639706	0.845588	0.604651	0.457627	0.573643	discard	exp20: trim system prompt Step1 — more FN 5->8, worse
+378f6e7	0.639706	0.860294	0.604651	0.406780	0.573643	discard	exp21: found=true header on INSTANCE_RULES — FN 5->8, worse
+7291f3e	0.617647	0.845588	0.658915	0.406780	0.581395	discard	exp22: positive counting phrasing — FP 11->16 worse, 'never one' is load-bearing
+d47c14a	0.617647	0.838235	0.620155	0.406780	0.589147	discard	exp23: sender-actively-doing reminder — FP 11->16 worse
+2e65923	0.683824	0.882353	0.728682	0.593220	0.697674	keep	exp24: strip context/history from few-shot inputs — new best 0.684, canonical 0.42->0.59, FN 5->1
+68ccd18	0.720588	0.897059	0.767442	0.694915	0.736434	keep	exp25: remove related_object_context from user message — new best 0.721, canonical 0.59->0.69
+ae65378	0.757353	0.889706	0.837209	0.711864	0.806202	keep	exp26: slim predicate_block (no id/domain/category) — new best 0.757, IC 22->16
+7f50d4f	0.757353	0.889706	0.837209	0.711864	0.806202	keep	exp27: remove predicate_role (neutral, simpler)
+1d7700a	0.750000	0.816176	0.953488	0.779661	0.906977	discard	exp28: remove output schema — FP exploded 14->25 (no found=false hint), IC 16->4 but net worse
+95fb577	0.823529	0.882353	0.961240	0.813559	0.922481	keep	exp29: minimal schema hint — new best 0.824, IC 16->5, FN 1->0, full_instance 0.81->0.92
+—	0.794118	—	—	—	—	discard	exp30: reserve 2 false examples in few-shot — FPs up 16->18, mention errors appeared
+—	0.786765	—	—	—	—	discard	exp31: question-form IC example + specific reminder — IC exploded 5->7, FPs up
+—	0.794118	—	—	—	—	discard	exp32: predicate_block plain text (no objects) — IC exploded 5->10, mention errors
+—	0.808824	—	—	—	—	discard	exp33: Reminder after message text — FPs 16->15 but ICs up, mention errors
+—	0.779412	—	—	—	—	discard	exp34: nickname matching in INSTANCE_RULES — FP exploded 16->23
+—	0.808824	—	—	—	—	discard	exp35: partial-entity bullet in SYSTEM_PROMPT — 1 new FN, ICs up
+—	0.779412	—	—	—	—	discard	exp36: remove Message role line — FP exploded 16->22, role line is load-bearing
+—	0.816176	—	—	—	—	discard	exp37: plain-text history [i] format — FP up 16->18 despite IC/canonical gains
+00b4f86	0.838235	0.875000	0.976744	0.881356	0.945736	keep	exp38: slim related_object_history (mention+canonical only) — new best 0.838, IC 5->3, canonical 0.81->0.88
+—	0.808824	—	—	—	—	discard	exp39: ascending few-shot sort — FP 17->13 but FN 0->4, sports collapsed
+—	0.830882	—	—	—	—	discard	exp40: max_examples=4 — FP up to 19, IC 3->2, net worse
+—	0.816176	—	—	—	—	discard	exp41: max_examples=5 — same FP/IC as exp38 but mention errors added
+—	0.691176	—	—	—	—	discard	exp42: canonical_form only in history — catastrophic, 39 api_errors, mention is load-bearing
+—	0.830882	—	—	—	—	discard	exp43: remove redundant Step2 bullets (count+merge) — 1 mention error, net -1
+—	0.816176	—	—	—	—	discard	exp44: ascending true + false sort [T1,T2,T3,F,F,F] — IC -1 but FP/canonical/mention worse
+—	0.801471	—	—	—	—	discard	exp45: collapse Step1 5-bullets to 1 sentence — FP exploded 17->23, bullets are load-bearing
