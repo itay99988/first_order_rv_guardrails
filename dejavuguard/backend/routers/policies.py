@@ -93,12 +93,47 @@ _DEJAVU_KEYWORDS = frozenset({
 })
 
 
+def _extract_rule_definitions(formula_str: str) -> tuple[set[str], set[str]]:
+    """Return (rule_names, rule_parameters) from a where clause.
+
+    DejaVu lets a property declare local rules with:
+        prop p : <body> where r(args) := <rule-body>, s(args) := <rule-body>
+    Both rule names and their formal parameters are identifiers that should
+    not be looked up as predicates in the database.
+    """
+    cleaned = re.sub(r'"[^"]*"', '', formula_str)
+    cleaned = re.sub(r"'[^']*'", '', cleaned)
+    where_match = re.search(r"\bwhere\b", cleaned)
+    if not where_match:
+        return set(), set()
+    where_body = cleaned[where_match.end():]
+    rule_names: set[str] = set()
+    rule_params: set[str] = set()
+    for match in re.finditer(
+        r"([A-Za-z_]\w*)\s*(?:\(([^)]*)\))?\s*:=", where_body
+    ):
+        rule_names.add(match.group(1))
+        params = match.group(2)
+        if params:
+            for param in params.split(","):
+                param = param.strip()
+                if param and re.fullmatch(r"[A-Za-z_]\w*", param):
+                    rule_params.add(param)
+    return rule_names, rule_params
+
+
+def _extract_rule_names(formula_str: str) -> set[str]:
+    """Backwards-compatible accessor returning only rule names."""
+    return _extract_rule_definitions(formula_str)[0]
+
+
 def _extract_identifiers(formula_str: str) -> set[str]:
     """Extract candidate predicate IDs from a formula string.
 
     Used to build pred declarations for DejaVu validation.
     DejaVu's parser performs the actual syntax validation — this only
-    extracts identifiers that might be predicates.
+    extracts identifiers that might be predicates. Rule names defined
+    in a trailing `where` clause are excluded.
     """
     cleaned = re.sub(r'"[^"]*"', '', formula_str)
     cleaned = re.sub(r"'[^']*'", '', cleaned)
@@ -106,7 +141,8 @@ def _extract_identifiers(formula_str: str) -> set[str]:
     for match in re.finditer(r'(?:Forall|Exists|forall|exists)\s+(\w+)', cleaned):
         quant_vars.add(match.group(1))
     all_ids = set(re.findall(r'\b([a-zA-Z_]\w*)\b', cleaned))
-    return all_ids - _DEJAVU_KEYWORDS - quant_vars
+    rule_names, rule_params = _extract_rule_definitions(formula_str)
+    return all_ids - _DEJAVU_KEYWORDS - quant_vars - rule_names - rule_params
 
 
 def _split_formula_args(args_str: str) -> list[str]:

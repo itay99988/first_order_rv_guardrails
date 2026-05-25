@@ -35,6 +35,13 @@ const booleanOps = [
   { label: ")", insert: ")", desc: "Close paren" },
 ] as const;
 
+// The `where` keyword introduces local rule definitions. Insert it on its
+// own line for readability — rule bodies follow on indented lines.
+const ruleOps = [
+  { label: "where", insert: "\nwhere\n  ", desc: "Begin local rule definitions" },
+  { label: ":=", insert: " := ", desc: "Define a rule body" },
+] as const;
+
 
 
 const builtInPropositions = [
@@ -57,7 +64,7 @@ export default function FormulaBuilder({
   const [validating, setValidating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [showReference, setShowReference] = useState(false);
-  const formulaRef = useRef<HTMLInputElement>(null);
+  const formulaRef = useRef<HTMLTextAreaElement>(null);
 
   // Validation happens on save, not on every keystroke
 
@@ -77,6 +84,36 @@ export default function FormulaBuilder({
       input.setSelectionRange(pos, pos);
       input.focus();
     });
+  };
+
+  // Detect when the user just finished typing the standalone keyword `where`
+  // and auto-format it onto its own line followed by an indented blank line
+  // ready for rule definitions. Triggers only on a freshly typed `where ` at
+  // a word boundary.
+  const WHERE_TRIGGER = /(^|[^A-Za-z_\n])where(\s)$/;
+  const handleFormulaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const nextValue = e.target.value;
+    const caret = e.target.selectionStart ?? nextValue.length;
+    const match = WHERE_TRIGGER.exec(nextValue.slice(0, caret));
+    if (match) {
+      const matchStart = caret - match[0].length + match[1].length;
+      const prefix = nextValue.slice(0, matchStart);
+      const suffix = nextValue.slice(caret);
+      const leadingNewline = prefix.endsWith("\n") ? "" : "\n";
+      const replacement = `${leadingNewline}where\n  `;
+      const formatted = `${prefix}${replacement}${suffix}`;
+      setFormula(formatted);
+      requestAnimationFrame(() => {
+        const input = formulaRef.current;
+        if (input) {
+          const pos = prefix.length + replacement.length;
+          input.setSelectionRange(pos, pos);
+          input.focus();
+        }
+      });
+      return;
+    }
+    setFormula(nextValue);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -183,20 +220,25 @@ export default function FormulaBuilder({
                 className="rounded-none border border-border text-terminal-text font-mono px-2 py-0.5 text-xs hover:bg-dark-hover hover:text-accent transition-colors"
                 title={desc} data-testid={`op-${label.replace(/[()]/g, "")}`}>{label}</button>
             ))}
+            {ruleOps.map(({ label, insert, desc }) => (
+              <button key={label} type="button" onClick={() => insertAtCursor(insert)}
+                className="rounded-none border border-accent/30 text-accent font-mono px-2 py-0.5 text-xs hover:bg-accent/10 transition-colors"
+                title={desc} data-testid={`op-${label.replace(/[:=]/g, "")}`}>{label}</button>
+            ))}
           </div>
         </div>
 
         <div>
           <label className="mb-1 block text-terminal-text font-mono text-sm" htmlFor="formula">Formula</label>
-          <input
+          <textarea
             ref={formulaRef}
             id="formula"
             name="formula"
-            type="text"
+            rows={4}
             value={formula}
-            onChange={(e) => setFormula(e.target.value)}
-            placeholder="H (P p_fraud -> !q_comply)"
-            className="w-full rounded-none border border-border bg-dark-primary px-3 py-2 font-mono text-sm text-accent placeholder-terminal-dim focus:border-accent/50 focus:outline-none focus:ring-1 focus:ring-accent/20"
+            onChange={handleFormulaChange}
+            placeholder={"H (P p_fraud -> !q_comply)\n\nor with local rules:\nForall m . p(m) -> exists b . (@ r(m,b)) S q(m,b)\nwhere\n  r(m,b) := ...\n"}
+            className="w-full rounded-none border border-border bg-dark-primary px-3 py-2 font-mono text-sm text-accent placeholder-terminal-dim focus:border-accent/50 focus:outline-none focus:ring-1 focus:ring-accent/20 resize-y"
             data-testid="formula-input"
           />
           {formula.trim() && !validating && validation && (
@@ -232,6 +274,7 @@ export default function FormulaBuilder({
                 <tr><td className="pr-3 py-0.5 font-mono text-accent/70 whitespace-nowrap">exists x . φ(x)</td><td>there exists a <strong>seen</strong> value of x where φ holds (default)</td></tr>
                 <tr><td className="pr-3 py-0.5 font-mono text-accent/70 whitespace-nowrap">Forall x . φ(x)</td><td>for <strong>all</strong> values of x — infinite domain</td></tr>
                 <tr><td className="pr-3 py-0.5 font-mono text-accent/70 whitespace-nowrap">Exists x . φ(x)</td><td>there exists <strong>any</strong> value of x — infinite domain</td></tr>
+                <tr><td className="pr-3 py-0.5 font-mono text-accent/70 whitespace-nowrap">φ where r(x) := ψ</td><td>local rule definitions; <code>r(x)</code> in φ stands for ψ (rules called inside other rule bodies must be under <code>@</code>)</td></tr>
               </tbody>
             </table>
           </div>
