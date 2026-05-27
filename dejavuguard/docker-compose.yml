@@ -4,7 +4,7 @@ services:
     ports:
       - "8001:8000"
     volumes:
-      - dejavuguard-data:/data
+      - ./data:/data
     environment:
       - DATABASE_PATH=/data/dejavuguard.db
       - DEJAVU_URL=http://dejavu:8080
@@ -24,5 +24,4 @@ services:
     restart: unless-stopped
 
 volumes:
-  dejavuguard-data:
   dejavu-sessions:
