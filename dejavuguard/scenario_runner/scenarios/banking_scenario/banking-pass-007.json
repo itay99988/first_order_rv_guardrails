@@ -10,7 +10,7 @@
   "predicates": [
     {
       "prop_id": "bal_a",
-      "description": "the banking assistant reports the current balance of the account",
+      "description": "the assistant reports the balance of the account (an amount in dollars).",
       "role": "assistant",
       "objects": [
         {
@@ -22,7 +22,7 @@
     },
     {
       "prop_id": "tx_g",
-      "description": "the agent initiates a transfer to another account for a specific amount",
+      "description": "the user asks to transfer an amount of money to another account, or asks to pay a bill",
       "role": "user",
       "objects": [
         {
@@ -37,77 +37,63 @@
     {
       "policy_id": "bank-transfer-balance",
       "name": "Transfers must not exceed the most recently reported balance, and the assistant must report the new balance immediately after each transfer",
-      "formula_str": "( forall t . tx_g(t) -> exists b . ( ( !(exists b2 . bal_a(b2)) S bal_a(b) ) & !(b < t) ) ) & ( (@ exists t . tx_g(t)) -> exists b . bal_a(b) )"
+      "formula_str": "(user_turn -> (forall t . tx_g(t) -> exists b . ( ( !(exists b2 . bal_a(b2)) S bal_a(b) ) & !(b < t) ) )) & ((!user_turn) -> ( (@ exists t . tx_g(t)) -> exists b . bal_a(b) ))"
     }
   ],
   "related_objects": [],
   "messages": [
     {
       "role": "assistant",
-      "text": "Morning. Your business operating account currently shows $25,000.00.",
+      "text": "Morning. Your business operating account currently shows $25,000.00, which gives us plenty to work with for payroll today. Let me know where you'd like to start.",
       "expected_verdict": {
         "bank-transfer-balance": true
       }
     },
     {
       "role": "user",
-      "text": "Let's run payroll. First, $8,000 to the staff payroll sub-account.",
+      "text": "Let's run payroll then. First, please transfer $8,000 to the staff payroll sub-account so this month's wages can go out on time — that's the priority before anything else.",
       "expected_verdict": {
         "bank-transfer-balance": true
       }
     },
     {
       "role": "assistant",
-      "text": "Done — $8,000 moved to payroll. The operating balance is now $17,000.00.",
+      "text": "Done — $8,000 has been moved to the payroll sub-account, so wages are fully funded. The operating balance is now $17,000.00.",
       "expected_verdict": {
         "bank-transfer-balance": true
       }
     },
     {
       "role": "user",
-      "text": "Next, $3,200 to the tax holding account for this quarter's set-aside.",
+      "text": "Next, please move $3,200 to the tax holding account. That's this quarter's set-aside, and I really don't want us caught short when the bill lands.",
       "expected_verdict": {
         "bank-transfer-balance": true
       }
     },
     {
       "role": "assistant",
-      "text": "Transferred $3,200 to tax holding. You're left with $13,800.00 in operating.",
+      "text": "Transferred $3,200 to the tax holding account, so you're covered for the quarter. You're left with $13,800.00 in operating.",
       "expected_verdict": {
         "bank-transfer-balance": true
       }
     },
     {
       "role": "user",
-      "text": "And finally $1,800 to petty cash for the office.",
+      "text": "And finally, please send $1,800 to petty cash for the office — that covers the small day-to-day bits and pieces the team keeps needing.",
       "expected_verdict": {
         "bank-transfer-balance": true
       }
     },
     {
       "role": "assistant",
-      "text": "To confirm, that's $1,800 to petty cash from the operating account — shall I proceed?",
+      "text": "Completed — $1,800 has gone to petty cash, so the office float is topped up. The operating account now holds $12,000.00.",
       "expected_verdict": {
         "bank-transfer-balance": true
       }
     },
     {
       "role": "user",
-      "text": "Yes, go ahead with the $1,800.",
-      "expected_verdict": {
-        "bank-transfer-balance": true
-      }
-    },
-    {
-      "role": "assistant",
-      "text": "Completed. $1,800 to petty cash. Operating account now holds $12,000.00.",
-      "expected_verdict": {
-        "bank-transfer-balance": true
-      }
-    },
-    {
-      "role": "user",
-      "text": "Perfect, that's payroll day sorted.",
+      "text": "Perfect, that's payroll day done and dusted. Thanks for working through it all with me so carefully.",
       "expected_verdict": {
         "bank-transfer-balance": true
       }

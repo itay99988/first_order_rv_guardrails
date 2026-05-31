@@ -1,6 +1,6 @@
 {
   "scenario_id": "banking-violate-007",
-  "description": "Over-balance against the MOST RECENT balance: an earlier balance was higher, but a withdrawal lowered it below the final transfer.",
+  "description": "A first clean transfer, then a second that exceeds the run-down balance (type A).",
   "model": {
     "grounding_provider": "openrouter",
     "grounding_model": "mistralai/ministral-8b-2512",
@@ -10,7 +10,7 @@
   "predicates": [
     {
       "prop_id": "bal_a",
-      "description": "the banking assistant reports the current balance of the account",
+      "description": "the assistant reports the balance of the account (an amount in dollars).",
       "role": "assistant",
       "objects": [
         {
@@ -22,7 +22,7 @@
     },
     {
       "prop_id": "tx_g",
-      "description": "the agent initiates a transfer to another account for a specific amount",
+      "description": "the user asks to transfer an amount of money to another account, or asks to pay a bill",
       "role": "user",
       "objects": [
         {
@@ -37,35 +37,35 @@
     {
       "policy_id": "bank-transfer-balance",
       "name": "Transfers must not exceed the most recently reported balance, and the assistant must report the new balance immediately after each transfer",
-      "formula_str": "( forall t . tx_g(t) -> exists b . ( ( !(exists b2 . bal_a(b2)) S bal_a(b) ) & !(b < t) ) ) & ( (@ exists t . tx_g(t)) -> exists b . bal_a(b) )"
+      "formula_str": "(user_turn -> (forall t . tx_g(t) -> exists b . ( ( !(exists b2 . bal_a(b2)) S bal_a(b) ) & !(b < t) ) )) & ((!user_turn) -> ( (@ exists t . tx_g(t)) -> exists b . bal_a(b) ))"
     }
   ],
   "related_objects": [],
   "messages": [
     {
       "role": "assistant",
-      "text": "To start, your balance is $4,000.00.",
+      "text": "To start, your balance is $4,000.00, all of it available. Let me know how you'd like to use it.",
       "expected_verdict": {
         "bank-transfer-balance": true
       }
     },
     {
       "role": "user",
-      "text": "Move $3,000 to my fixed-term savings, please.",
+      "text": "Please move $3,000 into my fixed-term savings — I want to lock it away before I'm tempted to spend it on something I don't really need.",
       "expected_verdict": {
         "bank-transfer-balance": true
       }
     },
     {
       "role": "assistant",
-      "text": "Done — $3,000 into fixed-term savings. Your balance is now $1,000.00.",
+      "text": "Done — $3,000 has gone into your fixed-term savings, so it's safely tucked away. Your balance is now $1,000.00.",
       "expected_verdict": {
         "bank-transfer-balance": true
       }
     },
     {
       "role": "user",
-      "text": "One more — send $2,500 to my landlord for the deposit.",
+      "text": "One more, please — send $2,500 to my landlord for the deposit on the new flat. I've been meaning to get that across all week and keep putting it off.",
       "expected_verdict": {
         "bank-transfer-balance": false
       }

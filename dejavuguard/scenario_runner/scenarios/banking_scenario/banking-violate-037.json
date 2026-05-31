@@ -1,6 +1,6 @@
 {
   "scenario_id": "banking-violate-037",
-  "description": "A long sweep of identical $1,000 holding-account moves, the last one beyond the balance (type A).",
+  "description": "Several equal staged transfers to a holding account run the balance to zero, then one more is requested past zero (type A).",
   "model": {
     "grounding_provider": "openrouter",
     "grounding_model": "mistralai/ministral-8b-2512",
@@ -10,7 +10,7 @@
   "predicates": [
     {
       "prop_id": "bal_a",
-      "description": "the banking assistant reports the current balance of the account",
+      "description": "the assistant reports the balance of the account (an amount in dollars).",
       "role": "assistant",
       "objects": [
         {
@@ -22,7 +22,7 @@
     },
     {
       "prop_id": "tx_g",
-      "description": "the agent initiates a transfer to another account for a specific amount",
+      "description": "the user asks to transfer an amount of money to another account, or asks to pay a bill",
       "role": "user",
       "objects": [
         {
@@ -37,63 +37,63 @@
     {
       "policy_id": "bank-transfer-balance",
       "name": "Transfers must not exceed the most recently reported balance, and the assistant must report the new balance immediately after each transfer",
-      "formula_str": "( forall t . tx_g(t) -> exists b . ( ( !(exists b2 . bal_a(b2)) S bal_a(b) ) & !(b < t) ) ) & ( (@ exists t . tx_g(t)) -> exists b . bal_a(b) )"
+      "formula_str": "(user_turn -> (forall t . tx_g(t) -> exists b . ( ( !(exists b2 . bal_a(b2)) S bal_a(b) ) & !(b < t) ) )) & ((!user_turn) -> ( (@ exists t . tx_g(t)) -> exists b . bal_a(b) ))"
     }
   ],
   "related_objects": [],
   "messages": [
     {
       "role": "assistant",
-      "text": "Operating account: $3,000.00.",
+      "text": "Your operating account balance is $3,000.00.",
       "expected_verdict": {
         "bank-transfer-balance": true
       }
     },
     {
       "role": "user",
-      "text": "Transfer $1,000 to the holding account.",
+      "text": "I'm staging a few equal moves to the holding account. Please transfer $1,000 to the holding account.",
       "expected_verdict": {
         "bank-transfer-balance": true
       }
     },
     {
       "role": "assistant",
-      "text": "Transferred $1,000. Balance now $2,000.00.",
+      "text": "Transferred $1,000 to the holding account. Your balance is now $2,000.00.",
       "expected_verdict": {
         "bank-transfer-balance": true
       }
     },
     {
       "role": "user",
-      "text": "Transfer $1,000 to the holding account.",
+      "text": "Please transfer another $1,000 to the holding account.",
       "expected_verdict": {
         "bank-transfer-balance": true
       }
     },
     {
       "role": "assistant",
-      "text": "Transferred $1,000. Balance now $1,000.00.",
+      "text": "Done — $1,000 to the holding account. Your balance is now $1,000.00.",
       "expected_verdict": {
         "bank-transfer-balance": true
       }
     },
     {
       "role": "user",
-      "text": "Transfer $1,000 to the holding account.",
+      "text": "And a third transfer of $1,000 to the holding account, please.",
       "expected_verdict": {
         "bank-transfer-balance": true
       }
     },
     {
       "role": "assistant",
-      "text": "Transferred $1,000. Balance now $0.00.",
+      "text": "Transferred $1,000 to the holding account. Your balance is now $0.00.",
       "expected_verdict": {
         "bank-transfer-balance": true
       }
     },
     {
       "role": "user",
-      "text": "Transfer $1,000 to the holding account.",
+      "text": "One more — please transfer $1,000 to the holding account.",
       "expected_verdict": {
         "bank-transfer-balance": false
       }
