@@ -1,6 +1,6 @@
 {
   "scenario_id": "banking-violate-009",
-  "description": "Missing balance after, in a back-to-back transfer: the second transfer immediately follows the first with no balance reported between them.",
+  "description": "A clean transfer, then a second transfer the assistant acknowledges as 'processing' without ever reporting the updated balance (type B).",
   "model": {
     "grounding_provider": "openrouter",
     "grounding_model": "mistralai/ministral-8b-2512",
@@ -10,7 +10,7 @@
   "predicates": [
     {
       "prop_id": "bal_a",
-      "description": "the banking assistant reports the current balance of the account",
+      "description": "the assistant reports the balance of the account (an amount in dollars).",
       "role": "assistant",
       "objects": [
         {
@@ -22,7 +22,7 @@
     },
     {
       "prop_id": "tx_g",
-      "description": "the agent initiates a transfer to another account for a specific amount",
+      "description": "the user asks to transfer an amount of money to another account, or asks to pay a bill",
       "role": "user",
       "objects": [
         {
@@ -37,7 +37,7 @@
     {
       "policy_id": "bank-transfer-balance",
       "name": "Transfers must not exceed the most recently reported balance, and the assistant must report the new balance immediately after each transfer",
-      "formula_str": "( forall t . tx_g(t) -> exists b . ( ( !(exists b2 . bal_a(b2)) S bal_a(b) ) & !(b < t) ) ) & ( (@ exists t . tx_g(t)) -> exists b . bal_a(b) )"
+      "formula_str": "(user_turn -> (forall t . tx_g(t) -> exists b . ( ( !(exists b2 . bal_a(b2)) S bal_a(b) ) & !(b < t) ) )) & ((!user_turn) -> ( (@ exists t . tx_g(t)) -> exists b . bal_a(b) ))"
     }
   ],
   "related_objects": [],
@@ -71,8 +71,8 @@
       }
     },
     {
-      "role": "user",
-      "text": "Actually, also add $300 to my emergency fund while we're at it.",
+      "role": "assistant",
+      "text": "Right away — the $1,500 to your pension is processing now.",
       "expected_verdict": {
         "bank-transfer-balance": false
       }

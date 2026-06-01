@@ -1,6 +1,6 @@
 {
   "scenario_id": "banking-pass-049",
-  "description": "A long end-of-tax-year shuffle: deposits from refunds plus several pension/ISA transfers, all balanced.",
+  "description": "An end-of-tax-year shuffle: explicit ISA/pension transfers interleaved with two incoming refunds, every transfer within balance and a balance reported after each.",
   "model": {
     "grounding_provider": "openrouter",
     "grounding_model": "mistralai/ministral-8b-2512",
@@ -10,7 +10,7 @@
   "predicates": [
     {
       "prop_id": "bal_a",
-      "description": "the banking assistant reports the current balance of the account",
+      "description": "the assistant reports the balance of the account (an amount in dollars).",
       "role": "assistant",
       "objects": [
         {
@@ -22,7 +22,7 @@
     },
     {
       "prop_id": "tx_g",
-      "description": "the agent initiates a transfer to another account for a specific amount",
+      "description": "the user asks to transfer an amount of money to another account, or asks to pay a bill",
       "role": "user",
       "objects": [
         {
@@ -37,91 +37,91 @@
     {
       "policy_id": "bank-transfer-balance",
       "name": "Transfers must not exceed the most recently reported balance, and the assistant must report the new balance immediately after each transfer",
-      "formula_str": "( forall t . tx_g(t) -> exists b . ( ( !(exists b2 . bal_a(b2)) S bal_a(b) ) & !(b < t) ) ) & ( (@ exists t . tx_g(t)) -> exists b . bal_a(b) )"
+      "formula_str": "(user_turn -> (forall t . tx_g(t) -> exists b . ( ( !(exists b2 . bal_a(b2)) S bal_a(b) ) & !(b < t) ) )) & ((!user_turn) -> ( (@ exists t . tx_g(t)) -> exists b . bal_a(b) ))"
     }
   ],
   "related_objects": [],
   "messages": [
     {
       "role": "assistant",
-      "text": "Your account holds $4,500.00.",
+      "text": "Your account balance is $4,500.00.",
       "expected_verdict": {
         "bank-transfer-balance": true
       }
     },
     {
       "role": "user",
-      "text": "Move $2,000 into the ISA before the deadline.",
+      "text": "It's nearly the end of the tax year, so I'm topping up my tax-free accounts. Please transfer $2,000 to my ISA account.",
       "expected_verdict": {
         "bank-transfer-balance": true
       }
     },
     {
       "role": "assistant",
-      "text": "Moved $2,000 to the ISA. Balance $2,500.00.",
+      "text": "Transferred $2,000 to your ISA account. Your balance is now $2,500.00.",
       "expected_verdict": {
         "bank-transfer-balance": true
       }
     },
     {
       "role": "user",
-      "text": "My tax refund — is it in yet?",
+      "text": "My tax refund was due to arrive — has it landed yet?",
       "expected_verdict": {
         "bank-transfer-balance": true
       }
     },
     {
       "role": "assistant",
-      "text": "Yes, it's landed. Balance now $3,700.00.",
+      "text": "Yes, it's just landed. Your balance is now $3,700.00.",
       "expected_verdict": {
         "bank-transfer-balance": true
       }
     },
     {
       "role": "user",
-      "text": "Move $1,500 into the pension.",
+      "text": "Please transfer $1,500 to my pension account.",
       "expected_verdict": {
         "bank-transfer-balance": true
       }
     },
     {
       "role": "assistant",
-      "text": "Moved $1,500 to the pension. Balance $2,200.00.",
+      "text": "Sent $1,500 to your pension account. Your balance is now $2,200.00.",
       "expected_verdict": {
         "bank-transfer-balance": true
       }
     },
     {
       "role": "user",
-      "text": "And the second refund?",
+      "text": "And is the second refund in yet?",
       "expected_verdict": {
         "bank-transfer-balance": true
       }
     },
     {
       "role": "assistant",
-      "text": "Also in. Balance now $3,000.00.",
+      "text": "Yes, that's in too. Your balance is now $3,000.00.",
       "expected_verdict": {
         "bank-transfer-balance": true
       }
     },
     {
       "role": "user",
-      "text": "Move $2,500 into the ISA to use the rest of the allowance.",
+      "text": "Then please transfer $2,500 to my ISA account to use the rest of this year's allowance.",
       "expected_verdict": {
         "bank-transfer-balance": true
       }
     },
     {
       "role": "assistant",
-      "text": "Moved $2,500 to the ISA. Balance $500.00.",
+      "text": "Transferred $2,500 to your ISA account. Your balance is now $500.00.",
       "expected_verdict": {
         "bank-transfer-balance": true
       }
     },
     {
       "role": "user",
-      "text": "Allowances maxed, nicely done before the deadline. Thanks.",
+      "text": "Allowances maxed out before the deadline — nicely done. Thank you.",
       "expected_verdict": {
         "bank-transfer-balance": true
       }

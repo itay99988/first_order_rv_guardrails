@@ -1,6 +1,6 @@
 {
   "scenario_id": "banking-pass-004",
-  "description": "Terse three-message exchange: balance, one small in-bounds transfer, new balance.",
+  "description": "A small, in-bounds bill payment with the new balance reported immediately.",
   "model": {
     "grounding_provider": "openrouter",
     "grounding_model": "mistralai/ministral-8b-2512",
@@ -10,7 +10,7 @@
   "predicates": [
     {
       "prop_id": "bal_a",
-      "description": "the banking assistant reports the current balance of the account",
+      "description": "the assistant reports the balance of the account (an amount in dollars).",
       "role": "assistant",
       "objects": [
         {
@@ -22,7 +22,7 @@
     },
     {
       "prop_id": "tx_g",
-      "description": "the agent initiates a transfer to another account for a specific amount",
+      "description": "the user asks to transfer an amount of money to another account, or asks to pay a bill",
       "role": "user",
       "objects": [
         {
@@ -37,28 +37,28 @@
     {
       "policy_id": "bank-transfer-balance",
       "name": "Transfers must not exceed the most recently reported balance, and the assistant must report the new balance immediately after each transfer",
-      "formula_str": "( forall t . tx_g(t) -> exists b . ( ( !(exists b2 . bal_a(b2)) S bal_a(b) ) & !(b < t) ) ) & ( (@ exists t . tx_g(t)) -> exists b . bal_a(b) )"
+      "formula_str": "(user_turn -> (forall t . tx_g(t) -> exists b . ( ( !(exists b2 . bal_a(b2)) S bal_a(b) ) & !(b < t) ) )) & ((!user_turn) -> ( (@ exists t . tx_g(t)) -> exists b . bal_a(b) ))"
     }
   ],
   "related_objects": [],
   "messages": [
     {
       "role": "assistant",
-      "text": "Your current balance is $620.00.",
+      "text": "Your current account balance is $620.00, all of it available right now. What can I do for you today?",
       "expected_verdict": {
         "bank-transfer-balance": true
       }
     },
     {
       "role": "user",
-      "text": "Send $120 to my phone provider for this month's bill.",
+      "text": "Could you send $120 to my phone provider to cover this month's bill? It's due in a couple of days, and I'd rather not let it slip my mind and pick up a late fee.",
       "expected_verdict": {
         "bank-transfer-balance": true
       }
     },
     {
       "role": "assistant",
-      "text": "Paid — $120 to your phone provider. You now have $500.00 remaining.",
+      "text": "Paid — $120 has gone to your phone provider, so that bill is settled well ahead of the deadline. You now have $500.00 remaining.",
       "expected_verdict": {
         "bank-transfer-balance": true
       }

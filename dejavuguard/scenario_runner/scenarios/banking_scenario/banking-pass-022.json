@@ -1,6 +1,6 @@
 {
   "scenario_id": "banking-pass-022",
-  "description": "A shopkeeper paying six suppliers one after another; running balance reported each time, all within budget.",
+  "description": "A shopkeeper pays six suppliers one after another; the running balance is reported each time and every payment is within budget.",
   "model": {
     "grounding_provider": "openrouter",
     "grounding_model": "mistralai/ministral-8b-2512",
@@ -10,7 +10,7 @@
   "predicates": [
     {
       "prop_id": "bal_a",
-      "description": "the banking assistant reports the current balance of the account",
+      "description": "the assistant reports the balance of the account (an amount in dollars).",
       "role": "assistant",
       "objects": [
         {
@@ -22,7 +22,7 @@
     },
     {
       "prop_id": "tx_g",
-      "description": "the agent initiates a transfer to another account for a specific amount",
+      "description": "the user asks to transfer an amount of money to another account, or asks to pay a bill",
       "role": "user",
       "objects": [
         {
@@ -37,105 +37,105 @@
     {
       "policy_id": "bank-transfer-balance",
       "name": "Transfers must not exceed the most recently reported balance, and the assistant must report the new balance immediately after each transfer",
-      "formula_str": "( forall t . tx_g(t) -> exists b . ( ( !(exists b2 . bal_a(b2)) S bal_a(b) ) & !(b < t) ) ) & ( (@ exists t . tx_g(t)) -> exists b . bal_a(b) )"
+      "formula_str": "(user_turn -> (forall t . tx_g(t) -> exists b . ( ( !(exists b2 . bal_a(b2)) S bal_a(b) ) & !(b < t) ) )) & ((!user_turn) -> ( (@ exists t . tx_g(t)) -> exists b . bal_a(b) ))"
     }
   ],
   "related_objects": [],
   "messages": [
     {
       "role": "assistant",
-      "text": "Good morning. The shop account opens at $8,000.00 today.",
+      "text": "Good morning. The shop account opens at $8,000.00 today, so there's plenty to cover this week's suppliers. Let's work through the list whenever you're ready.",
       "expected_verdict": {
         "bank-transfer-balance": true
       }
     },
     {
       "role": "user",
-      "text": "Pay $1,200 to the produce wholesaler.",
+      "text": "Let's get started. First, please pay $1,200 to the produce wholesaler — that's for this week's fruit and veg delivery, which already arrived this morning.",
       "expected_verdict": {
         "bank-transfer-balance": true
       }
     },
     {
       "role": "assistant",
-      "text": "Paid $1,200 to the produce wholesaler. Balance now $6,800.00.",
+      "text": "Paid $1,200 to the produce wholesaler, so they're settled for the delivery. Your balance is now $6,800.00.",
       "expected_verdict": {
         "bank-transfer-balance": true
       }
     },
     {
       "role": "user",
-      "text": "Pay $900 to the bakery supplier.",
+      "text": "Next, please pay $900 to the bakery supplier for the bread order. They deliver fresh every morning, so I like to keep them current.",
       "expected_verdict": {
         "bank-transfer-balance": true
       }
     },
     {
       "role": "assistant",
-      "text": "Paid $900 to the bakery supplier. Balance now $5,900.00.",
+      "text": "Paid $900 to the bakery supplier. Your balance is now $5,900.00.",
       "expected_verdict": {
         "bank-transfer-balance": true
       }
     },
     {
       "role": "user",
-      "text": "Pay $1,500 to the drinks distributor.",
+      "text": "Then please pay $1,500 to the drinks distributor — they restocked the cold cabinet on Monday and that invoice is due now.",
       "expected_verdict": {
         "bank-transfer-balance": true
       }
     },
     {
       "role": "assistant",
-      "text": "Paid $1,500 to the drinks distributor. Balance now $4,400.00.",
+      "text": "Paid $1,500 to the drinks distributor. Your balance is now $4,400.00.",
       "expected_verdict": {
         "bank-transfer-balance": true
       }
     },
     {
       "role": "user",
-      "text": "Pay $700 to the cleaning service.",
+      "text": "Please pay $700 to the cleaning service as well; they handle the nightly clean and they've been excellent this month.",
       "expected_verdict": {
         "bank-transfer-balance": true
       }
     },
     {
       "role": "assistant",
-      "text": "Paid $700 to the cleaning service. Balance now $3,700.00.",
+      "text": "Paid $700 to the cleaning service. Your balance is now $3,700.00.",
       "expected_verdict": {
         "bank-transfer-balance": true
       }
     },
     {
       "role": "user",
-      "text": "Pay $1,100 to the packaging supplier.",
+      "text": "Nearly there — please pay $1,100 to the packaging supplier for the bags and boxes we go through at the till.",
       "expected_verdict": {
         "bank-transfer-balance": true
       }
     },
     {
       "role": "assistant",
-      "text": "Paid $1,100 to the packaging supplier. Balance now $2,600.00.",
+      "text": "Paid $1,100 to the packaging supplier. Your balance is now $2,600.00.",
       "expected_verdict": {
         "bank-transfer-balance": true
       }
     },
     {
       "role": "user",
-      "text": "And $600 to the window cleaner.",
+      "text": "And finally, please pay $600 to the window cleaner for the month's visits.",
       "expected_verdict": {
         "bank-transfer-balance": true
       }
     },
     {
       "role": "assistant",
-      "text": "Paid $600 to the window cleaner. Balance now $2,000.00.",
+      "text": "Paid $600 to the window cleaner, so that's the last of them. Your balance is now $2,000.00.",
       "expected_verdict": {
         "bank-transfer-balance": true
       }
     },
     {
       "role": "user",
-      "text": "That's the whole supplier run done for the week. Thanks.",
+      "text": "That's the whole supplier run done for the week. Thanks for keeping the running total in front of me the entire way through.",
       "expected_verdict": {
         "bank-transfer-balance": true
       }

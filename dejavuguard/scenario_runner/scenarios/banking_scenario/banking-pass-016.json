@@ -10,7 +10,7 @@
   "predicates": [
     {
       "prop_id": "bal_a",
-      "description": "the banking assistant reports the current balance of the account",
+      "description": "the assistant reports the balance of the account (an amount in dollars).",
       "role": "assistant",
       "objects": [
         {
@@ -22,7 +22,7 @@
     },
     {
       "prop_id": "tx_g",
-      "description": "the agent initiates a transfer to another account for a specific amount",
+      "description": "the user asks to transfer an amount of money to another account, or asks to pay a bill",
       "role": "user",
       "objects": [
         {
@@ -37,7 +37,7 @@
     {
       "policy_id": "bank-transfer-balance",
       "name": "Transfers must not exceed the most recently reported balance, and the assistant must report the new balance immediately after each transfer",
-      "formula_str": "( forall t . tx_g(t) -> exists b . ( ( !(exists b2 . bal_a(b2)) S bal_a(b) ) & !(b < t) ) ) & ( (@ exists t . tx_g(t)) -> exists b . bal_a(b) )"
+      "formula_str": "(user_turn -> (forall t . tx_g(t) -> exists b . ( ( !(exists b2 . bal_a(b2)) S bal_a(b) ) & !(b < t) ) )) & ((!user_turn) -> ( (@ exists t . tx_g(t)) -> exists b . bal_a(b) ))"
     }
   ],
   "related_objects": [],
@@ -51,49 +51,21 @@
     },
     {
       "role": "assistant",
-      "text": "Take your time. For reference, the till account currently holds $6,780.00.",
+      "text": "Take your time. For reference, your account currently holds $6,780.00.",
       "expected_verdict": {
         "bank-transfer-balance": true
       }
     },
     {
       "role": "user",
-      "text": "Right, so card takings were strong this week, cash a bit down. The supplier I owe is the coffee roaster.",
+      "text": "Right, so card takings were strong this week, cash a bit down. I owe the coffee roaster $1,940 including delivery — please send it.",
       "expected_verdict": {
         "bank-transfer-balance": true
       }
     },
     {
       "role": "assistant",
-      "text": "Understood. Would you like to pay the roaster from this account?",
-      "expected_verdict": {
-        "bank-transfer-balance": true
-      }
-    },
-    {
-      "role": "user",
-      "text": "Yes, but let me confirm the invoice first... okay, it's $1,940 including the delivery.",
-      "expected_verdict": {
-        "bank-transfer-balance": true
-      }
-    },
-    {
-      "role": "assistant",
-      "text": "That's within your balance. Shall I send $1,940 to the roaster?",
-      "expected_verdict": {
-        "bank-transfer-balance": true
-      }
-    },
-    {
-      "role": "user",
-      "text": "Go ahead, $1,940 to the roaster.",
-      "expected_verdict": {
-        "bank-transfer-balance": true
-      }
-    },
-    {
-      "role": "assistant",
-      "text": "Paid — $1,940 to the coffee roaster. The till account now shows $4,840.00.",
+      "text": "Paid — $1,940 to the coffee roaster. Your account now shows $4,840.00.",
       "expected_verdict": {
         "bank-transfer-balance": true
       }
@@ -107,7 +79,7 @@
     },
     {
       "role": "assistant",
-      "text": "Anytime. The roaster payment is your only movement today, and you're sitting at $4,840.00.",
+      "text": "Anytime. The roaster payment is your only movement today, and your balance is $4,840.00.",
       "expected_verdict": {
         "bank-transfer-balance": true
       }

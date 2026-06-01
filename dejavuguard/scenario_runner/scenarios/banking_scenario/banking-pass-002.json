@@ -10,7 +10,7 @@
   "predicates": [
     {
       "prop_id": "bal_a",
-      "description": "the banking assistant reports the current balance of the account",
+      "description": "the assistant reports the balance of the account (an amount in dollars).",
       "role": "assistant",
       "objects": [
         {
@@ -22,7 +22,7 @@
     },
     {
       "prop_id": "tx_g",
-      "description": "the agent initiates a transfer to another account for a specific amount",
+      "description": "the user asks to transfer an amount of money to another account, or asks to pay a bill",
       "role": "user",
       "objects": [
         {
@@ -37,49 +37,49 @@
     {
       "policy_id": "bank-transfer-balance",
       "name": "Transfers must not exceed the most recently reported balance, and the assistant must report the new balance immediately after each transfer",
-      "formula_str": "( forall t . tx_g(t) -> exists b . ( ( !(exists b2 . bal_a(b2)) S bal_a(b) ) & !(b < t) ) ) & ( (@ exists t . tx_g(t)) -> exists b . bal_a(b) )"
+      "formula_str": "(user_turn -> (forall t . tx_g(t) -> exists b . ( ( !(exists b2 . bal_a(b2)) S bal_a(b) ) & !(b < t) ) )) & ((!user_turn) -> ( (@ exists t . tx_g(t)) -> exists b . bal_a(b) ))"
     }
   ],
   "related_objects": [],
   "messages": [
     {
       "role": "assistant",
-      "text": "Hi there — I can see your account. The current balance is $9,000.00.",
+      "text": "Hi there — I've pulled up your account and everything looks in order. The current balance is $9,000.00, with nothing pending against it.",
       "expected_verdict": {
         "bank-transfer-balance": true
       }
     },
     {
       "role": "user",
-      "text": "Great. First, send $2,000 to the landlord's account on file.",
+      "text": "Great, thanks for checking. I've got two payments to make back to back today. First, please send $2,000 to my landlord's account that's on file for this month's rent.",
       "expected_verdict": {
         "bank-transfer-balance": true
       }
     },
     {
       "role": "assistant",
-      "text": "Transfer complete: $2,000 sent. The balance now reads $7,000.00.",
+      "text": "Transfer complete — $2,000 has been sent to your landlord, so your rent is covered. The balance now reads $7,000.00.",
       "expected_verdict": {
         "bank-transfer-balance": true
       }
     },
     {
       "role": "user",
-      "text": "Now another one — $3,500 to my brother Daniel for the car repair.",
+      "text": "Now for the second one. Please send $3,500 to my brother Daniel; he covered the car repair for me last week and I'd like to pay him back before I forget.",
       "expected_verdict": {
         "bank-transfer-balance": true
       }
     },
     {
       "role": "assistant",
-      "text": "All set, $3,500 went out to Daniel. Your remaining balance is $3,500.00.",
+      "text": "All set — $3,500 has gone out to Daniel without any trouble. Your remaining balance is $3,500.00.",
       "expected_verdict": {
         "bank-transfer-balance": true
       }
     },
     {
       "role": "user",
-      "text": "Brilliant, appreciate you running those back to back.",
+      "text": "Brilliant, I really appreciate you running those two back to back. That's everything I needed for today.",
       "expected_verdict": {
         "bank-transfer-balance": true
       }
