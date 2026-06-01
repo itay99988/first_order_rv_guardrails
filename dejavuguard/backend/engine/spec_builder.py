@@ -8,6 +8,7 @@ from the policy and predicate models.
 
 from __future__ import annotations
 
+from backend.models.builtins import BUILTIN_PROPOSITIONS
 from backend.models.policy import Policy, Proposition
 
 
@@ -35,6 +36,10 @@ def build_dejavu_spec(policies: list[Policy], propositions: list[Proposition]) -
 
     # Declare all predicates with correct arity
     declared: set[str] = set()
+    for builtin_id in sorted(BUILTIN_PROPOSITIONS):
+        lines.append(f"pred {builtin_id}")
+        declared.add(builtin_id)
+
     for prop in propositions:
         if prop.prop_id not in declared:
             if prop.arity > 0:

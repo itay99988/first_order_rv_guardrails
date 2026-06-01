@@ -20,6 +20,7 @@ from typing import Any
 
 from fastapi import HTTPException
 
+from backend.models.builtins import is_builtin_proposition
 from backend.routers.policies import (
     _generate_few_shots_with_chat_model,
     _validate_formula,
@@ -228,7 +229,10 @@ async def ensure_policy(
             enabled=policy.enabled,
         )
         if prop_ids:
-            await db.set_policy_propositions(policy.policy_id, prop_ids)
+            await db.set_policy_propositions(
+                policy.policy_id,
+                [pid for pid in prop_ids if not is_builtin_proposition(pid)],
+            )
         return "created"
 
     stored_formula = (row.get("formula_str") or "").strip()
@@ -236,6 +240,18 @@ async def ensure_policy(
     wanted_formula = policy.formula_str.strip()
 
     if stored_formula == wanted_formula and stored_name == policy.name:
+        prop_ids, error = await _validate_formula(db, policy.formula_str)
+        if error:
+            raise SetupConflict(
+                f"policy {policy.policy_id}: formula failed validation: {error}"
+            )
+        wanted_prop_ids = [
+            pid for pid in prop_ids if not is_builtin_proposition(pid)
+        ]
+        existing_prop_ids = await db.get_policy_propositions(policy.policy_id)
+        if sorted(existing_prop_ids) != sorted(wanted_prop_ids):
+            await db.set_policy_propositions(policy.policy_id, wanted_prop_ids)
+            return "updated"
         return "reused"
 
     if not overwrite:
@@ -260,7 +276,10 @@ async def ensure_policy(
         enabled=policy.enabled,
     )
     if prop_ids:
-        await db.set_policy_propositions(policy.policy_id, prop_ids)
+        await db.set_policy_propositions(
+            policy.policy_id,
+            [pid for pid in prop_ids if not is_builtin_proposition(pid)],
+        )
     return "updated"
 
 

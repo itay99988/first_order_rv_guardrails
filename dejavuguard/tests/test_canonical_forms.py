@@ -318,6 +318,7 @@ async def test_monitor_sends_same_predicate_instances_in_one_dejavu_composite_ca
     assert dejavu_client.events[-1] == [
         {"name": "p_car", "args": ["Toyota", "12000 USD"]},
         {"name": "p_car", "args": ["Skoda", "12500 USD"]},
+        {"name": "user_turn", "args": []},
     ]
 
 

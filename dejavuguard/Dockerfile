@@ -25,6 +25,7 @@ RUN pip install --no-cache-dir .
 
 # Copy backend code
 COPY backend/ ./backend/
+COPY scenario_runner/ ./scenario_runner/
 COPY scripts/ ./scripts/
 
 # Copy built frontend static files

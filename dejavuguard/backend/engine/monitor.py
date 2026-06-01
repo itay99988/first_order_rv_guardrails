@@ -191,7 +191,10 @@ class ConversationMonitor:
             # instances of the same predicate.
             events: list[dict] = []
             for prop_id, value in labeling.items():
-                if value and prop_id != BUILTIN_USER_TURN:
+                if value:
+                    if prop_id == BUILTIN_USER_TURN:
+                        events.append({"name": prop_id, "args": []})
+                        continue
                     instances = prop_instances.get(prop_id, [])
                     if instances:
                         for instance in instances:
@@ -210,67 +213,65 @@ class ConversationMonitor:
                     else:
                         events.append({"name": prop_id, "args": []})
 
-            if not events:
-                # No predicates matched — keep previous verdicts, skip DejaVu call
+            try:
+                # Always send a DejaVu step, even when the composite event is
+                # empty. Absence of a predicate is semantically meaningful for
+                # formulas such as (!user_turn) -> bal_a.
+                dejavu_verdict = await self._dejavu_client.send_events(
+                    self._dejavu_session_id, events
+                )
+
+                # Map DejaVu verdict back to per-policy verdicts
                 for policy_id in self._policies:
-                    per_policy[policy_id] = self._per_policy_verdicts.get(policy_id, True)
-            else:
-                try:
-                    dejavu_verdict = await self._dejavu_client.send_events(
-                        self._dejavu_session_id, events
-                    )
+                    safe_name = "pol_" + policy_id.replace("-", "_")
+                    if safe_name in dejavu_verdict.verdicts:
+                        verdict_val = dejavu_verdict.verdicts[safe_name]
+                        was_already_violated = not self._per_policy_verdicts.get(
+                            policy_id, True
+                        )
+                        self._per_policy_verdicts[policy_id] = verdict_val
+                        per_policy[policy_id] = verdict_val
 
-                    # Map DejaVu verdict back to per-policy verdicts
-                    for policy_id in self._policies:
-                        safe_name = "pol_" + policy_id.replace("-", "_")
-                        if safe_name in dejavu_verdict.verdicts:
-                            verdict_val = dejavu_verdict.verdicts[safe_name]
-                            was_already_violated = not self._per_policy_verdicts.get(
-                                policy_id, True
-                            )
-                            self._per_policy_verdicts[policy_id] = verdict_val
-                            per_policy[policy_id] = verdict_val
-
-                            if not verdict_val:
-                                policy = self._policies[policy_id]
-                                violation_details = list(grounding_details)
-                                if was_already_violated:
-                                    violation_details = [
-                                        {
-                                            "match": False,
-                                            "confidence": 1.0,
-                                            "reasoning": (
-                                                "This policy was violated at a previous step. "
-                                                "H(.) violations are irrevocable -- once violated, "
-                                                "the policy remains violated for the rest of "
-                                                "the session."
-                                            ),
-                                            "method": "monitor_note",
-                                            "prop_id": "_violation_history",
-                                        },
-                                        *violation_details,
-                                    ]
-                                violations.append(
-                                    ViolationInfo(
-                                        policy_id=policy_id,
-                                        policy_name=policy.name,
-                                        formula_str=policy.formula_str,
-                                        violated_at_index=event.index,
-                                        labeling=dict(labeling),
-                                        grounding_details=violation_details,
-                                    )
+                        if not verdict_val:
+                            policy = self._policies[policy_id]
+                            violation_details = list(grounding_details)
+                            if was_already_violated:
+                                violation_details = [
+                                    {
+                                        "match": False,
+                                        "confidence": 1.0,
+                                        "reasoning": (
+                                            "This policy was violated at a previous step. "
+                                            "H(.) violations are irrevocable -- once violated, "
+                                            "the policy remains violated for the rest of "
+                                            "the session."
+                                        ),
+                                        "method": "monitor_note",
+                                        "prop_id": "_violation_history",
+                                    },
+                                    *violation_details,
+                                ]
+                            violations.append(
+                                ViolationInfo(
+                                    policy_id=policy_id,
+                                    policy_name=policy.name,
+                                    formula_str=policy.formula_str,
+                                    violated_at_index=event.index,
+                                    labeling=dict(labeling),
+                                    grounding_details=violation_details,
                                 )
-                        else:
-                            per_policy[policy_id] = self._per_policy_verdicts.get(
-                                policy_id, True
                             )
+                    else:
+                        per_policy[policy_id] = self._per_policy_verdicts.get(
+                            policy_id, True
+                        )
 
-                except DejaVuError as e:
-                    logger.warning("DejaVu error during event send: %s", e)
-                for policy_id in self._policies:
-                    per_policy[policy_id] = self._per_policy_verdicts.get(
-                        policy_id, True
-                    )
+            except DejaVuError as e:
+                logger.warning("DejaVu error during event send: %s", e)
+            for policy_id in self._policies:
+                per_policy[policy_id] = self._per_policy_verdicts.get(
+                    policy_id, True
+                )
         else:
             # No DejaVu session (no enabled policies) -- all pass
             for policy_id in self._policies:

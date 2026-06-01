@@ -13,6 +13,7 @@ from typing import Any
 from backend.config import get_config
 from backend.engine.dejavu_client import DejaVuClient, DejaVuError
 from backend.engine.grounding import LLMGrounding
+from backend.models.builtins import BUILTIN_USER_TURN
 from backend.models.policy import Policy, Proposition
 from backend.models.settings import GroundingSettings
 from backend.routers.policies import _row_to_proposition
@@ -223,7 +224,10 @@ async def _replay_message(
 ) -> MessageOutcome:
     """Run one message through the monitor pipeline."""
     verdict = await monitor.process_message(msg.role, msg.text)
-    composite_event = _composite_from_grounding(verdict.grounding_details)
+    composite_event = _composite_from_grounding(
+        verdict.grounding_details,
+        verdict.labeling,
+    )
     mismatches = _diff_verdicts(msg.expected_verdict, verdict.per_policy)
     return MessageOutcome(
         index=idx,
@@ -240,13 +244,19 @@ async def _replay_message(
     )
 
 
-def _composite_from_grounding(details: list[dict]) -> list[dict[str, Any]]:
+def _composite_from_grounding(
+    details: list[dict],
+    labeling: dict[str, bool] | None = None,
+) -> list[dict[str, Any]]:
     """Reconstruct the composite event sent to DejaVu from grounding details.
 
     Each instance becomes one event {prop_id, args:[canonical_form|mention,...]}.
     Mirrors Monitor._build_composite_for_dejavu's emission order.
     """
     events: list[dict[str, Any]] = []
+    if labeling and labeling.get(BUILTIN_USER_TURN):
+        events.append({"prop_id": BUILTIN_USER_TURN, "args": []})
+
     for detail in details:
         if not (detail.get("match") or detail.get("found")):
             continue

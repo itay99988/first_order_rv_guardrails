@@ -5,7 +5,7 @@
     "grounding_provider": "openrouter",
     "grounding_model": "mistralai/ministral-8b-2512",
     "few_shot_provider": "openrouter",
-    "few_shot_model": "anthropic/claude-haiku-4.5"
+    "few_shot_model": "anthropic/claude-sonnet-4.5"
   },
   "predicates": [
     {
