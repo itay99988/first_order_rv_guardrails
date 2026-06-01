@@ -1,0 +1,101 @@
+{
+  "scenario_id": "car-violate-003",
+  "description": "User changed from BMW to Audi (both at $25,000); the assistant still recommended a BMW, an old constraint that is no longer the latest request.",
+  "model": {
+    "grounding_provider": "openrouter",
+    "grounding_model": "mistralai/ministral-8b-2512",
+    "few_shot_provider": "openrouter",
+    "few_shot_model": "anthropic/claude-sonnet-4.6"
+  },
+  "predicates": [
+    {
+      "prop_id": "request_u",
+      "description": "the user states a preference for a specific car manufacturer and a maximum price (budget) they are willing to pay",
+      "role": "user",
+      "objects": [
+        {
+          "object_id": "o1",
+          "description": "the car manufacturer the user wants",
+          "entity_type": "manufacturer"
+        },
+        {
+          "object_id": "o2",
+          "description": "the maximum price, in US dollars, the user is willing to pay",
+          "entity_type": "number"
+        }
+      ]
+    },
+    {
+      "prop_id": "recommend_a",
+      "description": "the assistant recommends a specific used car of a given manufacturer at a given price",
+      "role": "assistant",
+      "objects": [
+        {
+          "object_id": "o1",
+          "description": "the manufacturer of the car the assistant recommends",
+          "entity_type": "manufacturer"
+        },
+        {
+          "object_id": "o2",
+          "description": "the price, in US dollars, of the car the assistant recommends",
+          "entity_type": "number"
+        }
+      ]
+    }
+  ],
+  "policies": [
+    {
+      "policy_id": "car-recommendation",
+      "name": "The assistant may only recommend a used car whose manufacturer matches the user's most recent request and whose price does not exceed the most recent stated budget",
+      "formula_str": "forall m . forall p . recommend_a(m, p) -> exists b . ( ( !(exists m2 . exists b2 . ( request_u(m2, b2) & (!(m2 = m) | !(b2 = b)) )) S request_u(m, b) ) & !(b < p) )"
+    }
+  ],
+  "related_objects": [
+    {
+      "policy_id": "car-recommendation",
+      "pairs": [
+        [
+          "request_u.o1",
+          "recommend_a.o1"
+        ]
+      ]
+    }
+  ],
+  "messages": [
+    {
+      "role": "user",
+      "text": "I'm torn between a couple of German brands. Let's begin with a BMW, budget around $25,000.",
+      "expected_verdict": {
+        "car-recommendation": true
+      }
+    },
+    {
+      "role": "assistant",
+      "text": "A solid starting point. BMW used values have softened a bit, so $25,000 actually buys you a lot of car right now.",
+      "expected_verdict": {
+        "car-recommendation": true
+      }
+    },
+    {
+      "role": "user",
+      "text": "Hmm, on reflection my mechanic warned me off older BMWs for the repair bills. Switch me to an Audi instead, same $25,000.",
+      "expected_verdict": {
+        "car-recommendation": true
+      }
+    },
+    {
+      "role": "assistant",
+      "text": "Tell you what, I still think this 2019 BMW 4 Series at $24,500 is too good to pass up, so let me put you in that one.",
+      "expected_verdict": {
+        "car-recommendation": false
+      }
+    },
+    {
+      "role": "user",
+      "text": "Were you listening? I just told you I moved off BMW and over to Audi.",
+      "expected_verdict": {
+        "car-recommendation": true
+      }
+    }
+  ]
+}

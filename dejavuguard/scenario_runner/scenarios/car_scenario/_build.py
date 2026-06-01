@@ -183,6 +183,21 @@ def _write_all():
     import re, statistics
     from collections import Counter
     SCENARIOS.sort(key=lambda s: s["scenario_id"])
+    # Rename to the same convention as the other sets: car-pass-NNN / car-violate-NNN,
+    # numbered separately per label, with the filename encoding pass vs violate.
+    pass_i = viol_i = 0
+    for s in SCENARIOS:
+        if s["_label"] == "violation":
+            viol_i += 1
+            s["scenario_id"] = f"car-violate-{viol_i:03d}"
+        else:
+            pass_i += 1
+            s["scenario_id"] = f"car-pass-{pass_i:03d}"
+    # drop any previously-written files (old scenario_NNN.json or stale names)
+    for old in HERE.glob("scenario_*.json"):
+        old.unlink()
+    for old in HERE.glob("car-*.json"):
+        old.unlink()
     counts = []
     dupes = []
     seen: dict[str, str] = {}
