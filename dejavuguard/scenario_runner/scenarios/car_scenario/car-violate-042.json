@@ -71,7 +71,7 @@
     },
     {
       "role": "assistant",
-      "text": "The XC40 is the cool-but-safe small Volvo — Scandinavian inside, sensible everywhere else. $28,000 gets a nice one.",
+      "text": "The XC40 is the cool-but-safe small Volvo — Scandinavian inside, sensible everywhere else, and a nice one is well within reach.",
       "expected_verdict": {
         "car-recommendation": true
       }

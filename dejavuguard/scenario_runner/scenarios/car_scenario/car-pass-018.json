@@ -64,49 +64,35 @@
   "messages": [
     {
       "role": "user",
-      "text": "Used Subaru, $19,000 ceiling.",
+      "text": "I want a used Tesla, but how much I'll spend depends on the model: for a Model 3 I'd pay up to $30,000, and for the bigger Model Y I'd stretch to $42,000.",
       "expected_verdict": {
         "car-recommendation": true
       }
     },
     {
       "role": "assistant",
-      "text": "Subaru at $19,000 keeps you in genuinely capable all-wheel-drive territory. Is this for rough roads, snow, or just the reassurance of grip?",
+      "text": "Two clear lanes, that's helpful. The car I'd actually steer you toward is a 2022 Model Y Long Range, 24k miles, at $39,800 — it's inside your Model-Y figure and, frankly, the stronger buy of the two body styles right now.",
       "expected_verdict": {
         "car-recommendation": true
       }
     },
     {
       "role": "user",
-      "text": "Bit of everything — I'm up a hill that gets icy and I like not thinking about it.",
+      "text": "That's under my Model-Y number and the model I was leaning toward anyway. Does it have the tow hitch and the heat pump?",
       "expected_verdict": {
         "car-recommendation": true
       }
     },
     {
       "role": "assistant",
-      "text": "Then Subaru is exactly the right answer, because not-thinking-about-it is precisely what they sell. The Crosstrek and the Impreza both fit.",
+      "text": "Both fitted — the factory tow package for a small trailer or bike rack, and the heat pump that keeps the winter range respectable.",
       "expected_verdict": {
         "car-recommendation": true
       }
     },
     {
       "role": "user",
-      "text": "The higher one, if there is one. I'd rather not scrape over the ruts.",
-      "expected_verdict": {
-        "car-recommendation": true
-      }
-    },
-    {
-      "role": "assistant",
-      "text": "That's the Crosstrek — extra clearance over the Impreza. Here's yours: a 2019 Subaru Crosstrek Premium, 37k miles, at $17,900, well under your number.",
-      "expected_verdict": {
-        "car-recommendation": true
-      }
-    },
-    {
-      "role": "user",
-      "text": "Under budget and the higher-clearance one. That'll get me up the icy hill without a second thought.",
+      "text": "Tow hitch, heat pump, and comfortably inside my bigger budget. That's the one — let's get it charged and out on the road.",
       "expected_verdict": {
         "car-recommendation": true
       }

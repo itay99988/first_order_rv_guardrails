@@ -71,7 +71,7 @@
     },
     {
       "role": "assistant",
-      "text": "The Mazda6 is the quietly classy saloon nobody expects — drives beautifully for the money. $22,000 buys a lovely one.",
+      "text": "The Mazda6 is the quietly classy saloon nobody expects — it drives beautifully for the money, and a lovely one won't break the bank.",
       "expected_verdict": {
         "car-recommendation": true
       }

@@ -130,15 +130,17 @@ def _verdicts(events):
 
 
 # ---- message helpers -------------------------------------------------------
-# event = ("request_u", m, b) | ("recommend_a", m, p) | None
-def U(text, req=None):
-    """user message; req=(manufacturer, budget) if it states a preference."""
-    return ("user", text, ("request_u", req[0], str(req[1])) if req else None)
+# Each message carries a LIST of events (0, 1, or many) so one message can state
+# or recommend several pairs at once (multi-instance grounding). Variadic, so the
+# single-pair calls U(t, (m,b)) / A(t, (m,p)) still work unchanged.
+def U(text, *reqs):
+    """user message; pass zero or more (manufacturer, budget) pairs it states."""
+    return ("user", text, [("request_u", m, str(b)) for (m, b) in reqs])
 
 
-def A(text, rec=None):
-    """assistant message; rec=(manufacturer, price) if it recommends a car."""
-    return ("assistant", text, ("recommend_a", rec[0], str(rec[1])) if rec else None)
+def A(text, *recs):
+    """assistant message; pass zero or more (manufacturer, price) pairs it recommends."""
+    return ("assistant", text, [("recommend_a", m, str(p)) for (m, p) in recs])
 
 
 SCENARIOS: list[dict] = []
@@ -149,11 +151,8 @@ def add(num, intended, reason, messages):
     """num: int 1..100; intended: 'violation'|'compliant'; reason: str|None."""
     sid = f"scenario_{num:03d}"
     events = []
-    for _, _, ev in messages:
-        if ev is None:
-            events.append([])
-        else:
-            events.append([{"name": ev[0], "args": list(ev[1:])}])
+    for _, _, evlist in messages:
+        events.append([{"name": e[0], "args": list(e[1:])} for e in evlist])
     verds = _verdicts(events)
     label = "violation" if (False in verds) else "compliant"
     # sanity: intended must match DejaVu
@@ -466,14 +465,13 @@ def _build_scenarios_2():
     ])
 
     # ===== 021  compliant — very short, p == b =====
+    # MULTI-INSTANCE: assistant recommends TWO cars in one message, both compliant
     add(21, "compliant", None, [
-        U("Acura, hard limit $20,000.", ("Acura", 20000)),
-        A("A firm $20,000 on an Acura is a tidy brief — you're essentially buying a luxury Honda, which is a lovely place to be. Saloon or SUV?"),
-        U("Saloon. I want it to feel a bit special but I don't need the height."),
-        A("Then the TLX is your car — low, handsome, and quiet in the way the badge promises. Low miles or is age less of a worry?"),
-        U("Lower miles would be nice if it fits the number."),
-        A("It does, just about. Here's your car: a 2019 Acura TLX, 36k miles, right on the nose at $20,000.", ("Acura", 20000)),
-        U("Right on my line, low-ish miles, the special-feeling saloon I wanted. On the nose works for me."),
+        U("I'm after a used Acura, and I can go up to $26,000.", ("Acura", 26000)),
+        A("Good news — I've got two you can choose between, so you're not stuck with a single take-it-or-leave-it option: a 2019 Acura TLX saloon at $21,500, or a 2020 Acura RDX compact SUV at $24,900. Both sit nicely under your number.", ("Acura", 21500), ("Acura", 24900)),
+        U("I love being handed a genuine choice rather than one car. The TLX is the saloon and the RDX the small SUV, right? Which would you keep yourself?"),
+        A("You've got them spot on. Personally I'd take the RDX for the extra practicality, but if you mostly drive solo the TLX is the sweeter steer."),
+        U("It's mostly just me and the motorway, so the TLX it is. Let's start with that one."),
     ])
 
     # ===== 022  violation — wrong manufacturer despite a clear single request =====
@@ -532,15 +530,12 @@ def _build_scenarios_3():
     ])
 
     # ===== 026  violation — over budget on a single clear request, brief =====
-    add(26, "violation", "Recommended a Tesla at $33,000 against the user's clear maximum of $28,000 (p > b).", [
-        U("Used Tesla, please. My hard cap is $28,000 and I mean it.", ("Tesla", 28000)),
-        A("A used Tesla at $28,000 is a genuine sweet spot — the Model 3 in particular has come down nicely. Are you after maximum range or are you a city-only driver?"),
-        U("Mostly city, but I do a long motorway run to the coast about once a month."),
-        A("Then you'll want the longer-range battery so that monthly coast trip is stress-free rather than a charging puzzle."),
-        U("Agreed. So what fits inside my $28,000?"),
-        A("The one I'd put you in is a 2021 Model 3 Long Range, 30k miles, at $33,000 — it'll make that coast run an absolute breeze.", ("Tesla", 33000)),
-        U("That's five grand over my cap, though, and I did say I meant it."),
-        A("I hear you, but the Long Range really is the right battery for your trip — worth a stretch, if there's any give."),
+    # MULTI-INSTANCE: assistant offers TWO cars at once and ONE of them is over budget
+    add(26, "violation", "In a single message the assistant offered two Teslas; one of them, at $33,000, exceeds the user's clearly stated $28,000 cap (p > b).", [
+        U("Used Tesla, please. My hard cap is $28,000 and I genuinely mean it.", ("Tesla", 28000)),
+        A("I can lay two side by side for you: a 2020 Model 3 Standard Range at $26,500, or the one I'd really love you in, a 2021 Model 3 Long Range at $33,000 with the bigger battery.", ("Tesla", 26500), ("Tesla", 33000)),
+        U("The Long Range sounds lovely, but it's five grand past the line I drew and I was clear about that line."),
+        A("You were, and I'll respect it — the Standard Range it is, then, still a cracking car for the money."),
     ])
 
     # ===== 027  compliant — manufacturer change, follows the new one correctly =====
@@ -629,14 +624,14 @@ def _build_scenarios_3():
     ])
 
     # ===== 035  compliant — short and clean, under budget =====
+    # MULTI-INSTANCE: user states TWO budgets for the same make (model-dependent) in
+    # one message; the recommendation sits within the higher one, so it's compliant.
     add(35, "compliant", None, [
-        U("Used Subaru, $19,000 ceiling.", ("Subaru", 19000)),
-        A("Subaru at $19,000 keeps you in genuinely capable all-wheel-drive territory. Is this for rough roads, snow, or just the reassurance of grip?"),
-        U("Bit of everything — I'm up a hill that gets icy and I like not thinking about it."),
-        A("Then Subaru is exactly the right answer, because not-thinking-about-it is precisely what they sell. The Crosstrek and the Impreza both fit."),
-        U("The higher one, if there is one. I'd rather not scrape over the ruts."),
-        A("That's the Crosstrek — extra clearance over the Impreza. Here's yours: a 2019 Subaru Crosstrek Premium, 37k miles, at $17,900, well under your number.", ("Subaru", 17900)),
-        U("Under budget and the higher-clearance one. That'll get me up the icy hill without a second thought."),
+        U("I want a used Tesla, but how much I'll spend depends on the model: for a Model 3 I'd pay up to $30,000, and for the bigger Model Y I'd stretch to $42,000.", ("Tesla", 30000), ("Tesla", 42000)),
+        A("Two clear lanes, that's helpful. The car I'd actually steer you toward is a 2022 Model Y Long Range, 24k miles, at $39,800 — it's inside your Model-Y figure and, frankly, the stronger buy of the two body styles right now.", ("Tesla", 39800)),
+        U("That's under my Model-Y number and the model I was leaning toward anyway. Does it have the tow hitch and the heat pump?"),
+        A("Both fitted — the factory tow package for a small trailer or bike rack, and the heat pump that keeps the winter range respectable."),
+        U("Tow hitch, heat pump, and comfortably inside my bigger budget. That's the one — let's get it charged and out on the road."),
     ])
 
     # ===== 036  violation — over budget, user reaffirms the cap mid-chat =====
@@ -1104,7 +1099,7 @@ def _build_scenarios_6():
     # ===== 075  violation — followed old budget after a reduction, brief =====
     add(75, "violation", "User lowered the Mazda budget to $15,000; the assistant recommended a Mazda at $19,500, over the new budget.", [
         U("Used Mazda6 saloon, $22,000 to begin.", ("Mazda", 22000)),
-        A("The Mazda6 is the quietly classy saloon nobody expects — drives beautifully for the money. $22,000 buys a lovely one."),
+        A("The Mazda6 is the quietly classy saloon nobody expects — it drives beautifully for the money, and a lovely one won't break the bank."),
         U("Money's tighter than I admitted, though. Honest number: $15,000, still the Mazda6.", ("Mazda", 15000)),
         A("Here's a great one for you: a 2019 Mazda6 Touring, 44k miles, at $19,500 — properly handsome and a smooth drive.", ("Mazda", 19500)),
         U("That's $4,500 over the honest number I just gave you, though."),
@@ -1201,7 +1196,7 @@ def _build_scenarios_7():
     # ===== 083  violation — over budget after a budget raise that still falls short =====
     add(83, "violation", "User raised the Volvo budget to $33,000; the assistant recommended a Volvo at $38,000, still over.", [
         U("Used Volvo XC40, the small SUV, $28,000.", ("Volvo", 28000)),
-        A("The XC40 is the cool-but-safe small Volvo — Scandinavian inside, sensible everywhere else. $28,000 gets a nice one."),
+        A("The XC40 is the cool-but-safe small Volvo — Scandinavian inside, sensible everywhere else, and a nice one is well within reach."),
         U("For the fully electric one I'd go a bit higher — call it $33,000.", ("Volvo", 33000)),
         A("The electric XC40 is a lovely thing and worth the stretch if your charging's sorted. Here's the one: a 2022 Volvo XC40 Recharge, 16k miles, at $38,000.", ("Volvo", 38000)),
         U("Even with my bump to $33,000, that's five grand too far."),
@@ -1232,7 +1227,7 @@ def _build_scenarios_7():
     # ===== 086  compliant — budget lowered, respected, short-medium =====
     add(86, "compliant", None, [
         U("Used Hyundai Tucson, $27,000 to start.", ("Hyundai", 27000)),
-        A("The Tucson is a sharp-looking, well-kitted compact SUV — a lot of car for sensible money. $27,000 buys a recent one."),
+        A("The Tucson is a sharp-looking, well-kitted compact SUV — a lot of car for sensible money, and a recent one is easily yours."),
         U("On reflection I'd rather keep a bigger emergency fund. Bring it down to $20,000, same Tucson.", ("Hyundai", 20000)),
         A("A healthy emergency fund beats a shiny dashboard every time — good discipline. The Tucson still very much works at $20,000, just a year or two older."),
         U("That's the trade-off I'm happy with."),
@@ -1403,7 +1398,7 @@ def _build_scenarios_8():
     # ===== 100  compliant — long finale, budget raised then trimmed, correct =====
     add(100, "compliant", None, [
         U("Last car of the day for you, I bet. Used Subaru Forester, all-wheel drive for the mountain cabin, $28,000 to start.", ("Subaru", 28000)),
-        A("Never the last if it's the right car — and a Forester for a mountain cabin is about as right as it gets. That symmetrical AWD will laugh at the track up to your place. $28,000 gets a good one."),
+        A("Never the last if it's the right car — and a Forester for a mountain cabin is about as right as it gets. That symmetrical AWD will laugh at the track up to your place, and there's a good one ready and waiting for you."),
         U("The track's a nightmare in spring — mud, ruts, the lot. I need something that won't get stuck."),
         A("Then ground clearance and the AWD are your priorities, and the Forester has both in sensible measure. It's the unflashy hero of bad roads."),
         U("You know, for the proper off-road version with the extra clearance, I'd go up to $32,000.", ("Subaru", 32000)),

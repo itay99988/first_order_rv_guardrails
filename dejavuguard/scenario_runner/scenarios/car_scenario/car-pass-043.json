@@ -71,7 +71,7 @@
     },
     {
       "role": "assistant",
-      "text": "The Tucson is a sharp-looking, well-kitted compact SUV — a lot of car for sensible money. $27,000 buys a recent one.",
+      "text": "The Tucson is a sharp-looking, well-kitted compact SUV — a lot of car for sensible money, and a recent one is easily yours.",
       "expected_verdict": {
         "car-recommendation": true
       }

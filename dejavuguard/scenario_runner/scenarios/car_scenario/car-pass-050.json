@@ -71,7 +71,7 @@
     },
     {
       "role": "assistant",
-      "text": "Never the last if it's the right car — and a Forester for a mountain cabin is about as right as it gets. That symmetrical AWD will laugh at the track up to your place. $28,000 gets a good one.",
+      "text": "Never the last if it's the right car — and a Forester for a mountain cabin is about as right as it gets. That symmetrical AWD will laugh at the track up to your place, and there's a good one ready and waiting for you.",
       "expected_verdict": {
         "car-recommendation": true
       }
