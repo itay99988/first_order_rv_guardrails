@@ -506,8 +506,8 @@ Return only this JSON form:
             {{
               "object_id": "o1",
               "mention": "exact substring from text",
+              "canonical_source": {{"type": "new"}},
               "canonical_form": "normalized value",
-              "canonical_source": {{"type": "new"}}
             }}
           ]
         }}

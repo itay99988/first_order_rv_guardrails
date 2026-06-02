@@ -31,10 +31,14 @@ Output valid JSON only. No markdown."""
 
 
 INSTANCE_RULES = """Instance rules:
-- One instance per entity/pair satisfying the predicate. "A and B" -> two instances, never one.
-- If the same entity appears under different names in the message, each distinct mention is its own instance.
-- mention = exact span from the MESSAGE TEXT, not from history.
-- Canonical: use both related_object_context and related_object_history. If the current mention represents the same policy-relevant value as a history item, copy that canonical_form exactly and set canonical_source to {"type": "history", "matched_history_index": N}, even when the mention wording differs (for example, tahini can map to sesame in an allergy/ingredient relationship). Otherwise {"type": "new"}."""
+One instance per entity/pair satisfying the predicate. "A and B" -> two instances, never one.
+If the same entity appears under different names in the message, each distinct mention is its own instance.
+mention = exact span from the MESSAGE TEXT.
+-canonical_form = the value used to compare this mention with objects in related predicates. Determine it using BOTH related_object_context and related_object_history.
+The related-object context explains why objects are comparable. Use that relationship when normalization depends on the policy meaning rather than ordinary naming.
+The default is to reuse (copy) a canonical_form from related_object_history when the current mention denotes or implies the same value in the related-object context, even if the surface words differ. A new value for a  canonical_form should be used only when no canonical_form from history matches. 
+canonical_source = {"type": "history", "matched_history_index": N} for history matches, {"type": "new"} otherwise.
+**important: if you decided that a canonical_source is of "type": "history", then the current canonical_form cannot contain a new value!! Make sure this applies to all the generated canonical forms. if you decided that canonical_source is of {"type": "history"}, then the corresponding canonical_form must be copied from related object history, even if the few shot examples tell something else.  **"""
 
 
 USER_MESSAGE_PROMPT = """You are grounding a USER message.
