@@ -128,6 +128,14 @@ async def _resolve_few_shots(
     return examples, datetime.now(UTC).isoformat()
 
 
+# Predicates whose few-shots have already been (re)generated in THIS process
+# run (i.e. this batch). Each batch is a fresh process, so this resets per
+# batch. Under --overwrite, the first scenario that touches a predicate
+# regenerates its few-shots; later scenarios in the same batch reuse them
+# instead of paying the chat model again.
+_FEWSHOTS_REFRESHED_THIS_RUN: set[str] = set()
+
+
 async def ensure_predicate(
     db: DatabaseStore,
     pred: ScenarioPredicate,
@@ -151,6 +159,7 @@ async def ensure_predicate(
             few_shot_examples=examples,
             few_shot_generated_at=generated_at,
         )
+        _FEWSHOTS_REFRESHED_THIS_RUN.add(pred.prop_id)
         return "created"
 
     stored = _row_predicate_shape(row)
@@ -169,10 +178,16 @@ async def ensure_predicate(
                     few_shot_examples=pred.few_shot_examples,
                     few_shot_generated_at=datetime.now(UTC).isoformat(),
                 )
+                _FEWSHOTS_REFRESHED_THIS_RUN.add(pred.prop_id)
                 return "updated"
-            # If the chat model is unavailable, surface the error rather
-            # than silently keeping stale few-shots — the user explicitly
-            # asked for a refresh via --overwrite.
+            # Already regenerated once this batch — reuse the stored few-shots
+            # rather than paying the chat model again for every scenario.
+            if pred.prop_id in _FEWSHOTS_REFRESHED_THIS_RUN:
+                return "reused"
+            # First scenario of the batch to touch this predicate: regenerate
+            # via the chat model. If it is unavailable, surface the error
+            # rather than silently keeping stale few-shots — the user
+            # explicitly asked for a refresh via --overwrite.
             examples, generated_at = await _resolve_few_shots(
                 db, pred, scenario_few_shot_model
             )
@@ -181,6 +196,7 @@ async def ensure_predicate(
                 few_shot_examples=examples,
                 few_shot_generated_at=generated_at,
             )
+            _FEWSHOTS_REFRESHED_THIS_RUN.add(pred.prop_id)
             return "updated"
         return "reused"
 

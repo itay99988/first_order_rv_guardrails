@@ -159,12 +159,38 @@ def _exit_code(results: Iterable[RunResult]) -> int:
     return 0
 
 
+def _slug(value: object, max_len: int) -> str:
+    """Filesystem-safe slug for a batch-dir name component."""
+    import re
+    return re.sub(r"[^A-Za-z0-9._-]+", "-", str(value)).strip("-")[:max_len] or "x"
+
+
 async def _main_async(args: argparse.Namespace) -> int:
     paths = _collect_scenario_paths(args)
 
     timestamp = datetime.now()
-    batch_dir = Path(args.log_dir) / f"batch__{timestamp.strftime('%Y%m%d-%H%M%S')}"
+
+    # Encode the scenario set and the grounding model in the batch-dir name so
+    # batches are self-describing (e.g. batch__ministral-8b__recovery__<ts>).
+    scn_name = Path(args.dir).name if args.dir else (
+        paths[0].parent.name if paths else "scenarios"
+    )
+    model_label = args.grounding  # CLI override wins
+    if not model_label:
+        try:
+            model_label = load_scenario(paths[0]).model.grounding_model
+        except Exception:
+            model_label = getattr(get_config(), "grounding_model", "") or "model"
+
+    batch_dir = Path(args.log_dir) / (
+        f"batch__{_slug(model_label, 60)}__{_slug(scn_name, 40)}__"
+        f"{timestamp.strftime('%Y%m%d-%H%M%S')}"
+    )
     batch_dir.mkdir(parents=True, exist_ok=True)
+    # Have the grounding engine dump each predicate's prompt (once per batch)
+    # into this batch's log folder.
+    import os as _os
+    _os.environ["GROUNDING_PROMPT_DIR"] = str(batch_dir / "prompts")
 
     config = get_config()
     db = DatabaseStore(config.database_path)

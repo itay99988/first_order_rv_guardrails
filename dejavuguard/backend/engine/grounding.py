@@ -31,6 +31,40 @@ DEFAULT_USER_PROMPT_TEMPLATE_USER = DEFAULT_GROUNDING_USER_PROMPT_TEMPLATE_USER
 DEFAULT_USER_PROMPT_TEMPLATE_ASSISTANT = DEFAULT_GROUNDING_USER_PROMPT_TEMPLATE_ASSISTANT
 
 
+# Predicates whose grounding prompt has already been dumped to the batch log
+# this process run. We write one complete prompt per predicate (system + the
+# first user prompt, which embeds the few-shot block) the first time that
+# predicate is grounded — i.e. once, for the whole batch.
+_PROMPT_SEEN: set[str] = set()
+
+
+def _save_grounding_prompt(prop_id: str, system_prompt: str, user_prompt: str) -> None:
+    """If GROUNDING_PROMPT_DIR is set (the runner points it at the batch log
+    folder), save the grounding prompt for this predicate to <prop_id>.txt.
+
+    Written exactly once per predicate per batch: the system prompt plus the
+    first user prompt (which already embeds the generated few-shot examples).
+    Subsequent messages and scenarios are skipped, so the file stays a single
+    clean representative prompt rather than one entry per message."""
+    import os
+    d = os.environ.get("GROUNDING_PROMPT_DIR")
+    if not d or prop_id in _PROMPT_SEEN:
+        return
+    _PROMPT_SEEN.add(prop_id)
+    try:
+        os.makedirs(d, exist_ok=True)
+        path = os.path.join(d, f"{prop_id}.txt")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("=" * 80 + f"\nGROUNDING PROMPT — predicate '{prop_id}'\n")
+            f.write("(saved once per batch, from the first scenario that grounds "
+                    "this predicate; few-shot examples are embedded in the user "
+                    "prompt)\n" + "=" * 80)
+            f.write("\n\n----- SYSTEM PROMPT -----\n" + system_prompt + "\n")
+            f.write("\n----- USER PROMPT -----\n" + user_prompt + "\n")
+    except Exception:
+        pass  # prompt logging must never break grounding
+
+
 # GroundingResult
 
 
@@ -186,6 +220,8 @@ class LLMGrounding(GroundingMethod):
                 related_object_context_block=related_object_context_block,
                 related_object_history_block=related_object_history_block,
             )
+
+            _save_grounding_prompt(proposition.prop_id, system_prompt, user_prompt)
 
             print(  # noqa: T201 - user-facing debug visibility for grounding prompts.
                 "\n[Grounding] RELATED_OBJECT_CONTEXT_BLOCK "
