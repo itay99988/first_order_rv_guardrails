@@ -1,16 +1,34 @@
-# Grounding Dataset With Instances And Canonical Forms
+# Extended Grounding Dataset
 
-This directory contains the dataset construction tools and retained datasets
-for the first-order grounding task used in this repository. A grounding model
-receives a message, a predicate definition, its objects, and any related-object
-context and history. It must determine whether the predicate is expressed and,
-when it is expressed, return every grounded instance with exact mentions and
+This directory contains the data-generation pipeline and retained datasets for
+the grounding task used in *First-Order Temporal Guardrails for LLMs*.
+
+The task is: given a message, a first-order predicate definition, the predicate
+objects, related-object context, and conversation-local related-object history,
+determine whether the message satisfies the predicate. If it does, the output
+must list every grounded predicate instance, including exact object mentions and
 canonical forms.
 
-Cloud-based evaluation has been moved to `../cloud_grounding_eval/`. Local GPU
-model evaluation has been moved to `../gpu_grounding_eval/`.
+Cloud-based evaluation scripts are in `../cloud_grounding_eval/`. Local GPU
+evaluation scripts are in `../gpu_grounding_eval/`.
 
-## Record Format
+## Connection To The Paper
+
+The paper uses three main datasets from this directory:
+
+| Paper role | Directory | Description |
+| --- | --- | --- |
+| Calibration / development set | `training.set.646/` | 646 examples used for prompt optimization, calibration, and error analysis during prompt development. This is not the final reported test set. |
+| Final grounding test set | `test+ood.set.1295/` | 1,295 validated examples used as the main grounding test set. It merges the in-distribution test collection with an out-of-distribution collection. |
+| Fine-tuning set | `opus.ft.set.5000/` | 5,000 supervised input/output examples used for fine-tuning experiments. The directory also contains a validation file for model selection or training diagnostics. |
+
+The final test set contains 1,295 message-predicate records spanning 163
+distinct predicates and 19 domains. It includes both user and assistant
+messages, positive and negative predicate matches, single-instance and
+multi-instance records, and examples where canonical forms must be selected
+from related-object history.
+
+## Grounding Record Format
 
 Each JSONL record contains:
 
@@ -22,12 +40,12 @@ Each JSONL record contains:
 | `predicate_id` | Identifier of the predicate being checked. |
 | `predicate_description` | Declarative natural-language definition of the predicate. |
 | `predicate_role` | Role whose messages can satisfy the predicate. |
-| `objects` | Required predicate objects, including `object_id`, description, and entity type. |
+| `objects` | Required predicate objects, including `object_id`, `description`, and usually `entity_type`. |
 | `category`, `domain` | Data-generation metadata. |
 | `related_object_context` | Related predicate/object positions that may guide canonicalization. |
 | `related_object_history` | Previous related mentions and their canonical forms. |
-| `found` | Whether the current message expresses the predicate. |
-| `instances` | Complete grounded tuples, present only when `found` is `true`. |
+| `found` | Whether the current message expresses the predicate. This is the second-to-last top-level field. |
+| `instances` | Complete grounded tuples. Present only when `found` is `true`; this is the last top-level field. |
 
 A positive record has one or more instances:
 
@@ -67,9 +85,9 @@ A positive record has one or more instances:
 }
 ```
 
-A negative record ends at `found: false`; it does not include `instances`.
+A negative record ends with `"found": false` and does not include `instances`.
 
-Each instance is one complete occurrence of the predicate. Each required
+Each instance is one complete occurrence of the predicate. Every required
 `object_id` must occur exactly once inside that instance. `mention` must be an
 exact substring of `text`.
 
@@ -86,29 +104,46 @@ Canonical forms use one of these sources:
 For a history-based canonical form, the value must equal
 `related_object_history[matched_history_index].canonical_form`.
 
+## Dataset Inventory
+
+| Directory | Role |
+| --- | --- |
+| `training.set.646/` | Paper calibration/development set. `training.set.jsonl` contains 646 records across 82 predicates; `training.set.few.shot.json` contains demonstrations for those predicates. |
+| `test.set.1045/` | In-distribution evaluation subset. `dataset.validated.jsonl` contains 1,045 records across 131 predicates. |
+| `ood.test.set.250/` | Out-of-distribution evaluation subset. `dataset.validated.jsonl` contains 250 records across 32 predicates. |
+| `test+ood.set.1295/` | Paper test set. `dataset.validated.jsonl` contains 1,295 validated records across 163 predicates; `few_shot_examples.json` contains matching predicate-specific demonstrations. |
+| `opus.ft.set.5000/` | Paper fine-tuning set. `dataset.jsonl` contains 5,000 records across 559 predicates; `validation_set.jsonl` contains 1,000 validation records. |
+| `few_shot_grounding_experiments_results/` | Saved prompting-experiment reports, prompt-optimization artifacts, aggregate metrics, and analysis files. |
+
+Useful summary statistics for `test+ood.set.1295/`:
+
+| Statistic | Value |
+| --- | ---: |
+| Records | 1,295 |
+| Domains | 19 |
+| Predicates | 163 |
+| User-role records | 615 |
+| Assistant-role records | 680 |
+| Positive records | 712 |
+| Negative records | 583 |
+| Total grounded instances | 1,174 |
+| Positive records with multiple instances | 402 |
+| Object mentions | 2,282 |
+| Unique canonical forms | 1,317 |
+| History-sourced canonicalized mentions | 611 |
+
 ## Scripts
 
 | File | Purpose |
 | --- | --- |
 | `generate_extended_grounding_dataset.py` | Generates records from the main domains and optionally validates/filter them with another OpenRouter model. |
-| `generate_extended_grounding_dataset_new_domains.py` | Same generation and validation pipeline restricted to the out-of-distribution domains: travel and hospitality, government and public services, legal services, human resources and employment, and food and restaurants. |
+| `generate_extended_grounding_dataset_new_domains.py` | Same generation and validation pipeline restricted to the out-of-distribution domains used to build the OOD subset. |
 | `generate_few_shot_examples.py` | Generates three positive and three challenging negative demonstrations for each predicate in an existing dataset. |
-| `CLAUDE_DATASET_GUIDE.md` | Instructions for creating structurally compatible data with an external generation workflow. |
+| `CLAUDE_DATASET_GUIDE.md` | Instructions for creating structurally compatible records with an external generation workflow. |
 
 Both dataset generators use `openai/gpt-5.4` through OpenRouter by default.
 Their validator model defaults to `anthropic/claude-sonnet-4.6`. The few-shot
-generator also defaults to `openai/gpt-5.4`.
-
-## Datasets And Results
-
-| Directory | Current contents |
-| --- | --- |
-| `training.set.646/` | Development material for prompt optimization. `training.set.jsonl` contains 646 records across 82 predicates; `training.set.few.shot.json` contains demonstrations for all 82 predicates. |
-| `test.set.1045/` | Main evaluation collection. `dataset.validated.jsonl` contains 1,045 records across 131 predicates; its few-shot file covers all 131 predicates. Raw generation and prior evaluation logs are retained. |
-| `ood.test.set.250/` | Out-of-distribution evaluation collection. `dataset.validated.jsonl` contains 250 records across 32 predicates; its recorded few-shot generation succeeded for 31 predicates and failed for one. |
-| `test+ood.set.1295/` | Merged evaluation collection: 1,295 validated records across 163 predicates and a merged few-shot file containing 163 predicate entries. |
-| `opus.ft.set.5000/` | Fine-tuning collection: `dataset.jsonl` contains 5,000 records across 559 predicates; `validation_set.jsonl` contains 1,000 records across 116 predicates. A `.bak` copy of the dataset is retained. |
-| `few_shot_grounding_experiments_results/` | Saved prompting-experiment reports, aggregate metrics, and the prompt-optimization workflow artifacts. |
+generator also defaults to `openai/gpt-5.4` unless overridden.
 
 ## Requirements
 

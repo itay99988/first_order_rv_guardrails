@@ -4,9 +4,16 @@ Runtime verification for LLM conversations using first-order past-time temporal 
 
 DejaVuGuard is a monitored chat application. A user converses with an assistant model through OpenRouter, while a separate grounding model converts natural-language messages into canonicalized first-order events. These events are checked incrementally by [DejaVu](https://github.com/havelund/dejavu). If an active policy is violated, DejaVuGuard blocks the user message before it reaches the assistant, or blocks the assistant response before it reaches the user.
 
+This is the prototype implementation described in the paper *First-Order
+Temporal Guardrails for LLMs*. The dataset-generation and standalone grounding
+evaluation scripts used in the paper live outside this directory, under
+`../extended_grounding_dataset/`, `../cloud_grounding_eval/`, and
+`../gpu_grounding_eval/`.
+
 ## Current Capabilities
 
 - **First-order temporal policies** using quantified DejaVu predicates and past-time operators.
+- **Built-in turn predicate**: `user_turn` is true exactly at user-message positions and false at assistant-message positions.
 - **Role-specific grounding** for user and assistant messages.
 - **Structured grounding instances**: a single message may produce multiple instances of the same predicate.
 - **Canonical object forms**: extracted mentions are normalized before being forwarded to DejaVu.
@@ -94,6 +101,16 @@ npm run dev
 ```
 
 Open `http://localhost:5173`.
+
+## Scenario Runner
+
+The `scenario_runner/` package runs scripted conversations against the
+DejaVuGuard backend and records pass/fail reports, per-scenario logs, grounding
+details, and HTML/Markdown summaries. It is the easiest way to reproduce
+end-to-end monitoring scenarios after the backend and DejaVu services are
+available.
+
+See `scenario_runner/README.md` for the exact local and Docker-based commands.
 
 ## Environment Configuration
 
@@ -384,6 +401,8 @@ dejavuguard/
       components/               # Chat, policy, and settings views
       api/                      # Typed API client
       hooks/                    # UI state hooks
+  scenario_runner/              # Scripted end-to-end scenario execution
+  scripts/                      # Helper scripts for local and batch runs
   tests/                        # Backend and end-to-end tests
   docker-compose.yml
 ```

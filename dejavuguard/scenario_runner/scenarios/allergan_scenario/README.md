@@ -27,7 +27,7 @@ other 99 reuse them.
 From `LLMrv/dejavuguard/`:
 
 ```bash
-# wrapper handles docker-stop / restart for the macOS bind-mount quirk
+# wrapper runs inside the application container and uses saved UI settings
 ./scripts/run_scenarios.sh \
   --dir scenario_runner/scenarios/allergan_scenario/ \
   --overwrite
@@ -43,7 +43,7 @@ Or run a single scenario for spot-checks:
 ## Models used
 
 - **Grounding**: `mistralai/ministral-8b-2512` (OpenRouter)
-- **Few-shot generation**: `anthropic/claude-haiku-4.5` (OpenRouter)
+- **Few-shot generation**: `anthropic/claude-sonnet-4.5` (OpenRouter)
 
 Both are declared in every scenario's `model` block. The chat model
 configured in DejaVuGuard's Settings page is only used as a fallback;
@@ -62,3 +62,4 @@ uv run --project ../../.. python3 _generate.py
 Edit `_generate.py`'s `ALLERGENS`, `ALLERGY_PHRASINGS`,
 `RECIPE_PHRASINGS`, `SMALL_TALK_*`, `length_buckets`, or `random.seed(...)`
 to taste.
+
