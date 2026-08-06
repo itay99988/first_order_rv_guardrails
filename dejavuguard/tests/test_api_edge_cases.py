@@ -385,7 +385,7 @@ class TestPolicyValidation:
             json={"name": "Test", "formula_str": "H(p_nonexistent -> !q_comply)"},
         )
         assert resp.status_code == 422
-        assert "Unknown" in resp.json()["detail"]
+        assert "p_nonexistent" in resp.json()["detail"]
 
     @pytest.mark.asyncio
     async def test_formula_too_long_rejected(self, client, sample_props):
@@ -557,10 +557,26 @@ class TestSettingsEdgeCases:
 
     @pytest.mark.asyncio
     async def test_openrouter_models_without_api_key(self, client):
-        """GET /api/settings/openrouter/models returns 400 without API key."""
-        resp = await client.get("/api/settings/openrouter/models")
-        assert resp.status_code == 400
-        assert "API key" in resp.json()["detail"]
+        """GET /api/settings/openrouter/models works without an API key.
+
+        The OpenRouter models endpoint is public, so listing must not
+        require a configured key. The network call is mocked.
+        """
+        text_model = {
+            "id": "test/model-a",
+            "architecture": {
+                "input_modalities": ["text"],
+                "output_modalities": ["text"],
+            },
+        }
+        with patch(
+            "backend.routers.settings.OpenRouterClient.list_models",
+            new_callable=AsyncMock,
+            return_value=[text_model],
+        ):
+            resp = await client.get("/api/settings/openrouter/models")
+        assert resp.status_code == 200
+        assert resp.json()["models"] == [text_model]
 
 
 # Database Cascade Integrity

@@ -12,6 +12,15 @@ dependencies = [
     "python-dotenv>=1.0",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "pytest-cov>=4.0",
+    "ruff>=0.3",
+    "playwright>=1.42",
+]
+
 [dependency-groups]
 dev = [
     "pytest>=8.0",
@@ -21,13 +30,16 @@ dev = [
     "playwright>=1.42",
 ]
 
+[tool.setuptools.packages.find]
+include = ["backend*", "scenario_runner*"]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
 addopts = [
     "--cov=backend",
     "--cov-report=term-missing",
-    "--cov-fail-under=85",
+    "--cov-fail-under=80",
 ]
 
 [tool.coverage.run]

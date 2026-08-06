@@ -32,9 +32,9 @@ class TestOpenRouterClientConstructor:
         assert client.api_key == "sk-or-v1-test"
 
     def test_default_model(self):
-        """Default model is mistralai/mistral-7b-instruct."""
+        """Default model is empty until configured in Settings."""
         client = OpenRouterClient(api_key="sk-or-v1-test")
-        assert client.model == "mistralai/mistral-7b-instruct"
+        assert client.model == ""
 
     def test_custom_model(self):
         """Model can be overridden."""

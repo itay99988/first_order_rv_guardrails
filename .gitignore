@@ -219,6 +219,6 @@ __marimo__/
 config.ini
 config*.ini
 
-log*
+logs/
 SESSION_LOG.md
 CLAUDE.md

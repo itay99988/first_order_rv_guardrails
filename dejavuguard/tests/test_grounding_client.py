@@ -60,9 +60,9 @@ class TestOpenRouterGroundingAdapterConstructor:
         assert adapter.model == "claude-3"
 
     def test_default_model(self):
-        """Adapter uses default model when not specified."""
+        """Adapter model defaults to empty until configured in Settings."""
         adapter = OpenRouterGroundingAdapter(api_key="sk-test")
-        assert adapter.model == "mistralai/mistral-7b-instruct"
+        assert adapter.model == ""
 
     def test_creates_internal_client(self):
         """Adapter creates an OpenRouterClient internally."""

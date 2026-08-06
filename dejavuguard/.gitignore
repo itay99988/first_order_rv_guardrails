@@ -43,3 +43,6 @@ Thumbs.db
 # Playwright
 test-results/
 playwright-report/
+
+# Monitors synthesized by the bundled DejaVu server at runtime
+/src/
