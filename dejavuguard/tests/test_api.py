@@ -79,7 +79,7 @@ class TestSettingsAPI:
         assert resp.status_code == 200
         data = resp.json()
         assert data["openrouter_api_key"] == ""
-        assert data["openrouter_model"] == "mistralai/mistral-7b-instruct"
+        assert data["openrouter_model"] == ""
         assert data["grounding"]["provider"] == "ollama"
 
     @pytest.mark.asyncio
@@ -200,9 +200,22 @@ class TestSettingsAPI:
 
     @pytest.mark.asyncio
     async def test_openrouter_models_no_key(self, client):
-        """List OpenRouter models returns 400 when no API key configured."""
-        resp = await client.get("/api/settings/openrouter/models")
-        assert resp.status_code == 400
+        """Listing OpenRouter models needs no API key (public endpoint)."""
+        text_model = {
+            "id": "test/model-a",
+            "architecture": {
+                "input_modalities": ["text"],
+                "output_modalities": ["text"],
+            },
+        }
+        with patch(
+            "backend.routers.settings.OpenRouterClient.list_models",
+            new_callable=AsyncMock,
+            return_value=[text_model],
+        ):
+            resp = await client.get("/api/settings/openrouter/models")
+        assert resp.status_code == 200
+        assert resp.json()["models"] == [text_model]
 
     @pytest.mark.asyncio
     async def test_settings_openrouter_model_custom_round_trip(self, client):
@@ -358,7 +371,7 @@ class TestPropositionsAPI:
         }
         resp = await client.post("/api/propositions", json=body)
         assert resp.status_code == 201
-        data = resp.json()
+        data = resp.json()["proposition"]
         assert data["prop_id"] == "p_fraud"
         assert data["role"] == "user"
 
@@ -452,7 +465,7 @@ class TestPropositionsAPI:
         }
         resp = await client.post("/api/propositions", json=body)
         assert resp.status_code == 201
-        assert resp.json()["role"] == "assistant"
+        assert resp.json()["proposition"]["role"] == "assistant"
 
     @pytest.mark.asyncio
     async def test_list_multiple_propositions(self, client):
@@ -564,7 +577,7 @@ class TestPoliciesAPI:
             json={"name": "Bad", "formula_str": "H(p_nonexistent)"},
         )
         assert resp.status_code == 422
-        assert "Unknown propositions" in resp.json()["detail"]
+        assert "p_nonexistent" in resp.json()["detail"]
 
     @pytest.mark.asyncio
     async def test_create_policy_simple_true(self, client):
