@@ -1,6 +1,6 @@
 """Optimized prompt templates for instance-aware grounding."""
 
-SYSTEM_PROMPT = """You are a strict JSON-only extraction model for extended first-order grounding.
+HISTORY_SYSTEM_PROMPT = """You are a strict JSON-only extraction model for extended first-order grounding.
 
 Step 1 - decide found=true or found=false. Return found=false unless the message ACTIVELY AND EXPLICITLY performs the predicate right now. Specifically, return found=false when:
 - The message uses information-request framing to ask whether the predicate holds ("Can you tell me whether X", "Please confirm if X", "I need to confirm whether X", "Can you confirm if X")
@@ -13,6 +13,7 @@ Step 1 - decide found=true or found=false. Return found=false unless the message
 Note: the grammatical form does not determine found. Direct questions, tag questions, declarative statements, and checking expressions can all be found=true as long as the predicate relationship is directly expressed between explicitly named entities. In particular, for predicates that describe "the user asks about/for X", a direct question that queries that specific relationship ("Was X on Y?", "Is X at Y?") IS the predicate (found=true), as long as it is not phrased with information-request framing.
 
 Return found=true only when the message itself directly performs or states the predicate as a current, active fact.
+When judging the predicate, use both the conversation summary and the current message: the summary provides context for resolving references and intent, but the predicate must still be satisfied by the current message.
 
 Step 2 - if found=true, extract instances. Each instance is one complete predicate occurrence:
 - Scan the FULL message for EVERY occurrence of the predicate. Conjunctions like "and", "and also", "as well as" often introduce additional instances - extract each one separately.
@@ -41,10 +42,13 @@ canonical_source = {"type": "history", "matched_history_index": N} for history m
 **important: if you decided that a canonical_source is of "type": "history", then the current canonical_form cannot contain a new value!! Make sure this applies to all the generated canonical forms. if you decided that canonical_source is of {"type": "history"}, then the corresponding canonical_form must be copied from related object history, even if the few shot examples tell something else.  **"""
 
 
-USER_MESSAGE_PROMPT = """You are grounding a USER message.
+HISTORY_USER_MESSAGE_PROMPT = """You are grounding a USER message.
 
 Predicate information:
 {predicate_block}
+
+Conversation summary before the current message:
+{conversation_summary}
 
 Related object context:
 {related_object_context}
@@ -67,10 +71,13 @@ If not found: {"found": false}
 If found: {"found": true, "instances": [...]}"""
 
 
-ASSISTANT_MESSAGE_PROMPT = """You are grounding an ASSISTANT message.
+HISTORY_ASSISTANT_MESSAGE_PROMPT = """You are grounding an ASSISTANT message.
 
 Predicate information:
 {predicate_block}
+
+Conversation summary before the current message:
+{conversation_summary}
 
 Related object context:
 {related_object_context}
@@ -91,3 +98,51 @@ Message text:
 Return JSON only.
 If not found: {"found": false}
 If found: {"found": true, "instances": [...]}"""
+
+
+SINGLE_SYSTEM_PROMPT = HISTORY_SYSTEM_PROMPT.replace(
+    "When judging the predicate, use both the conversation summary and the current message: "
+    "the summary provides context for resolving references and intent, but the predicate "
+    "must still be satisfied by the current message.\n\n",
+    "",
+)
+
+SINGLE_USER_MESSAGE_PROMPT = HISTORY_USER_MESSAGE_PROMPT.replace(
+    "\nConversation summary before the current message:\n{conversation_summary}\n",
+    "",
+)
+
+SINGLE_ASSISTANT_MESSAGE_PROMPT = HISTORY_ASSISTANT_MESSAGE_PROMPT.replace(
+    "\nConversation summary before the current message:\n{conversation_summary}\n",
+    "",
+)
+
+# Backward-compatible names for existing imports. The runtime now chooses
+# explicitly between single-message and history-aware prompt settings.
+SYSTEM_PROMPT = HISTORY_SYSTEM_PROMPT
+USER_MESSAGE_PROMPT = HISTORY_USER_MESSAGE_PROMPT
+ASSISTANT_MESSAGE_PROMPT = HISTORY_ASSISTANT_MESSAGE_PROMPT
+
+
+SUMMARY_SYSTEM_PROMPT = """You update a concise conversation summary for a runtime verification grounding system.
+
+The summary is used only as prior context for grounding the next message. Keep facts that may help resolve references, aliases, entities, amounts, dates, constraints, user preferences, assistant commitments, and other policy-relevant context.
+
+Rules:
+- Include only delivered messages. The caller supplies only delivered messages.
+- Preserve concrete names, identifiers, amounts, dates, and constraints.
+- Keep the summary concise but specific.
+- The summary value must be natural-language text, not JSON, not a dictionary, not a list of fields, and not a schema.
+- Prefer short prose sentences. Bullets are acceptable only if they read like natural text.
+- Do not decide policy satisfaction or violation.
+- Return valid JSON only, with the natural-language summary inside the "summary" string: {"summary": "..."}"""
+
+
+SUMMARY_USER_PROMPT = """Previous conversation summary:
+{conversation_summary}
+
+New delivered message:
+{role}: {text}
+
+Update the summary so it represents the conversation after the new delivered message. Return JSON only:
+{"summary": "..."}"""

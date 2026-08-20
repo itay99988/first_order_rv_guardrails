@@ -13,6 +13,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from backend.engine.grounding import (
+    DEFAULT_SINGLE_SYSTEM_PROMPT,
     DEFAULT_SYSTEM_PROMPT,
     DEFAULT_USER_PROMPT_TEMPLATE_ASSISTANT,
     DEFAULT_USER_PROMPT_TEMPLATE_USER,
@@ -254,7 +255,7 @@ class TestLLMGroundingEvaluateSuccess:
         ) as mock_chat:
             await grounding.evaluate(user_message, fraud_prop)
             call_args = mock_chat.call_args
-            assert call_args[0][0] == grounding.system_prompt
+            assert call_args[0][0] == DEFAULT_SINGLE_SYSTEM_PROMPT
 
     @pytest.mark.asyncio
     async def test_evaluate_user_prompt_contains_description(
@@ -510,8 +511,13 @@ class TestLLMGroundingPromptFormatting:
     @pytest.mark.asyncio
     async def test_custom_system_prompt_used(self, grounding):
         """Custom system prompt is passed to the LLM."""
-        grounding.system_prompt = "Custom classifier prompt"
-        prop = Proposition(prop_id="p_test", description="test", role="user")
+        grounding.history_system_prompt = "Custom classifier prompt"
+        prop = Proposition(
+            prop_id="p_test",
+            description="test",
+            role="user",
+            grounding_scope="conversation_history",
+        )
         msg = MessageEvent(role="user", text="hello", index=0)
         llm_response = '{"match": false, "confidence": 0.1, "reasoning": "no"}'
         with patch.object(

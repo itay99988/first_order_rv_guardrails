@@ -6,6 +6,7 @@ import pytest
 
 from backend.engine.dejavu_client import DejaVuVerdict
 from backend.engine.grounding import (
+    ConversationSummaryUpdater,
     DEFAULT_SYSTEM_PROMPT,
     DEFAULT_USER_PROMPT_TEMPLATE_ASSISTANT,
     DEFAULT_USER_PROMPT_TEMPLATE_USER,
@@ -85,6 +86,16 @@ class RecordingDejaVuClient:
         return True
 
 
+class RejectingDejaVuClient(RecordingDejaVuClient):
+    async def send_events(self, session_id: str, events: list[dict]) -> DejaVuVerdict:
+        self.events.append(events)
+        return DejaVuVerdict(
+            event_number=len(self.events),
+            verdicts={"pol_policy_1": False},
+            violations=[],
+        )
+
+
 class MultiInstanceGrounding(GroundingMethod):
     async def evaluate(
         self,
@@ -132,6 +143,59 @@ class MultiInstanceGrounding(GroundingMethod):
                 },
             ],
         )
+
+
+class SummaryRecordingGrounding(GroundingMethod):
+    def __init__(self, match: bool = True) -> None:
+        self.match = match
+        self.calls: list[dict] = []
+
+    async def evaluate(
+        self,
+        message: MessageEvent,
+        proposition: Proposition,
+        related_object_context_block: str = "NONE",
+        related_object_history_block: str = "NONE",
+        conversation_summary_block: str = "NONE",
+        grounding_scope: str | None = None,
+    ) -> GroundingResult:
+        self.calls.append({
+            "prop_id": proposition.prop_id,
+            "summary": conversation_summary_block,
+            "grounding_scope": grounding_scope,
+        })
+        return GroundingResult(
+            match=self.match,
+            confidence=1.0 if self.match else 0.0,
+            reasoning="summary test",
+            method="test",
+            prop_id=proposition.prop_id,
+        )
+
+
+class FakeSummaryUpdater:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, str, str]] = []
+
+    async def update(self, previous_summary: str, role: str, text: str) -> str:
+        self.calls.append((previous_summary, role, text))
+        return f"{previous_summary}|{role}: {text}".strip("|")
+
+
+class FakeSummaryClient:
+    def __init__(self, response: str) -> None:
+        self.response = response
+        self.calls: list[tuple[str, str]] = []
+
+    async def chat(self, system_prompt: str, user_prompt: str) -> str:
+        self.calls.append((system_prompt, user_prompt))
+        return self.response
+
+    async def health_check(self) -> bool:
+        return True
+
+    async def list_models(self) -> list[str]:
+        return []
 
 
 @pytest.fixture
@@ -400,6 +464,177 @@ def test_prompt_preview_can_preserve_related_object_placeholders():
     assert "Related object context:\nNONE" not in prompt
 
 
+def test_grounding_prompt_renders_conversation_summary_separately_from_message_text():
+    _, prompt = build_grounding_prompts(
+        proposition=Proposition(
+            prop_id="p_account",
+            description="the user provides an account",
+            role="user",
+            arity=1,
+            arg_descriptions=["account"],
+        ),
+        message_role="user",
+        message_text="Use account 123.",
+        system_prompt="system",
+        user_prompt_template_user=DEFAULT_USER_PROMPT_TEMPLATE_USER,
+        user_prompt_template_assistant=DEFAULT_USER_PROMPT_TEMPLATE_ASSISTANT,
+        conversation_summary_block="Earlier: the user discussed account ABC.",
+        include_conversation_summary=True,
+    )
+
+    assert "Conversation summary before the current message:" in prompt
+    assert "Earlier: the user discussed account ABC." in prompt
+    assert "Message text:\nUse account 123." in prompt
+
+
+def test_single_message_grounding_prompt_omits_conversation_summary():
+    _, prompt = build_grounding_prompts(
+        proposition=Proposition(
+            prop_id="p_account",
+            description="the user provides an account",
+            role="user",
+        ),
+        message_role="user",
+        message_text="Use account 123.",
+        system_prompt="system",
+        user_prompt_template_user=DEFAULT_USER_PROMPT_TEMPLATE_USER,
+        user_prompt_template_assistant=DEFAULT_USER_PROMPT_TEMPLATE_ASSISTANT,
+        conversation_summary_block="Earlier: the user discussed account ABC.",
+        include_conversation_summary=False,
+    )
+
+    assert "Conversation summary before the current message:" not in prompt
+    assert "Earlier: the user discussed account ABC." not in prompt
+    assert "Message text:\nUse account 123." in prompt
+
+
+@pytest.mark.asyncio
+async def test_summary_updater_parses_valid_json_and_fails_open():
+    updater = ConversationSummaryUpdater(
+        client=FakeSummaryClient('{"summary": "User mentioned account 123."}'),  # type: ignore[arg-type]
+        system_prompt="system",
+        user_prompt_template="{conversation_summary}\n{role}: {text}",
+    )
+    updated = await updater.update("", "user", "Use account 123.")
+    assert updated == "User mentioned account 123."
+
+    bad_updater = ConversationSummaryUpdater(
+        client=FakeSummaryClient("not json"),  # type: ignore[arg-type]
+        system_prompt="system",
+        user_prompt_template="{conversation_summary}\n{role}: {text}",
+    )
+    assert await bad_updater.update("old summary", "assistant", "ok") == "old summary"
+
+
+@pytest.mark.asyncio
+async def test_summary_updater_injects_previous_summary_for_stale_template():
+    client = FakeSummaryClient('{"summary": "Updated natural language summary."}')
+    updater = ConversationSummaryUpdater(
+        client=client,  # type: ignore[arg-type]
+        system_prompt="system",
+        user_prompt_template='Return {"summary": "..."}',
+    )
+
+    await updater.update("Previous natural language summary.", "user", "New message.")
+
+    sent_prompt = client.calls[0][1]
+    assert "Previous conversation summary:" in sent_prompt
+    assert "Previous natural language summary." in sent_prompt
+    assert "New delivered message:" in sent_prompt
+    assert "user: New message." in sent_prompt
+
+
+def test_grounding_prompt_injects_summary_for_stale_template():
+    _, prompt = build_grounding_prompts(
+        proposition=Proposition(
+            prop_id="p_account",
+            description="the user provides an account",
+            role="user",
+        ),
+        message_role="user",
+        message_text="Use that account.",
+        system_prompt="system",
+        user_prompt_template_user="Predicate: {predicate_description}\nMessage text:\n{text}",
+        user_prompt_template_assistant="unused",
+        conversation_summary_block="Earlier, the user identified ACCT-123.",
+        include_conversation_summary=True,
+    )
+
+    assert "Conversation summary before the current message:" in prompt
+    assert "Earlier, the user identified ACCT-123." in prompt
+    assert "Message text:\nUse that account." in prompt
+
+
+@pytest.mark.asyncio
+async def test_monitor_passes_previous_summary_and_updates_only_after_pass():
+    proposition = Proposition(
+        prop_id="p_any",
+        description="the user says anything",
+        role="user",
+        grounding_scope="conversation_history",
+    )
+    policy = Policy(
+        policy_id="policy-1",
+        name="Always true",
+        formula_str="true",
+        propositions=["p_any"],
+        enabled=True,
+    )
+    grounding = SummaryRecordingGrounding(match=True)
+    updater = FakeSummaryUpdater()
+    monitor = ConversationMonitor(
+        policies=[policy],
+        propositions=[proposition],
+        grounding=grounding,
+        dejavu_client=RecordingDejaVuClient(),  # type: ignore[arg-type]
+        session_id="session-1",
+        conversation_summary="Previous summary",
+        summary_last_trace_index=4,
+        summary_updater=updater,  # type: ignore[arg-type]
+    )
+
+    verdict = await monitor.process_message("user", "New message.")
+
+    assert verdict.passed is True
+    assert grounding.calls[0]["summary"] == "Previous summary"
+    assert updater.calls == [("Previous summary", "user", "New message.")]
+    assert monitor.conversation_summary == "Previous summary|user: New message."
+    assert monitor.summary_last_trace_index == 0
+
+
+@pytest.mark.asyncio
+async def test_monitor_does_not_update_summary_for_blocked_messages():
+    proposition = Proposition(
+        prop_id="p_any",
+        description="the user says anything",
+        role="user",
+        grounding_scope="conversation_history",
+    )
+    policy = Policy(
+        policy_id="policy-1",
+        name="Reject",
+        formula_str="p_any",
+        propositions=["p_any"],
+        enabled=True,
+    )
+    updater = FakeSummaryUpdater()
+    monitor = ConversationMonitor(
+        policies=[policy],
+        propositions=[proposition],
+        grounding=SummaryRecordingGrounding(match=True),
+        dejavu_client=RejectingDejaVuClient(),  # type: ignore[arg-type]
+        session_id="session-1",
+        conversation_summary="Previous summary",
+        summary_updater=updater,  # type: ignore[arg-type]
+    )
+
+    verdict = await monitor.process_message("user", "Blocked message.")
+
+    assert verdict.passed is False
+    assert updater.calls == []
+    assert monitor.conversation_summary == "Previous summary"
+
+
 def test_optimized_prompt_renders_structured_few_shot_examples_and_objects():
     system_prompt, prompt = build_grounding_prompts(
         proposition=Proposition(
@@ -501,11 +736,15 @@ async def test_settings_upgrade_persisted_old_prompts_to_canonical_defaults(db):
 
     settings = await _load_settings(db)
 
-    assert "few_shot_block" in settings.grounding.user_prompt_template_user
-    assert "predicate_block" in settings.grounding.user_prompt_template_user
-    assert "related_object_context" in settings.grounding.user_prompt_template_user
-    assert "related_object_history" in settings.grounding.user_prompt_template_user
-    assert "few_shot_block" in settings.grounding.user_prompt_template_assistant
-    assert "instances" in settings.grounding.user_prompt_template_assistant
-    assert await db.get_setting("grounding_prompt_version") == "optimized_related_context_v3"
+    assert "few_shot_block" in settings.grounding.single_user_prompt_template_user
+    assert "predicate_block" in settings.grounding.single_user_prompt_template_user
+    assert "related_object_context" in settings.grounding.single_user_prompt_template_user
+    assert "related_object_history" in settings.grounding.single_user_prompt_template_user
+    assert "conversation_summary" not in settings.grounding.single_user_prompt_template_user
+    assert "few_shot_block" in settings.grounding.history_user_prompt_template_assistant
+    assert "instances" in settings.grounding.history_user_prompt_template_assistant
+    assert "conversation_summary" in settings.grounding.history_user_prompt_template_user
+    assert settings.grounding.summary_system_prompt
+    assert settings.grounding.summary_user_prompt_template
+    assert await db.get_setting("grounding_prompt_version") == "grounding_scope_split_v1"
     assert await db.get_setting("grounding_user_prompt_template") is None

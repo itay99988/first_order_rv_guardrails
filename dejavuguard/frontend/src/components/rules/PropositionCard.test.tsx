@@ -30,6 +30,18 @@ describe("PropositionCard", () => {
     expect(screen.getByText("user")).toBeInTheDocument();
   });
 
+  it("renders grounding scope badge", () => {
+    render(
+      <PropositionCard
+        proposition={createProposition({ grounding_scope: "conversation_history" })}
+        onEdit={vi.fn()}
+        onDelete={vi.fn()}
+        onViewPrompt={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("history-aware")).toBeInTheDocument();
+  });
+
   it("renders role badge for assistant proposition", () => {
     render(
       <PropositionCard

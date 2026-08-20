@@ -157,10 +157,21 @@ export function createGroundingSettings(
     provider: "ollama",
     base_url: "http://localhost:11434",
     model: "mistral",
+    single_system_prompt: "You are a precise single-message classifier...",
+    single_user_prompt_template_user: 'PROPOSITION: "{proposition_description}"...',
+    single_user_prompt_template_assistant:
+      'PROPOSITION: "{proposition_description}"...',
+    history_system_prompt: "You are a precise history-aware classifier...",
+    history_user_prompt_template_user: 'SUMMARY: "{conversation_summary}"...',
+    history_user_prompt_template_assistant:
+      'SUMMARY: "{conversation_summary}"...',
     system_prompt: "You are a precise content classifier...",
     user_prompt_template_user: 'PROPOSITION: "{proposition_description}"...',
     user_prompt_template_assistant:
       'PROPOSITION: "{proposition_description}"...',
+    summary_system_prompt: "You update a concise conversation summary...",
+    summary_user_prompt_template:
+      "Previous conversation summary: {conversation_summary}",
     api_key: "",
     ...overrides,
   };
@@ -173,6 +184,7 @@ export function createSettings(
     openrouter_api_key: "sk-or-v1-test-key-12345",
     openrouter_model: "mistralai/mistral-7b-instruct",
     openrouter_model_custom: "",
+    few_shot_model: "chat",
     grounding: createGroundingSettings(overrides.grounding),
     ...overrides,
   };
@@ -186,6 +198,7 @@ export function createProposition(
   return {
     prop_id: "p_fraud",
     role: "user",
+    grounding_scope: "single_message",
     description: "The user requests methods for committing financial fraud",
     arity: 0,
     created_at: "2025-01-01T00:00:00Z",

@@ -29,6 +29,7 @@ describe("PropositionEditor", () => {
     expect(screen.getByTestId("prop-description-input")).toHaveValue("");
     expect(screen.getByTestId("prop-role-user")).toBeChecked();
     expect(screen.getByTestId("prop-role-assistant")).not.toBeChecked();
+    expect(screen.getByTestId("prop-use-conversation-history")).not.toBeChecked();
   });
 
   it("renders pre-filled fields when editing an existing proposition", () => {
@@ -46,6 +47,14 @@ describe("PropositionEditor", () => {
     );
     expect(screen.getByTestId("prop-role-assistant")).toBeChecked();
     expect(screen.getByTestId("prop-role-user")).not.toBeChecked();
+  });
+
+  it("checks history-aware grounding when editing a history-aware predicate", () => {
+    renderEditor({
+      initial: createProposition({ grounding_scope: "conversation_history" }),
+    });
+
+    expect(screen.getByTestId("prop-use-conversation-history")).toBeChecked();
   });
 
   it('shows "Update Predicate" button text in edit mode', () => {
@@ -103,8 +112,25 @@ describe("PropositionEditor", () => {
       prop_id: "p_test",
       description: "Some description",
       role: "assistant",
+      grounding_scope: "single_message",
       arity: 0,
+      arg_descriptions: [],
     });
+  });
+
+  it("submits conversation_history scope when checkbox is checked", async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn();
+    renderEditor({ onSave });
+
+    await user.type(screen.getByTestId("prop-id-input"), "p_history");
+    await user.type(screen.getByTestId("prop-description-input"), "Uses context");
+    await user.click(screen.getByTestId("prop-use-conversation-history"));
+    await user.click(screen.getByTestId("prop-save"));
+
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({ grounding_scope: "conversation_history" }),
+    );
   });
 
   it("calls onCancel when cancel button is clicked", async () => {

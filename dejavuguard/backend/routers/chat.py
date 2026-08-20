@@ -19,7 +19,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from backend.engine.dejavu_client import DejaVuClient
-from backend.engine.grounding import LLMGrounding
+from backend.engine.grounding import ConversationSummaryUpdater, LLMGrounding
 from backend.engine.monitor import ConversationMonitor
 from backend.models.chat import ChatMessage, ChatRequest, ChatResponse
 from backend.models.policy import Policy, Proposition
@@ -111,6 +111,7 @@ async def _get_or_create_monitor(db: DatabaseStore, session_id: str) -> Conversa
             prop_id=r["prop_id"],
             description=r["description"],
             role=r["role"],
+            grounding_scope=r.get("grounding_scope") or "single_message",
             arity=r.get("arity", 0) or 0,
             arg_descriptions=_parse_json_list_field(r.get("arg_descriptions")),
             few_shot_positive=_parse_json_list_field(r.get("few_shot_positive")),
@@ -121,12 +122,20 @@ async def _get_or_create_monitor(db: DatabaseStore, session_id: str) -> Conversa
         for r in prop_rows
         if r["prop_id"] in needed_prop_ids
     ]
+    uses_conversation_history = any(
+        p.grounding_scope == "conversation_history" for p in propositions
+    )
     related_objects = (
         await db.list_related_objects(sorted(needed_prop_ids))
         if needed_prop_ids
         else []
     )
     canonical_history = await _load_canonical_history(db, session_id)
+    summary_row = (
+        await db.get_conversation_summary(session_id)
+        if uses_conversation_history
+        else None
+    )
 
     # Create grounding client from settings
     from backend.routers.settings import _load_settings
@@ -135,9 +144,29 @@ async def _get_or_create_monitor(db: DatabaseStore, session_id: str) -> Conversa
     grounding_client = create_grounding_client(settings)
     grounding = LLMGrounding(
         client=grounding_client,
-        system_prompt=settings.grounding.system_prompt,
-        user_prompt_template_user=settings.grounding.user_prompt_template_user,
-        user_prompt_template_assistant=settings.grounding.user_prompt_template_assistant,
+        single_system_prompt=settings.grounding.single_system_prompt,
+        single_user_prompt_template_user=(
+            settings.grounding.single_user_prompt_template_user
+        ),
+        single_user_prompt_template_assistant=(
+            settings.grounding.single_user_prompt_template_assistant
+        ),
+        history_system_prompt=settings.grounding.history_system_prompt,
+        history_user_prompt_template_user=(
+            settings.grounding.history_user_prompt_template_user
+        ),
+        history_user_prompt_template_assistant=(
+            settings.grounding.history_user_prompt_template_assistant
+        ),
+    )
+    summary_updater = (
+        ConversationSummaryUpdater(
+            client=grounding_client,
+            system_prompt=settings.grounding.summary_system_prompt,
+            user_prompt_template=settings.grounding.summary_user_prompt_template,
+        )
+        if uses_conversation_history
+        else None
     )
 
     # Create DejaVu client from config
@@ -145,6 +174,9 @@ async def _get_or_create_monitor(db: DatabaseStore, session_id: str) -> Conversa
 
     config = get_config()
     dejavu_client = DejaVuClient(base_url=config.dejavu_url)
+    summary_last_trace_index = -1
+    if summary_row and summary_row.get("last_trace_index") is not None:
+        summary_last_trace_index = int(summary_row["last_trace_index"])
 
     monitor = ConversationMonitor(
         policies=policies,
@@ -154,6 +186,11 @@ async def _get_or_create_monitor(db: DatabaseStore, session_id: str) -> Conversa
         session_id=session_id,
         related_objects=related_objects,
         canonical_history=canonical_history,
+        conversation_summary=(
+            str(summary_row.get("summary_text") or "") if summary_row else ""
+        ),
+        summary_last_trace_index=summary_last_trace_index,
+        summary_updater=summary_updater,
     )
     _monitors[session_id] = monitor
     return monitor
@@ -277,6 +314,13 @@ async def _process_chat(db: DatabaseStore, body: ChatRequest) -> ChatResponse:
             blocked_response=False,
         )
 
+    if monitor.summary_last_trace_index >= 0:
+        await db.save_conversation_summary(
+            body.session_id,
+            monitor.conversation_summary,
+            monitor.summary_last_trace_index,
+        )
+
     # 2. Forward to OpenRouter
     from backend.routers.settings import _load_settings
 
@@ -337,6 +381,13 @@ async def _process_chat(db: DatabaseStore, body: ChatRequest) -> ChatResponse:
             violation=violation,
             monitor_state=assistant_verdict.per_policy,
             blocked_response=True,
+        )
+
+    if monitor.summary_last_trace_index >= 0:
+        await db.save_conversation_summary(
+            body.session_id,
+            monitor.conversation_summary,
+            monitor.summary_last_trace_index,
         )
 
     # 4. All clear

@@ -49,6 +49,7 @@ def _row_predicate_shape(row: dict) -> dict[str, Any]:
             args = []
     return {
         "role": row.get("role"),
+        "grounding_scope": row.get("grounding_scope") or "single_message",
         "arity": int(row.get("arity") or 0),
         "arg_descriptions": args,
         "description": row.get("description"),
@@ -58,6 +59,7 @@ def _row_predicate_shape(row: dict) -> dict[str, Any]:
 def _scenario_predicate_shape(pred: ScenarioPredicate) -> dict[str, Any]:
     return {
         "role": pred.role,
+        "grounding_scope": pred.grounding_scope,
         "arity": pred.arity,
         "arg_descriptions": pred.arg_descriptions,
         "description": pred.description,
@@ -66,7 +68,7 @@ def _scenario_predicate_shape(pred: ScenarioPredicate) -> dict[str, Any]:
 
 def _diff_shape(stored: dict, wanted: dict) -> list[str]:
     diffs = []
-    for key in ("role", "arity", "arg_descriptions", "description"):
+    for key in ("role", "grounding_scope", "arity", "arg_descriptions", "description"):
         if stored[key] != wanted[key]:
             diffs.append(f"  {key}: stored={stored[key]!r} scenario={wanted[key]!r}")
     return diffs
@@ -154,6 +156,7 @@ async def ensure_predicate(
             prop_id=pred.prop_id,
             description=pred.description,
             role=pred.role,
+            grounding_scope=pred.grounding_scope,
             arity=pred.arity,
             arg_descriptions=pred.arg_descriptions,
             few_shot_examples=examples,
@@ -212,6 +215,7 @@ async def ensure_predicate(
     update_kwargs: dict[str, Any] = {
         "description": pred.description,
         "role": pred.role,
+        "grounding_scope": pred.grounding_scope,
         "arg_descriptions": pred.arg_descriptions,
     }
     if pred.few_shot_examples:

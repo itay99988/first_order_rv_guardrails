@@ -217,6 +217,8 @@ describe("Propositions endpoints", () => {
       prop_id: "p_fraud",
       description: "User requests fraud methods",
       role: "user",
+      grounding_scope: "single_message" as const,
+      arity: 0,
     };
     const created = createProposition();
     mockFetchOk(created);

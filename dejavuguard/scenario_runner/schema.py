@@ -52,6 +52,7 @@ class ScenarioPredicate(BaseModel):
     prop_id: str
     description: str
     role: str
+    grounding_scope: str = "single_message"
     arity: int = 0
     arg_descriptions: list[str] = Field(default_factory=list)
     objects: list[ScenarioObject] = Field(default_factory=list)
@@ -64,6 +65,16 @@ class ScenarioPredicate(BaseModel):
     def _role_is_known(cls, v: str) -> str:
         if v not in {"user", "assistant"}:
             raise ValueError(f"role must be 'user' or 'assistant', got '{v}'")
+        return v
+
+    @field_validator("grounding_scope")
+    @classmethod
+    def _grounding_scope_is_known(cls, v: str) -> str:
+        if v not in {"single_message", "conversation_history"}:
+            raise ValueError(
+                "grounding_scope must be 'single_message' or "
+                f"'conversation_history', got '{v}'"
+            )
         return v
 
     @model_validator(mode="after")

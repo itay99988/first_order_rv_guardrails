@@ -18,7 +18,7 @@ from pydantic import BaseModel
 from backend.engine.grounding import build_grounding_prompts
 from backend.models.builtins import is_builtin_proposition
 from backend.models.chat import ChatMessage
-from backend.models.policy import Policy, Proposition
+from backend.models.policy import GROUNDING_SCOPES, Policy, Proposition
 from backend.routers.chat import invalidate_monitors
 from backend.routers.settings import _load_settings
 from backend.services.openrouter import OpenRouterClient, OpenRouterError
@@ -48,6 +48,7 @@ class CreatePropositionRequest(BaseModel):
     prop_id: str
     description: str
     role: str  # "user" | "assistant"
+    grounding_scope: str = "single_message"
     arity: int = 0
     arg_descriptions: list[str] = []
 
@@ -57,6 +58,7 @@ class UpdatePropositionRequest(BaseModel):
 
     description: str | None = None
     role: str | None = None
+    grounding_scope: str | None = None
     arity: int | None = None
     arg_descriptions: list[str] | None = None
 
@@ -332,6 +334,7 @@ def _row_to_proposition(row: dict) -> Proposition:
         prop_id=row["prop_id"],
         description=row["description"],
         role=row["role"],
+        grounding_scope=row.get("grounding_scope") or "single_message",
         arity=row.get("arity", 0) or 0,
         arg_descriptions=_parse_json_list_field(row.get("arg_descriptions")),
         few_shot_positive=_parse_json_list_field(row.get("few_shot_positive")),
@@ -675,6 +678,12 @@ async def create_proposition(request: Request, body: CreatePropositionRequest) -
     if body.role not in ("user", "assistant"):
         raise HTTPException(422, f"Invalid role: {body.role}. Must be 'user' or 'assistant'.")
 
+    if body.grounding_scope not in GROUNDING_SCOPES:
+        raise HTTPException(
+            422,
+            "Invalid grounding_scope. Must be 'single_message' or 'conversation_history'.",
+        )
+
     existing = await db.get_proposition(body.prop_id)
     if existing:
         raise HTTPException(409, f"Predicate '{body.prop_id}' already exists.")
@@ -768,6 +777,7 @@ async def create_proposition(request: Request, body: CreatePropositionRequest) -
         body.prop_id,
         body.description,
         body.role,
+        grounding_scope=body.grounding_scope,
         arity=body.arity,
         arg_descriptions=body.arg_descriptions if body.arg_descriptions else None,
         few_shot_examples=few_shot_examples,
@@ -794,10 +804,17 @@ async def update_proposition(
     if body.role is not None and body.role not in ("user", "assistant"):
         raise HTTPException(422, f"Invalid role: {body.role}. Must be 'user' or 'assistant'.")
 
+    if body.grounding_scope is not None and body.grounding_scope not in GROUNDING_SCOPES:
+        raise HTTPException(
+            422,
+            "Invalid grounding_scope. Must be 'single_message' or 'conversation_history'.",
+        )
+
     await db.update_proposition(
         prop_id,
         description=body.description,
         role=body.role,
+        grounding_scope=body.grounding_scope,
         arg_descriptions=body.arg_descriptions,
     )
     invalidate_monitors()
@@ -822,15 +839,33 @@ async def proposition_grounding_prompt(
     preview_message = (
         message_text if message_text is not None else "<MESSAGE_TEXT_GOES_HERE>"
     )
+    is_history_aware = proposition.grounding_scope == "conversation_history"
+    system_prompt = (
+        settings.grounding.history_system_prompt
+        if is_history_aware
+        else settings.grounding.single_system_prompt
+    )
+    user_prompt_template_user = (
+        settings.grounding.history_user_prompt_template_user
+        if is_history_aware
+        else settings.grounding.single_user_prompt_template_user
+    )
+    user_prompt_template_assistant = (
+        settings.grounding.history_user_prompt_template_assistant
+        if is_history_aware
+        else settings.grounding.single_user_prompt_template_assistant
+    )
     system_prompt, user_prompt = build_grounding_prompts(
         proposition=proposition,
         message_role=proposition.role,
         message_text=preview_message,
-        system_prompt=settings.grounding.system_prompt,
-        user_prompt_template_user=settings.grounding.user_prompt_template_user,
-        user_prompt_template_assistant=settings.grounding.user_prompt_template_assistant,
+        system_prompt=system_prompt,
+        user_prompt_template_user=user_prompt_template_user,
+        user_prompt_template_assistant=user_prompt_template_assistant,
         related_object_context_block="{{RELATED_OBJECT_CONTEXT_BLOCK}}",
         related_object_history_block="{{RELATED_OBJECT_HISTORY_BLOCK}}",
+        conversation_summary_block="{{CONVERSATION_SUMMARY_BLOCK}}",
+        include_conversation_summary=is_history_aware,
     )
     return GroundingPromptPreview(
         prop_id=proposition.prop_id,

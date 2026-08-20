@@ -22,7 +22,11 @@ import logging
 import uuid
 
 from backend.engine.dejavu_client import DejaVuClient, DejaVuError
-from backend.engine.grounding import GroundingMethod, GroundingResult
+from backend.engine.grounding import (
+    ConversationSummaryUpdater,
+    GroundingMethod,
+    GroundingResult,
+)
 from backend.engine.spec_builder import build_dejavu_spec
 from backend.engine.trace import ConversationTrace
 from backend.models.builtins import BUILTIN_USER_TURN
@@ -60,11 +64,20 @@ class ConversationMonitor:
         session_id: str = "",
         related_objects: list[dict] | None = None,
         canonical_history: list[dict] | None = None,
+        conversation_summary: str = "",
+        summary_last_trace_index: int = -1,
+        summary_updater: ConversationSummaryUpdater | None = None,
     ) -> None:
         self._grounding = grounding
         self._propositions = {p.prop_id: p for p in propositions}
         self._related_objects = self._index_related_objects(related_objects or [])
         self._canonical_history: list[dict] = list(canonical_history or [])
+        self._conversation_summary = (conversation_summary or "").strip()
+        self._summary_last_trace_index = summary_last_trace_index
+        self._summary_updater = summary_updater
+        self._uses_conversation_history = any(
+            p.grounding_scope == "conversation_history" for p in propositions
+        )
         self._policies: dict[str, Policy] = {}
         self._dejavu_client = dejavu_client
         self._dejavu_session_id: str | None = None
@@ -82,6 +95,16 @@ class ConversationMonitor:
             self._policies[policy.policy_id] = policy
             # Initialize all policies as passing (vacuously true)
             self._per_policy_verdicts[policy.policy_id] = True
+
+    @property
+    def conversation_summary(self) -> str:
+        """Current persisted-ready conversation summary."""
+        return self._conversation_summary
+
+    @property
+    def summary_last_trace_index(self) -> int:
+        """Trace index represented by the current conversation summary."""
+        return self._summary_last_trace_index
 
     async def _ensure_dejavu_session(self) -> None:
         """Lazily create the DejaVu session on first use.
@@ -174,6 +197,7 @@ class ConversationMonitor:
             logger.warning("DejaVu unavailable, failing open (all policies pass)")
             for policy_id in self._policies:
                 per_policy[policy_id] = True
+            await self._update_conversation_summary_if_passed(True, event)
             return MonitorVerdict(
                 passed=True,
                 per_policy=per_policy,
@@ -279,6 +303,7 @@ class ConversationMonitor:
 
         # 6. Aggregate: block if ANY policy is violated
         overall = all(per_policy.values()) if per_policy else True
+        await self._update_conversation_summary_if_passed(overall, event)
 
         return MonitorVerdict(
             passed=overall,
@@ -293,19 +318,32 @@ class ConversationMonitor:
         """Ground a predicate with fail-open error handling."""
         try:
             context_block, history_block = self._build_related_object_blocks(prop)
+            summary_block = self._conversation_summary or "NONE"
             try:
                 return await self._grounding.evaluate(
                     event,
                     prop,
                     related_object_context_block=context_block,
                     related_object_history_block=history_block,
+                    conversation_summary_block=summary_block,
+                    grounding_scope=prop.grounding_scope,
                 )
             except TypeError as e:
                 # Test doubles and older custom grounding implementations may still
-                # expose the old evaluate(message, proposition) signature.
+                # expose an older evaluate signature.
                 if "unexpected" not in str(e) and "positional" not in str(e):
                     raise
-                return await self._grounding.evaluate(event, prop)
+                try:
+                    return await self._grounding.evaluate(
+                        event,
+                        prop,
+                        related_object_context_block=context_block,
+                        related_object_history_block=history_block,
+                    )
+                except TypeError as nested:
+                    if "unexpected" not in str(nested) and "positional" not in str(nested):
+                        raise
+                    return await self._grounding.evaluate(event, prop)
         except Exception:
             return GroundingResult(
                 match=False,
@@ -330,6 +368,28 @@ class ConversationMonitor:
         for policy_id in self._per_policy_verdicts:
             self._per_policy_verdicts[policy_id] = True
         self._canonical_history = []
+        self._conversation_summary = ""
+        self._summary_last_trace_index = -1
+
+    async def _update_conversation_summary_if_passed(
+        self,
+        passed: bool,
+        event,
+    ) -> None:
+        """Update summary only for delivered messages."""
+        if (
+            not passed
+            or self._summary_updater is None
+            or not self._uses_conversation_history
+        ):
+            return
+        previous = self._conversation_summary
+        self._conversation_summary = await self._summary_updater.update(
+            previous,
+            event.role,
+            event.text,
+        )
+        self._summary_last_trace_index = event.index
 
     @staticmethod
     def _index_related_objects(relations: list[dict]) -> dict[tuple[str, str], list[dict]]:
