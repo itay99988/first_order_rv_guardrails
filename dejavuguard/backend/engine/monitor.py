@@ -531,8 +531,12 @@ class ConversationMonitor:
                 f"- Object {prop.prop_id}.{object_id} "
                 f"({self._object_description(prop.prop_id, object_id)}) is compared "
                 "numerically by an active policy. Its canonical_form MUST be a bare "
-                'number with no units, currency symbols or thousands separators '
-                '(for example "12000" or "12000.5", never "$12,000" or "12000 USD").'
+                "number: digits only, optionally with a leading '-' and a single "
+                "'.' as the decimal separator. No units, currency symbols, letters, "
+                "spaces or thousands separators, and never a ',' -- a comma is "
+                "rejected outright, so write 12000 not 12,000, and 1234.56 not "
+                '1.234,56. Examples: "12000", "12000.5", "-500". Never "$12,000", '
+                '"12000 USD", "USD 12000" or "12.000,50".'
             )
 
         if not context_lines and not numeric_lines:
