@@ -312,6 +312,7 @@ async def _process_chat(db: DatabaseStore, body: ChatRequest) -> ChatResponse:
             violation=violation,
             monitor_state=user_verdict.per_policy,
             blocked_response=False,
+            monitor_error=user_verdict.monitor_error,
         )
 
     if monitor.summary_last_trace_index >= 0:
@@ -381,6 +382,7 @@ async def _process_chat(db: DatabaseStore, body: ChatRequest) -> ChatResponse:
             violation=violation,
             monitor_state=assistant_verdict.per_policy,
             blocked_response=True,
+            monitor_error=assistant_verdict.monitor_error,
         )
 
     if monitor.summary_last_trace_index >= 0:
@@ -391,10 +393,14 @@ async def _process_chat(db: DatabaseStore, body: ChatRequest) -> ChatResponse:
         )
 
     # 4. All clear
+    # Report the first turn that went unverified: a clean-looking reply whose
+    # policies were never actually checked must not be silently indistinguishable
+    # from a monitored one.
     return ChatResponse(
         blocked=False,
         response=response_text,
         monitor_state=assistant_verdict.per_policy,
+        monitor_error=user_verdict.monitor_error or assistant_verdict.monitor_error,
     )
 
 

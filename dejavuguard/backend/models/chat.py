@@ -44,6 +44,10 @@ class ChatResponse(BaseModel):
         violation: Details about the violation (None if not blocked).
         monitor_state: Current DejaVu monitor state snapshot.
         blocked_response: True if the LLM response (not user msg) was blocked.
+        verified: Whether DejaVu evaluated this turn. False means the monitor
+            failed open, so monitor_state is carried-over state and `blocked`
+            carries no verification weight.
+        monitor_error: Why verification did not happen, when verified is False.
     """
 
     blocked: bool
@@ -51,3 +55,9 @@ class ChatResponse(BaseModel):
     violation: ViolationInfo | None = None
     monitor_state: dict | None = None
     blocked_response: bool = False
+    monitor_error: str | None = None
+
+    @property
+    def verified(self) -> bool:
+        """True when the turn was actually checked by DejaVu."""
+        return self.monitor_error is None

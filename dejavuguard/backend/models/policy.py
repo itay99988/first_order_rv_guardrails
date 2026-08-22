@@ -90,6 +90,13 @@ class MonitorVerdict(BaseModel):
         grounding_details: Detailed grounding results per predicate.
         trace_index: Position in the conversation trace.
         violations: List of violation details (empty if passed).
+        verified: Whether DejaVu actually evaluated this step. False means the
+            monitor failed open -- ``passed`` carries no verification weight and
+            must not be read as "this step was checked and was clean".
+        monitor_error: Why verification did not happen, when verified is False.
+        composite_event: The event list actually sent to DejaVu at this step,
+            after numeric coercion. Reported rather than reconstructed so
+            debugging surfaces show the real payload.
     """
 
     passed: bool
@@ -98,3 +105,6 @@ class MonitorVerdict(BaseModel):
     grounding_details: list[dict] = Field(default_factory=list)
     trace_index: int = 0
     violations: list[ViolationInfo] = Field(default_factory=list)
+    verified: bool = True
+    monitor_error: str | None = None
+    composite_event: list[dict] = Field(default_factory=list)
