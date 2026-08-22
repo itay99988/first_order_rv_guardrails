@@ -22,10 +22,7 @@ import logging
 import uuid
 
 from backend.engine.dejavu_client import DejaVuClient, DejaVuError
-from backend.engine.formula_analysis import (
-    normalize_numeric,
-    numeric_object_positions,
-)
+from backend.engine.formula_analysis import numeric_object_positions
 from backend.engine.grounding import (
     ConversationSummaryUpdater,
     GroundingMethod,
@@ -229,7 +226,6 @@ class ConversationMonitor:
             # chat message, so repeated predicate names here are simultaneous
             # instances of the same predicate.
             events: list[dict] = []
-            coercion_errors: list[str] = []
             for prop_id, value in labeling.items():
                 if value:
                     if prop_id == BUILTIN_USER_TURN:
@@ -243,10 +239,7 @@ class ConversationMonitor:
                                 sorted_mentions = sorted(
                                     mentions, key=self._object_sort_key
                                 )
-                                args, arg_errors = self._coerce_event_args(
-                                    prop_id, sorted_mentions
-                                )
-                                coercion_errors.extend(arg_errors)
+                                args = self._event_args(sorted_mentions)
                             else:
                                 args = []
                             events.append({"name": prop_id, "args": args})
@@ -254,14 +247,6 @@ class ConversationMonitor:
                         events.append({"name": prop_id, "args": []})
 
             sent_events = events
-
-            if coercion_errors:
-                # The event is knowingly malformed. Record it now so the step is
-                # reported unverified even if DejaVu happens to accept it.
-                logger.warning(
-                    "Numeric canonical form(s) unusable: %s", "; ".join(coercion_errors)
-                )
-                monitor_error = "; ".join(coercion_errors)
 
             try:
                 # Always send a DejaVu step, even when the composite event is
@@ -440,33 +425,20 @@ class ConversationMonitor:
             positions |= numeric_object_positions(policy.formula_str, arities)
         return positions
 
-    def _coerce_event_args(
-        self,
-        prop_id: str,
-        sorted_mentions: list[dict],
-    ) -> tuple[list[str], list[str]]:
-        """Build DejaVu args, coercing numeric slots to bare numbers.
+    @staticmethod
+    def _event_args(sorted_mentions: list[dict]) -> list[str]:
+        """Build DejaVu args from canonical forms, verbatim.
 
-        Returns (args, errors). A slot the policy orders but whose canonical
-        form cannot be read as a number is reported rather than guessed at --
-        sending it would either crash DejaVu or, worse, compare wrongly.
+        Canonical forms are passed through untouched. Producing a well-formed
+        value is the grounding layer's job -- the prompt states the required
+        form per object -- and judging it is DejaVu's. Normalising here would
+        put a third party in the middle guessing at number conventions, which
+        risks silently substituting a different value than either layer meant.
         """
-        args: list[str] = []
-        errors: list[str] = []
-        for mention in sorted_mentions:
-            value = str(mention.get("canonical_form") or mention.get("mention") or "")
-            object_id = str(mention.get("object_id", "")).strip()
-            if (prop_id, object_id) in self._numeric_positions:
-                coerced = normalize_numeric(value)
-                if coerced is None:
-                    errors.append(
-                        f"{prop_id}.{object_id} is compared numerically by a policy "
-                        f'but grounding produced the non-numeric canonical form "{value}"'
-                    )
-                else:
-                    value = coerced
-            args.append(value)
-        return args, errors
+        return [
+            str(m.get("canonical_form") or m.get("mention") or "")
+            for m in sorted_mentions
+        ]
 
     @staticmethod
     def _index_related_objects(relations: list[dict]) -> dict[tuple[str, str], list[dict]]:

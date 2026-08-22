@@ -1,9 +1,14 @@
-"""Numeric object slots must reach DejaVu as bare numbers.
+"""Canonical forms for numeric object slots.
 
-The grounding dataset's own convention for quantities is unit-carrying
-("USD 349900"), which DejaVu cannot order. Slots a policy compares with
-`<` therefore need both a prompt-side instruction and an event-side
-coercion.
+A policy that orders two slots with `<` types them numeric. Producing a value
+DejaVu can order is the grounding layer's job -- the prompt states the required
+form per slot -- and judging it is DejaVu's, which raises a DejaVuTypeError
+naming the operator and operand.
+
+The backend's job is neither: it must pass canonical forms through untouched.
+Normalising here would put a third party in the middle guessing at number
+conventions ("1,2" is 1.2 in most of Europe, 12 if you strip the comma), which
+risks silently substituting a value neither other layer intended.
 """
 
 from __future__ import annotations
@@ -115,52 +120,43 @@ def _build(canonical_form: str):
     return monitor, grounding, client
 
 
+def _request_args(client) -> list[str]:
+    return next(e["args"] for e in client.sent[0] if e["name"] == "request_u")
+
+
 @pytest.mark.asyncio
-async def test_unit_carrying_canonical_form_is_coerced_for_dejavu():
-    """"12000 USD" must not reach DejaVu, which cannot order it."""
-    monitor, _, client = _build("12000 USD")
+@pytest.mark.parametrize(
+    "canonical_form",
+    [
+        "12000",        # already valid
+        "12000 USD",    # unit-carrying
+        "USD 349900",   # the grounding dataset's own convention
+        "12,000",       # thousands separator
+        "1.234,56",     # European decimal
+        "about twelve thousand",
+    ],
+)
+async def test_canonical_form_reaches_dejavu_verbatim(canonical_form):
+    """Whatever grounding produced is what DejaVu must judge."""
+    monitor, _, client = _build(canonical_form)
 
     await monitor.process_message("user", "I can spend $12,000 on a Honda")
 
-    args = next(e["args"] for e in client.sent[0] if e["name"] == "request_u")
-    assert args[1] == "12000"
-
-
-@pytest.mark.asyncio
-async def test_currency_prefixed_canonical_form_is_coerced():
-    """The dataset's own "USD 349900" convention must also survive."""
-    monitor, _, client = _build("USD 349900")
-
-    await monitor.process_message("user", "I can spend $349,900 on a Honda")
-
-    args = next(e["args"] for e in client.sent[0] if e["name"] == "request_u")
-    assert args[1] == "349900"
-
-
-@pytest.mark.asyncio
-async def test_already_bare_number_is_left_alone():
-    monitor, _, client = _build("12000")
-
-    await monitor.process_message("user", "I can spend $12,000 on a Honda")
-
-    args = next(e["args"] for e in client.sent[0] if e["name"] == "request_u")
-    assert args[1] == "12000"
+    assert _request_args(client)[1] == canonical_form
 
 
 @pytest.mark.asyncio
 async def test_non_numeric_slot_is_untouched():
-    """Only slots the policy orders are coerced; names must pass through."""
     monitor, _, client = _build("12000 USD")
 
     await monitor.process_message("user", "I can spend $12,000 on a Honda")
 
-    args = next(e["args"] for e in client.sent[0] if e["name"] == "request_u")
-    assert args[0] == "Honda"
+    assert _request_args(client)[0] == "Honda"
 
 
 @pytest.mark.asyncio
 async def test_grounding_prompt_states_the_numeric_requirement():
-    """Fix the cause: tell the model the slot must be a bare number."""
+    """The grounding layer owns producing a valid value, so state the form."""
     monitor, grounding, _ = _build("12000 USD")
 
     await monitor.process_message("user", "I can spend $12,000 on a Honda")
@@ -168,14 +164,3 @@ async def test_grounding_prompt_states_the_numeric_requirement():
     block = grounding.context_blocks[0]
     assert "request_u.o2" in block
     assert "bare number" in block
-
-
-@pytest.mark.asyncio
-async def test_uncoercible_numeric_slot_is_reported():
-    """A value that cannot be made numeric must not be silently sent."""
-    monitor, _, _ = _build("about twelve thousand")
-
-    verdict = await monitor.process_message("user", "I can spend $12,000 on a Honda")
-
-    assert verdict.verified is False
-    assert "request_u.o2" in (verdict.monitor_error or "")

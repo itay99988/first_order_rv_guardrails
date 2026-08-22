@@ -1,9 +1,9 @@
 """The reported composite event must be the one actually sent to DejaVu.
 
-The runner log reconstructs the event from grounding details. Once the
-monitor coerces numeric slots, a reconstruction diverges from reality --
-and a debugging surface that shows a different payload than was sent is
-worse than none.
+The runner log used to reconstruct the event from grounding details. A
+reconstruction can diverge from what was actually transmitted, and a
+debugging surface showing a different payload than was sent is worse than
+none -- so the monitor reports the event it really sent.
 """
 
 from __future__ import annotations
@@ -54,7 +54,7 @@ class _AcceptingClient:
 
 
 @pytest.mark.asyncio
-async def test_verdict_reports_the_coerced_event_that_was_sent():
+async def test_verdict_reports_the_event_that_was_sent():
     monitor = ConversationMonitor(
         policies=[
             Policy(
@@ -80,4 +80,4 @@ async def test_verdict_reports_the_coerced_event_that_was_sent():
     verdict = await monitor.process_message("user", "a Honda under $12,000")
 
     sent = [e for e in verdict.composite_event if e["name"] == "p_budget"]
-    assert sent[0]["args"] == ["Honda", "12000"]
+    assert sent[0]["args"] == ["Honda", "12000 USD"]

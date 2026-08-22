@@ -145,38 +145,3 @@ def numeric_object_positions(
             if arg.strip() in numeric_variables:
                 positions.add((prop_id, f"o{idx + 1}"))
     return positions
-
-
-def looks_numeric(value: str) -> bool:
-    """Return True when DejaVu could compare this value as a number."""
-    try:
-        float(str(value).strip())
-    except (TypeError, ValueError):
-        return False
-    return True
-
-
-def normalize_numeric(value: str) -> str | None:
-    """Best-effort coercion of a canonical form to a bare number.
-
-    Handles the shapes grounding models actually emit for quantities --
-    thousands separators, a leading or trailing currency symbol or code, and
-    surrounding whitespace (``"$12,000"``, ``"12,000 USD"``, ``"USD 12000"``).
-
-    Deliberately conservative: anything still ambiguous after stripping those
-    returns None rather than guessing, so a bad value surfaces as an error
-    instead of silently becoming a different number.
-    """
-    raw = str(value).strip()
-    if looks_numeric(raw):
-        return raw
-
-    # Drop thousands separators and any character that is not part of a number.
-    candidate = raw.replace(",", "")
-    candidate = re.sub(r"[^\d.\-+eE]", " ", candidate).strip()
-
-    # A single numeric token must remain; more than one is ambiguous.
-    tokens = [t for t in candidate.split() if t]
-    if len(tokens) != 1 or not looks_numeric(tokens[0]):
-        return None
-    return tokens[0]
