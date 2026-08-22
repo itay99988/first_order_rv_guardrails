@@ -83,6 +83,7 @@ export async function createProposition(data: {
   prop_id: string;
   description: string;
   role: string;
+  grounding_scope?: "single_message" | "conversation_history";
   arity: number;
   arg_descriptions?: string[];
 }): Promise<CreatePropositionResponse> {
@@ -94,7 +95,12 @@ export async function createProposition(data: {
 
 export async function updateProposition(
   propId: string,
-  data: { description?: string; role?: string; arg_descriptions?: string[] },
+  data: {
+    description?: string;
+    role?: string;
+    grounding_scope?: "single_message" | "conversation_history";
+    arg_descriptions?: string[];
+  },
 ): Promise<Proposition> {
   return request<Proposition>(
     `/api/propositions/${encodeURIComponent(propId)}`,

@@ -9,6 +9,7 @@ interface PropositionEditorProps {
     prop_id: string;
     description: string;
     role: string;
+    grounding_scope: "single_message" | "conversation_history";
     arity: number;
     arg_descriptions: string[];
   }) => Promise<void> | void;
@@ -24,6 +25,9 @@ export default function PropositionEditor({
   const [description, setDescription] = useState(initial?.description ?? "");
   const [role, setRole] = useState<"user" | "assistant">(
     initial?.role ?? "user",
+  );
+  const [useConversationHistory, setUseConversationHistory] = useState(
+    initial?.grounding_scope === "conversation_history",
   );
   const [arity, setArity] = useState(initial?.arity ?? 0);
   const [argDescriptions, setArgDescriptions] = useState<string[]>(
@@ -68,6 +72,9 @@ export default function PropositionEditor({
         prop_id: propId.trim(),
         description: description.trim(),
         role,
+        grounding_scope: useConversationHistory
+          ? "conversation_history"
+          : "single_message",
         arity,
         arg_descriptions: argDescriptions.map((d) => d.trim()),
       });
@@ -136,6 +143,23 @@ export default function PropositionEditor({
             </label>
           </div>
         </div>
+
+        <label className="flex items-start gap-2 text-sm text-terminal-text">
+          <input
+            type="checkbox"
+            checked={useConversationHistory}
+            onChange={(e) => setUseConversationHistory(e.target.checked)}
+            className="mt-0.5 accent-accent"
+            data-testid="prop-use-conversation-history"
+          />
+          <span>
+            Use conversation history for grounding
+            <span className="mt-1 block text-xs text-terminal-dim">
+              Disabled by default. Enable only when this predicate needs prior
+              conversation context or pronoun/reference resolution.
+            </span>
+          </span>
+        </label>
 
         <div>
           <label

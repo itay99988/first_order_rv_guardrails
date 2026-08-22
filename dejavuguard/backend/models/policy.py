@@ -11,6 +11,13 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+GROUNDING_SCOPE_SINGLE_MESSAGE = "single_message"
+GROUNDING_SCOPE_CONVERSATION_HISTORY = "conversation_history"
+GROUNDING_SCOPES = {
+    GROUNDING_SCOPE_SINGLE_MESSAGE,
+    GROUNDING_SCOPE_CONVERSATION_HISTORY,
+}
+
 
 class Proposition(BaseModel):
     """A predicate for semantic grounding and DejaVu runtime verification.
@@ -26,6 +33,7 @@ class Proposition(BaseModel):
     prop_id: str
     description: str
     role: str  # "user" | "assistant"
+    grounding_scope: str = GROUNDING_SCOPE_SINGLE_MESSAGE
     arity: int = 0
     arg_descriptions: list[str] = Field(default_factory=list)
     few_shot_positive: list[str] = Field(default_factory=list)

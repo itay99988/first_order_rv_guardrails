@@ -12,7 +12,7 @@ from typing import Any
 
 from backend.config import get_config
 from backend.engine.dejavu_client import DejaVuClient, DejaVuError
-from backend.engine.grounding import LLMGrounding
+from backend.engine.grounding import ConversationSummaryUpdater, LLMGrounding
 from backend.models.builtins import BUILTIN_USER_TURN
 from backend.models.policy import Policy, Proposition
 from backend.models.settings import GroundingSettings
@@ -161,9 +161,20 @@ async def run_scenario(
     grounding_client = create_grounding_client(settings_for_run)
     grounding = LLMGrounding(
         client=grounding_client,
-        system_prompt=settings_for_run.grounding.system_prompt,
-        user_prompt_template_user=settings_for_run.grounding.user_prompt_template_user,
-        user_prompt_template_assistant=settings_for_run.grounding.user_prompt_template_assistant,
+        single_system_prompt=settings_for_run.grounding.single_system_prompt,
+        single_user_prompt_template_user=(
+            settings_for_run.grounding.single_user_prompt_template_user
+        ),
+        single_user_prompt_template_assistant=(
+            settings_for_run.grounding.single_user_prompt_template_assistant
+        ),
+        history_system_prompt=settings_for_run.grounding.history_system_prompt,
+        history_user_prompt_template_user=(
+            settings_for_run.grounding.history_user_prompt_template_user
+        ),
+        history_user_prompt_template_assistant=(
+            settings_for_run.grounding.history_user_prompt_template_assistant
+        ),
     )
 
     pred_ids = [p.prop_id for p in scenario.predicates]
@@ -171,6 +182,18 @@ async def run_scenario(
     propositions = await _load_propositions_for(db, pred_ids)
     policies = await _load_policies_for(db, policy_ids)
     related = await db.list_related_objects(prop_ids=pred_ids) if pred_ids else []
+    uses_conversation_history = any(
+        p.grounding_scope == "conversation_history" for p in propositions
+    )
+    summary_updater = (
+        ConversationSummaryUpdater(
+            client=grounding_client,
+            system_prompt=settings_for_run.grounding.summary_system_prompt,
+            user_prompt_template=settings_for_run.grounding.summary_user_prompt_template,
+        )
+        if uses_conversation_history
+        else None
+    )
 
     dejavu_client = DejaVuClient(base_url=config.dejavu_url)
 
@@ -183,6 +206,7 @@ async def run_scenario(
         grounding=grounding,
         dejavu_client=dejavu_client,
         related_objects=related,
+        summary_updater=summary_updater,
     )
 
     outcomes: list[MessageOutcome] = []

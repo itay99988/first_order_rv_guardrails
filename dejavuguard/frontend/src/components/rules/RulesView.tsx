@@ -39,6 +39,7 @@ export default function RulesView() {
     prop_id: string;
     description: string;
     role: string;
+    grounding_scope: "single_message" | "conversation_history";
     arity: number;
     arg_descriptions: string[];
   }) => {
@@ -47,6 +48,7 @@ export default function RulesView() {
       await updateProposition(editingProp.prop_id, {
         description: data.description,
         role: data.role,
+        grounding_scope: data.grounding_scope,
         arg_descriptions: data.arg_descriptions,
       });
     } else {

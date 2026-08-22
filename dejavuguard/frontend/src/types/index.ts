@@ -24,6 +24,7 @@ export interface Proposition {
   prop_id: string;
   description: string;
   role: "user" | "assistant";
+  grounding_scope: "single_message" | "conversation_history";
   arity: number;
   arg_descriptions?: string[];
   few_shot_positive?: string[];
@@ -106,9 +107,18 @@ export interface GroundingSettings {
   provider: GroundingProvider;
   base_url: string;
   model: string;
+  single_system_prompt: string;
+  single_user_prompt_template_user: string;
+  single_user_prompt_template_assistant: string;
+  history_system_prompt: string;
+  history_user_prompt_template_user: string;
+  history_user_prompt_template_assistant: string;
+  // Legacy aliases retained for compatibility with older API responses.
   system_prompt: string;
   user_prompt_template_user: string;
   user_prompt_template_assistant: string;
+  summary_system_prompt: string;
+  summary_user_prompt_template: string;
   api_key: string;
 }
 

@@ -163,6 +163,23 @@ class TestPropositionsCRUD:
         assert prop["prop_id"] == "p_fraud"
         assert prop["description"] == "User requests fraud techniques"
         assert prop["role"] == "user"
+        assert prop["grounding_scope"] == "single_message"
+
+    @pytest.mark.asyncio
+    async def test_proposition_grounding_scope_persists(self, db):
+        """Predicate grounding scope defaults and updates correctly."""
+        await db.create_proposition(
+            "p_history",
+            "User refers to earlier context",
+            "user",
+            grounding_scope="conversation_history",
+        )
+        prop = await db.get_proposition("p_history")
+        assert prop["grounding_scope"] == "conversation_history"
+
+        await db.update_proposition("p_history", grounding_scope="single_message")
+        updated = await db.get_proposition("p_history")
+        assert updated["grounding_scope"] == "single_message"
 
     @pytest.mark.asyncio
     async def test_list_propositions_empty(self, db):
@@ -522,6 +539,24 @@ class TestSessionsCRUD:
         await db.delete_session("sess1")
         messages = await db.get_session_messages("sess1")
         assert messages == []
+
+    @pytest.mark.asyncio
+    async def test_conversation_summary_save_load_and_cascade(self, db):
+        """Conversation summaries are session-scoped and cascade on delete."""
+        await db.create_session("sess1", "Chat")
+        await db.save_conversation_summary("sess1", "User discussed account 123.", 0)
+
+        summary = await db.get_conversation_summary("sess1")
+        assert summary["summary_text"] == "User discussed account 123."
+        assert summary["last_trace_index"] == 0
+
+        await db.save_conversation_summary("sess1", "Updated summary.", 2)
+        summary = await db.get_conversation_summary("sess1")
+        assert summary["summary_text"] == "Updated summary."
+        assert summary["last_trace_index"] == 2
+
+        await db.delete_session("sess1")
+        assert await db.get_conversation_summary("sess1") is None
 
 
 # Messages

@@ -13,6 +13,14 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
 from backend.models.settings import (
+    DEFAULT_GROUNDING_HISTORY_SYSTEM_PROMPT,
+    DEFAULT_GROUNDING_HISTORY_USER_PROMPT_TEMPLATE_ASSISTANT,
+    DEFAULT_GROUNDING_HISTORY_USER_PROMPT_TEMPLATE_USER,
+    DEFAULT_GROUNDING_SINGLE_SYSTEM_PROMPT,
+    DEFAULT_GROUNDING_SINGLE_USER_PROMPT_TEMPLATE_ASSISTANT,
+    DEFAULT_GROUNDING_SINGLE_USER_PROMPT_TEMPLATE_USER,
+    DEFAULT_GROUNDING_SUMMARY_SYSTEM_PROMPT,
+    DEFAULT_GROUNDING_SUMMARY_USER_PROMPT_TEMPLATE,
     DEFAULT_GROUNDING_SYSTEM_PROMPT,
     DEFAULT_GROUNDING_USER_PROMPT_TEMPLATE_ASSISTANT,
     DEFAULT_GROUNDING_USER_PROMPT_TEMPLATE_USER,
@@ -25,7 +33,7 @@ from backend.services.openrouter import OpenRouterClient, OpenRouterError
 from backend.store.db import DatabaseStore
 
 router = APIRouter(tags=["settings"])
-GROUNDING_PROMPT_VERSION = "optimized_related_context_v3"
+GROUNDING_PROMPT_VERSION = "grounding_scope_split_v1"
 
 
 def _get_db(request: Request) -> DatabaseStore:
@@ -48,6 +56,36 @@ async def _load_settings(db: DatabaseStore) -> AppSettings:
         provider=all_settings.get("grounding_provider", GroundingProvider.OLLAMA),
         base_url=all_settings.get("grounding_base_url", "http://localhost:11434"),
         model=all_settings.get("grounding_model", "mistral"),
+        single_system_prompt=all_settings.get(
+            "grounding_single_system_prompt",
+            GroundingSettings().single_system_prompt,
+        ),
+        single_user_prompt_template_user=all_settings.get(
+            "grounding_single_user_prompt_template_user",
+            GroundingSettings().single_user_prompt_template_user,
+        ),
+        single_user_prompt_template_assistant=all_settings.get(
+            "grounding_single_user_prompt_template_assistant",
+            GroundingSettings().single_user_prompt_template_assistant,
+        ),
+        history_system_prompt=all_settings.get(
+            "grounding_history_system_prompt",
+            legacy_system_prompt or GroundingSettings().history_system_prompt,
+        ),
+        history_user_prompt_template_user=all_settings.get(
+            "grounding_history_user_prompt_template_user",
+            all_settings.get(
+                "grounding_user_prompt_template_user",
+                legacy_user_prompt or GroundingSettings().history_user_prompt_template_user,
+            ),
+        ),
+        history_user_prompt_template_assistant=all_settings.get(
+            "grounding_history_user_prompt_template_assistant",
+            all_settings.get(
+                "grounding_user_prompt_template_assistant",
+                legacy_user_prompt or GroundingSettings().history_user_prompt_template_assistant,
+            ),
+        ),
         system_prompt=all_settings.get(
             "grounding_system_prompt",
             legacy_system_prompt or GroundingSettings().system_prompt,
@@ -59,6 +97,14 @@ async def _load_settings(db: DatabaseStore) -> AppSettings:
         user_prompt_template_assistant=all_settings.get(
             "grounding_user_prompt_template_assistant",
             legacy_user_prompt or GroundingSettings().user_prompt_template_assistant,
+        ),
+        summary_system_prompt=all_settings.get(
+            "grounding_summary_system_prompt",
+            GroundingSettings().summary_system_prompt,
+        ),
+        summary_user_prompt_template=all_settings.get(
+            "grounding_summary_user_prompt_template",
+            GroundingSettings().summary_user_prompt_template,
         ),
         api_key=all_settings.get("grounding_api_key", ""),
     )
@@ -84,6 +130,32 @@ async def _upgrade_grounding_prompts_if_needed(
     if all_settings.get("grounding_prompt_version") == GROUNDING_PROMPT_VERSION:
         return all_settings
 
+    await db.set_setting(
+        "grounding_single_system_prompt",
+        DEFAULT_GROUNDING_SINGLE_SYSTEM_PROMPT,
+    )
+    await db.set_setting(
+        "grounding_single_user_prompt_template_user",
+        DEFAULT_GROUNDING_SINGLE_USER_PROMPT_TEMPLATE_USER,
+    )
+    await db.set_setting(
+        "grounding_single_user_prompt_template_assistant",
+        DEFAULT_GROUNDING_SINGLE_USER_PROMPT_TEMPLATE_ASSISTANT,
+    )
+    await db.set_setting(
+        "grounding_history_system_prompt",
+        DEFAULT_GROUNDING_HISTORY_SYSTEM_PROMPT,
+    )
+    await db.set_setting(
+        "grounding_history_user_prompt_template_user",
+        DEFAULT_GROUNDING_HISTORY_USER_PROMPT_TEMPLATE_USER,
+    )
+    await db.set_setting(
+        "grounding_history_user_prompt_template_assistant",
+        DEFAULT_GROUNDING_HISTORY_USER_PROMPT_TEMPLATE_ASSISTANT,
+    )
+    # Legacy aliases keep older frontend builds functional. New code reads
+    # the explicit single/history keys above.
     await db.set_setting("grounding_system_prompt", DEFAULT_GROUNDING_SYSTEM_PROMPT)
     await db.set_setting(
         "grounding_user_prompt_template_user",
@@ -93,6 +165,14 @@ async def _upgrade_grounding_prompts_if_needed(
         "grounding_user_prompt_template_assistant",
         DEFAULT_GROUNDING_USER_PROMPT_TEMPLATE_ASSISTANT,
     )
+    await db.set_setting(
+        "grounding_summary_system_prompt",
+        DEFAULT_GROUNDING_SUMMARY_SYSTEM_PROMPT,
+    )
+    await db.set_setting(
+        "grounding_summary_user_prompt_template",
+        DEFAULT_GROUNDING_SUMMARY_USER_PROMPT_TEMPLATE,
+    )
     # Remove stale pre-split prompt keys so settings cannot silently keep
     # single-instance templates from an older Docker volume.
     await db.delete_setting("grounding_user_prompt_template")
@@ -101,11 +181,31 @@ async def _upgrade_grounding_prompts_if_needed(
     await db.set_setting("grounding_prompt_version", GROUNDING_PROMPT_VERSION)
 
     all_settings["grounding_system_prompt"] = DEFAULT_GROUNDING_SYSTEM_PROMPT
+    all_settings["grounding_single_system_prompt"] = DEFAULT_GROUNDING_SINGLE_SYSTEM_PROMPT
+    all_settings["grounding_single_user_prompt_template_user"] = (
+        DEFAULT_GROUNDING_SINGLE_USER_PROMPT_TEMPLATE_USER
+    )
+    all_settings["grounding_single_user_prompt_template_assistant"] = (
+        DEFAULT_GROUNDING_SINGLE_USER_PROMPT_TEMPLATE_ASSISTANT
+    )
+    all_settings["grounding_history_system_prompt"] = DEFAULT_GROUNDING_HISTORY_SYSTEM_PROMPT
+    all_settings["grounding_history_user_prompt_template_user"] = (
+        DEFAULT_GROUNDING_HISTORY_USER_PROMPT_TEMPLATE_USER
+    )
+    all_settings["grounding_history_user_prompt_template_assistant"] = (
+        DEFAULT_GROUNDING_HISTORY_USER_PROMPT_TEMPLATE_ASSISTANT
+    )
     all_settings["grounding_user_prompt_template_user"] = (
         DEFAULT_GROUNDING_USER_PROMPT_TEMPLATE_USER
     )
     all_settings["grounding_user_prompt_template_assistant"] = (
         DEFAULT_GROUNDING_USER_PROMPT_TEMPLATE_ASSISTANT
+    )
+    all_settings["grounding_summary_system_prompt"] = (
+        DEFAULT_GROUNDING_SUMMARY_SYSTEM_PROMPT
+    )
+    all_settings["grounding_summary_user_prompt_template"] = (
+        DEFAULT_GROUNDING_SUMMARY_USER_PROMPT_TEMPLATE
     )
     all_settings.pop("grounding_user_prompt_template", None)
     all_settings.pop("grounding_system_prompt_user", None)
@@ -123,6 +223,30 @@ async def _save_settings(db: DatabaseStore, settings: AppSettings) -> None:
     await db.set_setting("grounding_provider", settings.grounding.provider)
     await db.set_setting("grounding_base_url", settings.grounding.base_url)
     await db.set_setting("grounding_model", settings.grounding.model)
+    await db.set_setting(
+        "grounding_single_system_prompt",
+        settings.grounding.single_system_prompt,
+    )
+    await db.set_setting(
+        "grounding_single_user_prompt_template_user",
+        settings.grounding.single_user_prompt_template_user,
+    )
+    await db.set_setting(
+        "grounding_single_user_prompt_template_assistant",
+        settings.grounding.single_user_prompt_template_assistant,
+    )
+    await db.set_setting(
+        "grounding_history_system_prompt",
+        settings.grounding.history_system_prompt,
+    )
+    await db.set_setting(
+        "grounding_history_user_prompt_template_user",
+        settings.grounding.history_user_prompt_template_user,
+    )
+    await db.set_setting(
+        "grounding_history_user_prompt_template_assistant",
+        settings.grounding.history_user_prompt_template_assistant,
+    )
     await db.set_setting("grounding_system_prompt", settings.grounding.system_prompt)
     await db.set_setting(
         "grounding_user_prompt_template_user",
@@ -131,6 +255,14 @@ async def _save_settings(db: DatabaseStore, settings: AppSettings) -> None:
     await db.set_setting(
         "grounding_user_prompt_template_assistant",
         settings.grounding.user_prompt_template_assistant,
+    )
+    await db.set_setting(
+        "grounding_summary_system_prompt",
+        settings.grounding.summary_system_prompt,
+    )
+    await db.set_setting(
+        "grounding_summary_user_prompt_template",
+        settings.grounding.summary_user_prompt_template,
     )
     await db.delete_setting("grounding_user_prompt_template")
     await db.delete_setting("grounding_system_prompt_user")

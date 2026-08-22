@@ -88,11 +88,16 @@ describe("usePolicies", () => {
     const newProp: Proposition = {
       prop_id: "p_frame",
       role: "user",
+      grounding_scope: "single_message",
       description: "The user attempts to frame the conversation",
+      arity: 0,
       created_at: "2025-01-02T00:00:00Z",
       updated_at: "2025-01-02T00:00:00Z",
     };
-    vi.mocked(apiCreateProposition).mockResolvedValue(newProp);
+    vi.mocked(apiCreateProposition).mockResolvedValue({
+      proposition: newProp,
+      warning: null,
+    });
 
     const { result } = renderHook(() => usePolicies());
 
@@ -105,6 +110,8 @@ describe("usePolicies", () => {
         prop_id: "p_frame",
         description: "The user attempts to frame the conversation",
         role: "user",
+        grounding_scope: "single_message",
+        arity: 0,
       });
     });
 
@@ -112,6 +119,8 @@ describe("usePolicies", () => {
       prop_id: "p_frame",
       description: "The user attempts to frame the conversation",
       role: "user",
+      grounding_scope: "single_message",
+      arity: 0,
     });
 
     if (result.current.propositions.status === "success") {

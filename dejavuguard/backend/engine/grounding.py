@@ -17,6 +17,14 @@ from dataclasses import dataclass, field
 from backend.engine.trace import MessageEvent
 from backend.models.policy import Proposition
 from backend.models.settings import (
+    DEFAULT_GROUNDING_HISTORY_SYSTEM_PROMPT,
+    DEFAULT_GROUNDING_HISTORY_USER_PROMPT_TEMPLATE_ASSISTANT,
+    DEFAULT_GROUNDING_HISTORY_USER_PROMPT_TEMPLATE_USER,
+    DEFAULT_GROUNDING_SINGLE_SYSTEM_PROMPT,
+    DEFAULT_GROUNDING_SINGLE_USER_PROMPT_TEMPLATE_ASSISTANT,
+    DEFAULT_GROUNDING_SINGLE_USER_PROMPT_TEMPLATE_USER,
+    DEFAULT_GROUNDING_SUMMARY_SYSTEM_PROMPT,
+    DEFAULT_GROUNDING_SUMMARY_USER_PROMPT_TEMPLATE,
     DEFAULT_GROUNDING_SYSTEM_PROMPT,
     DEFAULT_GROUNDING_USER_PROMPT_TEMPLATE_ASSISTANT,
     DEFAULT_GROUNDING_USER_PROMPT_TEMPLATE_USER,
@@ -29,6 +37,21 @@ from backend.services.grounding_client import GroundingClientProtocol
 DEFAULT_SYSTEM_PROMPT = DEFAULT_GROUNDING_SYSTEM_PROMPT
 DEFAULT_USER_PROMPT_TEMPLATE_USER = DEFAULT_GROUNDING_USER_PROMPT_TEMPLATE_USER
 DEFAULT_USER_PROMPT_TEMPLATE_ASSISTANT = DEFAULT_GROUNDING_USER_PROMPT_TEMPLATE_ASSISTANT
+DEFAULT_SINGLE_SYSTEM_PROMPT = DEFAULT_GROUNDING_SINGLE_SYSTEM_PROMPT
+DEFAULT_SINGLE_USER_PROMPT_TEMPLATE_USER = DEFAULT_GROUNDING_SINGLE_USER_PROMPT_TEMPLATE_USER
+DEFAULT_SINGLE_USER_PROMPT_TEMPLATE_ASSISTANT = (
+    DEFAULT_GROUNDING_SINGLE_USER_PROMPT_TEMPLATE_ASSISTANT
+)
+DEFAULT_HISTORY_SYSTEM_PROMPT = DEFAULT_GROUNDING_HISTORY_SYSTEM_PROMPT
+DEFAULT_HISTORY_USER_PROMPT_TEMPLATE_USER = DEFAULT_GROUNDING_HISTORY_USER_PROMPT_TEMPLATE_USER
+DEFAULT_HISTORY_USER_PROMPT_TEMPLATE_ASSISTANT = (
+    DEFAULT_GROUNDING_HISTORY_USER_PROMPT_TEMPLATE_ASSISTANT
+)
+DEFAULT_SUMMARY_SYSTEM_PROMPT = DEFAULT_GROUNDING_SUMMARY_SYSTEM_PROMPT
+DEFAULT_SUMMARY_USER_PROMPT_TEMPLATE = DEFAULT_GROUNDING_SUMMARY_USER_PROMPT_TEMPLATE
+GROUNDING_SUMMARY_HEADER = "Conversation summary before the current message:"
+SUMMARY_PREVIOUS_HEADER = "Previous conversation summary:"
+SUMMARY_NEW_MESSAGE_HEADER = "New delivered message:"
 
 
 # Predicates whose grounding prompt has already been dumped to the batch log
@@ -134,6 +157,8 @@ class GroundingMethod(ABC):
         proposition: Proposition,
         related_object_context_block: str = "NONE",
         related_object_history_block: str = "NONE",
+        conversation_summary_block: str = "NONE",
+        grounding_scope: str | None = None,
     ) -> GroundingResult:
         """Evaluate whether message matches predicate.
 
@@ -187,15 +212,44 @@ class LLMGrounding(GroundingMethod):
         system_prompt: str = "",
         user_prompt_template_user: str = "",
         user_prompt_template_assistant: str = "",
+        single_system_prompt: str = "",
+        single_user_prompt_template_user: str = "",
+        single_user_prompt_template_assistant: str = "",
+        history_system_prompt: str = "",
+        history_user_prompt_template_user: str = "",
+        history_user_prompt_template_assistant: str = "",
     ) -> None:
         self._client = client
-        self.system_prompt = system_prompt or DEFAULT_SYSTEM_PROMPT
-        self.user_prompt_template_user = (
-            user_prompt_template_user or DEFAULT_USER_PROMPT_TEMPLATE_USER
+        self.single_system_prompt = (
+            single_system_prompt or system_prompt or DEFAULT_SINGLE_SYSTEM_PROMPT
         )
-        self.user_prompt_template_assistant = (
-            user_prompt_template_assistant or DEFAULT_USER_PROMPT_TEMPLATE_ASSISTANT
+        self.single_user_prompt_template_user = (
+            single_user_prompt_template_user
+            or user_prompt_template_user
+            or DEFAULT_SINGLE_USER_PROMPT_TEMPLATE_USER
         )
+        self.single_user_prompt_template_assistant = (
+            single_user_prompt_template_assistant
+            or user_prompt_template_assistant
+            or DEFAULT_SINGLE_USER_PROMPT_TEMPLATE_ASSISTANT
+        )
+        self.history_system_prompt = (
+            history_system_prompt or system_prompt or DEFAULT_HISTORY_SYSTEM_PROMPT
+        )
+        self.history_user_prompt_template_user = (
+            history_user_prompt_template_user
+            or user_prompt_template_user
+            or DEFAULT_HISTORY_USER_PROMPT_TEMPLATE_USER
+        )
+        self.history_user_prompt_template_assistant = (
+            history_user_prompt_template_assistant
+            or user_prompt_template_assistant
+            or DEFAULT_HISTORY_USER_PROMPT_TEMPLATE_ASSISTANT
+        )
+        # Legacy attributes retained for tests/custom callers that inspect them.
+        self.system_prompt = self.history_system_prompt
+        self.user_prompt_template_user = self.history_user_prompt_template_user
+        self.user_prompt_template_assistant = self.history_user_prompt_template_assistant
 
     async def evaluate(
         self,
@@ -203,6 +257,8 @@ class LLMGrounding(GroundingMethod):
         proposition: Proposition,
         related_object_context_block: str = "NONE",
         related_object_history_block: str = "NONE",
+        conversation_summary_block: str = "NONE",
+        grounding_scope: str | None = None,
     ) -> GroundingResult:
         """Evaluate whether message matches predicate using LLM.
 
@@ -210,15 +266,34 @@ class LLMGrounding(GroundingMethod):
         returns match=False with confidence=0.0.
         """
         try:
+            effective_scope = grounding_scope or proposition.grounding_scope
+            history_aware = effective_scope == "conversation_history"
+            system_prompt = (
+                self.history_system_prompt
+                if history_aware
+                else self.single_system_prompt
+            )
+            user_prompt_template_user = (
+                self.history_user_prompt_template_user
+                if history_aware
+                else self.single_user_prompt_template_user
+            )
+            user_prompt_template_assistant = (
+                self.history_user_prompt_template_assistant
+                if history_aware
+                else self.single_user_prompt_template_assistant
+            )
             system_prompt, user_prompt = build_grounding_prompts(
                 proposition=proposition,
                 message_role=message.role,
                 message_text=message.text,
-                system_prompt=self.system_prompt,
-                user_prompt_template_user=self.user_prompt_template_user,
-                user_prompt_template_assistant=self.user_prompt_template_assistant,
+                system_prompt=system_prompt,
+                user_prompt_template_user=user_prompt_template_user,
+                user_prompt_template_assistant=user_prompt_template_assistant,
                 related_object_context_block=related_object_context_block,
                 related_object_history_block=related_object_history_block,
+                conversation_summary_block=conversation_summary_block,
+                include_conversation_summary=history_aware,
             )
 
             _save_grounding_prompt(proposition.prop_id, system_prompt, user_prompt)
@@ -233,6 +308,12 @@ class LLMGrounding(GroundingMethod):
                 f"for {proposition.prop_id}:\n{related_object_history_block}\n",
                 flush=True,
             )
+            if history_aware:
+                print(  # noqa: T201 - user-facing debug visibility for grounding prompts.
+                    "[Grounding] CONVERSATION_SUMMARY_BLOCK "
+                    f"for {proposition.prop_id}:\n{conversation_summary_block}\n",
+                    flush=True,
+                )
 
             response_text = await self._client.chat(system_prompt, user_prompt)
             return self._parse_response(response_text, proposition.prop_id)
@@ -360,6 +441,59 @@ class LLMGrounding(GroundingMethod):
         return mentions
 
 
+class ConversationSummaryUpdater:
+    """Maintains a concise per-conversation summary with the grounding LLM.
+
+    Fail-open: invalid JSON, API errors, or malformed outputs keep the previous
+    summary unchanged.
+    """
+
+    def __init__(
+        self,
+        client: GroundingClientProtocol,
+        system_prompt: str = "",
+        user_prompt_template: str = "",
+    ) -> None:
+        self._client = client
+        self.system_prompt = system_prompt or DEFAULT_SUMMARY_SYSTEM_PROMPT
+        self.user_prompt_template = (
+            user_prompt_template or DEFAULT_SUMMARY_USER_PROMPT_TEMPLATE
+        )
+
+    async def update(self, previous_summary: str, role: str, text: str) -> str:
+        """Return the updated summary, or the old one if updating fails."""
+        old_summary = (previous_summary or "").strip()
+        summary_block = old_summary or "NONE"
+        try:
+            user_prompt = _replace_prompt_template_aliases(
+                self.user_prompt_template,
+                {
+                    "conversation_summary": summary_block,
+                    "CONVERSATION_SUMMARY": summary_block,
+                    "role": role,
+                    "ROLE": role,
+                    "text": text,
+                    "TEXT": text,
+                },
+            )
+            user_prompt = _ensure_summary_update_context(
+                user_prompt,
+                summary_block,
+                role,
+                text,
+            )
+            response_text = await self._client.chat(self.system_prompt, user_prompt)
+            data = _extract_json(response_text)
+            if not isinstance(data, dict):
+                return old_summary
+            new_summary = data.get("summary")
+            if not isinstance(new_summary, str):
+                return old_summary
+            return new_summary.strip()
+        except Exception:
+            return old_summary
+
+
 def render_few_shots(proposition: Proposition, role: str) -> str:
     """Render structured predicate examples as used by the optimized evaluator."""
     examples = proposition.few_shot_examples or []
@@ -442,6 +576,52 @@ def _replace_prompt_template_aliases(rendered_prompt: str, alias_values: dict[st
     return rendered_prompt
 
 
+def _ensure_grounding_summary_block(user_prompt: str, summary_block: str) -> str:
+    """Guarantee the grounding prompt includes the conversation summary."""
+    if GROUNDING_SUMMARY_HEADER in user_prompt:
+        return user_prompt
+
+    block = f"{GROUNDING_SUMMARY_HEADER}\n{summary_block or 'NONE'}\n\n"
+    marker = "Message text:"
+    if marker in user_prompt:
+        return user_prompt.replace(marker, block + marker, 1)
+    return user_prompt.rstrip() + "\n\n" + block.rstrip()
+
+
+def _remove_grounding_summary_block(user_prompt: str) -> str:
+    """Remove the summary block when rendering single-message grounding."""
+    following_header = (
+        r"\n\n[A-Z][^\n]*:"
+        r"|\n\nRelated object"
+        r"|\n\nFew-shot"
+        r"|\n\nMessage role:"
+        r"|\n\nMessage text:"
+        r"|$"
+    )
+    pattern = re.compile(
+        rf"\n*{re.escape(GROUNDING_SUMMARY_HEADER)}\n.*?(?={following_header})",
+        re.DOTALL,
+    )
+    return pattern.sub("\n", user_prompt).replace("\n\n\n", "\n\n").strip()
+
+
+def _ensure_summary_update_context(
+    user_prompt: str,
+    summary_block: str,
+    role: str,
+    text: str,
+) -> str:
+    """Guarantee the summary-update prompt includes prior summary and new message."""
+    prefix_parts: list[str] = []
+    if SUMMARY_PREVIOUS_HEADER not in user_prompt:
+        prefix_parts.append(f"{SUMMARY_PREVIOUS_HEADER}\n{summary_block or 'NONE'}")
+    if SUMMARY_NEW_MESSAGE_HEADER not in user_prompt:
+        prefix_parts.append(f"{SUMMARY_NEW_MESSAGE_HEADER}\n{role}: {text}")
+    if not prefix_parts:
+        return user_prompt
+    return "\n\n".join(prefix_parts) + "\n\n" + user_prompt
+
+
 def build_grounding_prompts(
     proposition: Proposition,
     message_role: str,
@@ -451,6 +631,8 @@ def build_grounding_prompts(
     user_prompt_template_assistant: str,
     related_object_context_block: str = "NONE",
     related_object_history_block: str = "NONE",
+    conversation_summary_block: str = "NONE",
+    include_conversation_summary: bool = False,
 ) -> tuple[str, str]:
     """Build system/user prompts for a predicate-message pair."""
     role = (proposition.role or message_role or "user").strip().lower()
@@ -478,6 +660,9 @@ def build_grounding_prompts(
         "FEW_SHOT_EXAMPLES": few_shot_examples,
         "RELATED_OBJECT_CONTEXT_BLOCK": related_object_context_block,
         "RELATED_OBJECT_HISTORY_BLOCK": related_object_history_block,
+        "CONVERSATION_SUMMARY": (
+            conversation_summary_block if include_conversation_summary else "NONE"
+        ),
         "proposition_description": proposition.description,
         "proposition_role": proposition.role,
         "message_role": message_role,
@@ -488,9 +673,15 @@ def build_grounding_prompts(
         "objects_block": objects_block,
         "related_object_context_block": related_object_context_block,
         "related_object_history_block": related_object_history_block,
+        "conversation_summary_block": (
+            conversation_summary_block if include_conversation_summary else "NONE"
+        ),
         "predicate_block": predicate_block,
         "related_object_context": related_object_context_block,
         "related_object_history": related_object_history_block,
+        "conversation_summary": (
+            conversation_summary_block if include_conversation_summary else "NONE"
+        ),
         "few_shot_block": few_shot_examples,
         "instance_rules": INSTANCE_RULES,
         "predicate_description": proposition.description,
@@ -499,4 +690,11 @@ def build_grounding_prompts(
     }
 
     user_prompt = _replace_prompt_template_aliases(user_template, alias_values)
+    if include_conversation_summary:
+        user_prompt = _ensure_grounding_summary_block(
+            user_prompt,
+            conversation_summary_block or "NONE",
+        )
+    else:
+        user_prompt = _remove_grounding_summary_block(user_prompt)
     return final_system_prompt, user_prompt

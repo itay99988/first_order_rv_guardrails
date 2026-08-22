@@ -35,6 +35,17 @@ export default function PropositionCard({
             <Badge variant={proposition.role === "user" ? "info" : "warning"}>
               {proposition.role}
             </Badge>
+            <Badge
+              variant={
+                proposition.grounding_scope === "conversation_history"
+                  ? "success"
+                  : "neutral"
+              }
+            >
+              {proposition.grounding_scope === "conversation_history"
+                ? "history-aware"
+                : "single-message"}
+            </Badge>
           </div>
         </div>
         <div className="flex gap-1">

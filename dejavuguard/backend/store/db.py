@@ -63,6 +63,17 @@ class DatabaseStore:
             )
             """
         )
+        await self._db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS conversation_summaries (
+                session_id TEXT PRIMARY KEY
+                    REFERENCES sessions(session_id) ON DELETE CASCADE,
+                summary_text TEXT NOT NULL DEFAULT '',
+                last_trace_index INTEGER DEFAULT -1,
+                updated_at TEXT DEFAULT (datetime('now'))
+            )
+            """
+        )
 
         cursor = await self._db.execute("PRAGMA table_info(propositions)")
         rows = await cursor.fetchall()
@@ -91,6 +102,11 @@ class DatabaseStore:
         if "arg_descriptions" not in columns:
             await self._db.execute(
                 "ALTER TABLE propositions ADD COLUMN arg_descriptions TEXT"
+            )
+        if "grounding_scope" not in columns:
+            await self._db.execute(
+                "ALTER TABLE propositions ADD COLUMN grounding_scope TEXT "
+                "DEFAULT 'single_message'"
             )
 
     # Internal helpers
@@ -142,6 +158,7 @@ class DatabaseStore:
         role: str,
         arity: int = 0,
         arg_descriptions: list[str] | None = None,
+        grounding_scope: str = "single_message",
         few_shot_positive: list[str] | None = None,
         few_shot_negative: list[str] | None = None,
         few_shot_examples: list[dict] | None = None,
@@ -162,13 +179,14 @@ class DatabaseStore:
         )
         await self._db.execute(
             "INSERT INTO propositions ("
-            "prop_id, description, role, arity, arg_descriptions, "
+            "prop_id, description, role, grounding_scope, arity, arg_descriptions, "
             "few_shot_positive, few_shot_negative, few_shot_examples, few_shot_generated_at"
-            ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 prop_id,
                 description,
                 role,
+                grounding_scope,
                 arity,
                 arg_descriptions_json,
                 few_shot_positive_json,
@@ -192,6 +210,7 @@ class DatabaseStore:
         prop_id: str,
         description: str | None = None,
         role: str | None = None,
+        grounding_scope: str | None = None,
         arg_descriptions: list[str] | None = None,
         few_shot_positive: list[str] | None = None,
         few_shot_negative: list[str] | None = None,
@@ -207,6 +226,9 @@ class DatabaseStore:
         if role is not None:
             updates.append("role = ?")
             params.append(role)
+        if grounding_scope is not None:
+            updates.append("grounding_scope = ?")
+            params.append(grounding_scope)
         if arg_descriptions is not None:
             updates.append("arg_descriptions = ?")
             params.append(json.dumps(arg_descriptions))
@@ -404,6 +426,46 @@ class DatabaseStore:
         await self._db.execute("DELETE FROM sessions WHERE session_id = ?", (session_id,))
         await self._db.commit()
 
+    # Conversation summaries
+
+    async def get_conversation_summary(self, session_id: str) -> dict | None:
+        """Get the persisted summary for a conversation session."""
+        return await self._fetch_one(
+            "SELECT * FROM conversation_summaries WHERE session_id = ?",
+            (session_id,),
+        )
+
+    async def save_conversation_summary(
+        self,
+        session_id: str,
+        summary_text: str,
+        last_trace_index: int | None = None,
+    ) -> None:
+        """Insert or update the persisted summary for a conversation session."""
+        await self._db.execute(
+            "INSERT INTO conversation_summaries "
+            "(session_id, summary_text, last_trace_index, updated_at) "
+            "VALUES (?, ?, ?, datetime('now')) "
+            "ON CONFLICT(session_id) DO UPDATE SET "
+            "summary_text = excluded.summary_text, "
+            "last_trace_index = excluded.last_trace_index, "
+            "updated_at = datetime('now')",
+            (
+                session_id,
+                summary_text,
+                -1 if last_trace_index is None else int(last_trace_index),
+            ),
+        )
+        await self._db.commit()
+
+    async def delete_conversation_summary(self, session_id: str) -> None:
+        """Delete the persisted summary for a conversation session."""
+        await self._db.execute(
+            "DELETE FROM conversation_summaries WHERE session_id = ?",
+            (session_id,),
+        )
+        await self._db.commit()
+
     # Messages
 
     async def add_message(
@@ -493,6 +555,7 @@ CREATE TABLE IF NOT EXISTS propositions (
     prop_id TEXT PRIMARY KEY,
     description TEXT NOT NULL,
     role TEXT NOT NULL CHECK(role IN ('user', 'assistant')),
+    grounding_scope TEXT DEFAULT 'single_message',
     few_shot_positive TEXT,
     few_shot_negative TEXT,
     few_shot_examples TEXT,
@@ -540,6 +603,13 @@ CREATE TABLE IF NOT EXISTS sessions (
     session_id TEXT PRIMARY KEY,
     name TEXT,
     created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS conversation_summaries (
+    session_id TEXT PRIMARY KEY REFERENCES sessions(session_id) ON DELETE CASCADE,
+    summary_text TEXT NOT NULL DEFAULT '',
+    last_trace_index INTEGER DEFAULT -1,
     updated_at TEXT DEFAULT (datetime('now'))
 );
 
