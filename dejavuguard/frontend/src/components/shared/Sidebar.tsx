@@ -1,9 +1,10 @@
-import { MessageSquare, ScrollText, Settings } from "lucide-react";
+import { BookOpen, MessageSquare, ScrollText, Settings } from "lucide-react";
 import { NavLink } from "react-router-dom";
 
 const navItems = [
   { to: "/chat", label: "Chat", icon: MessageSquare },
   { to: "/rules", label: "Rules", icon: ScrollText },
+  { to: "/playbooks", label: "Playbooks", icon: BookOpen },
   { to: "/settings", label: "Settings", icon: Settings },
 ] as const;
 

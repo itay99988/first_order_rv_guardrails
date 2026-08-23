@@ -1,6 +1,7 @@
 import { Navigate, Outlet, Route, Routes } from "react-router-dom";
 
 import ChatView from "@/components/chat/ChatView";
+import PlaybooksView from "@/components/playbooks/PlaybooksView";
 import RulesView from "@/components/rules/RulesView";
 import SettingsView from "@/components/settings/SettingsView";
 import ErrorBoundary from "@/components/shared/ErrorBoundary";
@@ -28,6 +29,7 @@ export default function App() {
         <Route element={<Layout />}>
           <Route path="/chat" element={<ChatView />} />
           <Route path="/rules" element={<RulesView />} />
+          <Route path="/playbooks" element={<PlaybooksView />} />
           <Route path="/settings" element={<SettingsView />} />
           <Route path="*" element={<Navigate to="/chat" replace />} />
         </Route>
