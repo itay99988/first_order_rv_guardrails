@@ -48,6 +48,8 @@ class ChatResponse(BaseModel):
             failed open, so monitor_state is carried-over state and `blocked`
             carries no verification weight.
         monitor_error: Why verification did not happen, when verified is False.
+        playbook_state: The playbook state this turn landed in, if the
+            session is in playbook mode. None in policy mode.
     """
 
     blocked: bool
@@ -56,6 +58,7 @@ class ChatResponse(BaseModel):
     monitor_state: dict | None = None
     blocked_response: bool = False
     monitor_error: str | None = None
+    playbook_state: dict | None = None
 
     @property
     def verified(self) -> bool:

@@ -21,6 +21,7 @@ from pydantic import BaseModel
 from backend.engine.dejavu_client import DejaVuClient
 from backend.engine.grounding import ConversationSummaryUpdater, LLMGrounding
 from backend.engine.monitor import ConversationMonitor
+from backend.engine.playbook import GlobalRule, Playbook, PlaybookMember, StateOverride
 from backend.models.chat import ChatMessage, ChatRequest, ChatResponse
 from backend.models.policy import Policy, Proposition
 from backend.models.session import SessionInfo, SessionMessage
@@ -30,6 +31,45 @@ from backend.store.db import DatabaseStore
 
 router = APIRouter(tags=["chat"])
 logger = logging.getLogger(__name__)
+
+
+def render_guidance(rules: list[str]) -> str:
+    """Format guidance as an instruction block for the chat model."""
+    return "Active guidance:\n" + "\n".join(f"- {rule}" for rule in rules)
+
+
+async def _load_playbook(db: DatabaseStore, playbook_id: str) -> Playbook | None:
+    """Assemble a Playbook from its stored rows."""
+    row = await db.get_playbook(playbook_id)
+    if not row:
+        return None
+    members = tuple(
+        PlaybookMember(
+            policy_id=m["policy_id"],
+            position=int(m["position"]),
+            fires_on=bool(m["fires_on"]),
+            guidance=m["guidance"],
+        )
+        for m in await db.list_playbook_members(playbook_id)
+    )
+    globals_ = tuple(
+        GlobalRule(
+            rule_id=g["rule_id"], name=g["name"], guidance=g["guidance"],
+            position=int(g["position"]), apply_to_all=bool(g["apply_to_all"]),
+        )
+        for g in await db.list_playbook_globals(playbook_id)
+    )
+    overrides = {
+        o["state_key"]: StateOverride(
+            state_key=o["state_key"], rule_refs=o["rule_refs"],
+            flagged=bool(o["flagged"]), label=o["label"],
+        )
+        for o in await db.list_playbook_overrides(playbook_id)
+    }
+    return Playbook(
+        playbook_id=row["playbook_id"], name=row["name"],
+        members=members, globals=globals_, overrides=overrides,
+    )
 
 # In-memory cache of monitors per session
 _monitors: dict[str, ConversationMonitor] = {}
@@ -88,6 +128,15 @@ async def _get_or_create_monitor(db: DatabaseStore, session_id: str) -> Conversa
 
     # Load enabled policies and only their referenced predicates
     policy_rows = await db.list_policies(enabled_only=True)
+
+    session_row = await db.get_session(session_id)
+    mode = (session_row or {}).get("monitoring_mode") or "policies"
+    playbook = None
+    if mode == "playbook" and (session_row or {}).get("playbook_id"):
+        playbook = await _load_playbook(db, session_row["playbook_id"])
+        if playbook is not None:
+            member_ids = {m.policy_id for m in playbook.members}
+            policy_rows = [r for r in policy_rows if r["policy_id"] in member_ids]
 
     policies = []
     needed_prop_ids: set[str] = set()
@@ -191,6 +240,7 @@ async def _get_or_create_monitor(db: DatabaseStore, session_id: str) -> Conversa
         ),
         summary_last_trace_index=summary_last_trace_index,
         summary_updater=summary_updater,
+        playbook=playbook,
     )
     _monitors[session_id] = monitor
     return monitor
@@ -313,6 +363,11 @@ async def _process_chat(db: DatabaseStore, body: ChatRequest) -> ChatResponse:
             monitor_state=user_verdict.per_policy,
             blocked_response=False,
             monitor_error=user_verdict.monitor_error,
+            playbook_state=(
+                user_verdict.playbook_state.model_dump()
+                if user_verdict.playbook_state
+                else None
+            ),
         )
 
     if monitor.summary_last_trace_index >= 0:
@@ -342,6 +397,14 @@ async def _process_chat(db: DatabaseStore, body: ChatRequest) -> ChatResponse:
     for msg in stored_messages:
         if not msg["blocked"]:
             history.append(ChatMessage(role=msg["role"], content=msg["content"]))
+
+    if user_verdict.guidance:
+        # Ephemeral: inserted into the outgoing copy only, never stored, so
+        # guidance cannot accumulate in the conversation history.
+        history.insert(
+            len(history) - 1,
+            ChatMessage(role="system", content=render_guidance(user_verdict.guidance)),
+        )
 
     try:
         response_text = await openrouter.chat(history)
@@ -383,6 +446,11 @@ async def _process_chat(db: DatabaseStore, body: ChatRequest) -> ChatResponse:
             monitor_state=assistant_verdict.per_policy,
             blocked_response=True,
             monitor_error=assistant_verdict.monitor_error,
+            playbook_state=(
+                assistant_verdict.playbook_state.model_dump()
+                if assistant_verdict.playbook_state
+                else None
+            ),
         )
 
     if monitor.summary_last_trace_index >= 0:
@@ -401,6 +469,11 @@ async def _process_chat(db: DatabaseStore, body: ChatRequest) -> ChatResponse:
         response=response_text,
         monitor_state=assistant_verdict.per_policy,
         monitor_error=user_verdict.monitor_error or assistant_verdict.monitor_error,
+        playbook_state=(
+            assistant_verdict.playbook_state.model_dump()
+            if assistant_verdict.playbook_state
+            else None
+        ),
     )
 
 
@@ -495,6 +568,42 @@ async def rename_session(request: Request, session_id: str, body: RenameSessionR
         "session_id": updated["session_id"],
         "name": updated["name"],
         "updated_at": updated["updated_at"],
+    }
+
+
+class MonitoringRequest(BaseModel):
+    """Request body for switching a session's monitoring mode."""
+
+    mode: str
+    playbook_id: str | None = None
+
+
+@router.patch("/chat/sessions/{session_id}/monitoring")
+async def set_session_monitoring(request: Request, session_id: str,
+                                 body: MonitoringRequest):
+    """Switch a session between policy and playbook monitoring.
+
+    The DejaVu specification changes with the mode, so the cached monitor is
+    dropped and the session's monitoring restarts.
+    """
+    db = _get_db(request)
+    if not await db.get_session(session_id):
+        raise HTTPException(404, f"Session '{session_id}' not found.")
+    if body.mode not in ("policies", "playbook"):
+        raise HTTPException(422, "mode must be 'policies' or 'playbook'.")
+    if body.mode == "playbook":
+        if not body.playbook_id:
+            raise HTTPException(422, "playbook_id is required in playbook mode.")
+        if not await db.get_playbook(body.playbook_id):
+            raise HTTPException(404, f"Playbook '{body.playbook_id}' not found.")
+
+    await db.set_session_monitoring(session_id, body.mode, body.playbook_id)
+    _monitors.pop(session_id, None)
+    updated = await db.get_session(session_id)
+    return {
+        "session_id": session_id,
+        "monitoring_mode": updated["monitoring_mode"],
+        "playbook_id": updated["playbook_id"],
     }
 
 
