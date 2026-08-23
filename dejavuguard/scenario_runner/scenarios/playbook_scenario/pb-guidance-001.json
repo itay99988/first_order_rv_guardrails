@@ -1,0 +1,81 @@
+{
+  "scenario_id": "pb-guidance-001",
+  "description": "Playbook mode surfaces guidance the moment the assistant proposes an amount over the user's stated budget, without blocking the turn.",
+  "model": {
+    "grounding_provider": "vllm",
+    "grounding_model": "stub-grounder"
+  },
+  "predicates": [
+    {
+      "prop_id": "budget_request_u",
+      "description": "the user states a maximum budget they are willing to spend",
+      "role": "user",
+      "objects": [
+        {
+          "object_id": "o1",
+          "description": "the maximum budget amount, in US dollars, the user is willing to spend",
+          "entity_type": "number"
+        }
+      ]
+    },
+    {
+      "prop_id": "amount_propose_a",
+      "description": "the assistant proposes an amount to spend",
+      "role": "assistant",
+      "objects": [
+        {
+          "object_id": "o1",
+          "description": "the proposed amount, in US dollars",
+          "entity_type": "number"
+        }
+      ]
+    }
+  ],
+  "policies": [
+    {
+      "policy_id": "budget-policy",
+      "name": "The assistant may only propose an amount that does not exceed the user's most recently stated budget",
+      "formula_str": "forall p . amount_propose_a(p) -> exists b . ( ( !(exists b2 . ( budget_request_u(b2) & !(b2 = b) )) S budget_request_u(b) ) & !(b < p) )"
+    }
+  ],
+  "monitoring": {
+    "mode": "playbook",
+    "playbook_id": "pb-budget"
+  },
+  "playbooks": [
+    {
+      "playbook_id": "pb-budget",
+      "name": "Budget Guardrail",
+      "members": [
+        {
+          "policy_id": "budget-policy",
+          "position": 0,
+          "fires_on": false,
+          "guidance": "Stay within the stated budget."
+        }
+      ],
+      "globals": [],
+      "states": []
+    }
+  ],
+  "messages": [
+    {
+      "role": "user",
+      "text": "I'm planning a project and my absolute ceiling is $12,000 — that's everything I've budgeted.",
+      "expected_verdict": {
+        "budget-policy": true
+      },
+      "expected_guidance": []
+    },
+    {
+      "role": "assistant",
+      "text": "Understood. Here's my recommendation: let's go with the premium package at $14,500.",
+      "expected_verdict": {
+        "budget-policy": false
+      },
+      "expected_guidance": [
+        "Stay within the stated budget."
+      ]
+    }
+  ]
+}

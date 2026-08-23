@@ -1,0 +1,10 @@
+[
+  {"when": ["states a maximum budget", "ceiling is $12,000"],
+   "respond": {"found": true, "instances": [{"instance_id": "i1",
+     "object_mentions": [{"object_id": "o1", "mention": "$12,000",
+       "canonical_form": "12000", "canonical_source": {"type": "new"}}]}]}},
+  {"when": ["proposes an amount", "at $14,500"],
+   "respond": {"found": true, "instances": [{"instance_id": "i1",
+     "object_mentions": [{"object_id": "o1", "mention": "$14,500",
+       "canonical_form": "14500", "canonical_source": {"type": "new"}}]}]}}
+]

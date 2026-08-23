@@ -147,11 +147,15 @@ class ScenarioMessage(BaseModel):
 
     expected_verdict maps policy_id -> expected per-policy verdict
     (True = passing, False = violated) after this message is processed.
+    expected_playbook_state / expected_guidance are only meaningful in
+    playbook mode; each is checked only when supplied.
     """
 
     role: str
     text: str
     expected_verdict: dict[str, bool] | None = None
+    expected_playbook_state: str | None = None
+    expected_guidance: list[str] | None = None
 
     model_config = ConfigDict(extra="forbid")
 
@@ -163,6 +167,50 @@ class ScenarioMessage(BaseModel):
         return v
 
 
+class ScenarioMonitoring(BaseModel):
+    """Which monitoring mode the scenario runs under."""
+
+    mode: str = "policies"
+    playbook_id: str | None = None
+
+    model_config = ConfigDict(extra="forbid")
+
+    @field_validator("mode")
+    @classmethod
+    def _mode_is_known(cls, v: str) -> str:
+        if v not in {"policies", "playbook"}:
+            raise ValueError(f"mode must be 'policies' or 'playbook', got '{v}'")
+        return v
+
+
+class ScenarioPlaybookMember(BaseModel):
+    policy_id: str
+    position: int = 0
+    fires_on: bool = False
+    guidance: str = ""
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class ScenarioPlaybookState(BaseModel):
+    state_key: str
+    rule_refs: list[dict] | None = None
+    flagged: bool = False
+    label: str | None = None
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class ScenarioPlaybook(BaseModel):
+    playbook_id: str
+    name: str
+    members: list[ScenarioPlaybookMember] = Field(default_factory=list)
+    globals: list[dict] = Field(default_factory=list)
+    states: list[ScenarioPlaybookState] = Field(default_factory=list)
+
+    model_config = ConfigDict(extra="forbid")
+
+
 class Scenario(BaseModel):
     """A complete scenario specification."""
 
@@ -172,6 +220,8 @@ class Scenario(BaseModel):
     predicates: list[ScenarioPredicate] = Field(default_factory=list)
     policies: list[ScenarioPolicy] = Field(default_factory=list)
     related_objects: list[ScenarioRelatedObjects] = Field(default_factory=list)
+    monitoring: ScenarioMonitoring = Field(default_factory=ScenarioMonitoring)
+    playbooks: list[ScenarioPlaybook] = Field(default_factory=list)
     messages: list[ScenarioMessage] = Field(default_factory=list)
 
     model_config = ConfigDict(extra="forbid")

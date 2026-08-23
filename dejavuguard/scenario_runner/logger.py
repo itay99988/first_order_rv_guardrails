@@ -60,6 +60,16 @@ def _render_message_block(outcome: MessageOutcome) -> str:
         lines.append(f"    expected:  {_format_bool_map(outcome.expected)}")
     if outcome.mismatches:
         lines.append(f"    MISMATCH:  {_format_mismatches(outcome.mismatches)}")
+    if outcome.playbook_state_name:
+        lines.append(f"    state:     {outcome.playbook_state_name}")
+    if outcome.guidance:
+        lines.append(f"    guidance:  {' | '.join(outcome.guidance)}")
+    if outcome.state_mismatch:
+        expected, actual = outcome.state_mismatch
+        lines.append(f"    STATE MISMATCH: expected={expected} actual={actual}")
+    if outcome.guidance_mismatch:
+        expected, actual = outcome.guidance_mismatch
+        lines.append(f"    GUIDANCE MISMATCH: expected={expected} actual={actual}")
     if outcome.monitor_error:
         lines.append(
             f"    UNVERIFIED: DejaVu produced no verdict -- {outcome.monitor_error}"
@@ -151,6 +161,8 @@ def _outcome_to_dict(outcome: MessageOutcome) -> dict[str, Any]:
         "grounding_details": outcome.grounding_details,
         "monitor_error": outcome.monitor_error,
         "verified": outcome.monitor_error is None,
+        "playbook_state": outcome.playbook_state_name,
+        "guidance": outcome.guidance,
     }
 
 

@@ -381,14 +381,34 @@ async def ensure_related_objects(
     return "updated"
 
 
+async def ensure_playbooks(db: DatabaseStore, scenario: Scenario) -> dict[str, str]:
+    """Create or refresh the scenario's playbooks."""
+    status: dict[str, str] = {}
+    for pb in scenario.playbooks:
+        existing = await db.get_playbook(pb.playbook_id)
+        if existing is None:
+            await db.create_playbook(pb.playbook_id, pb.name)
+            status[pb.playbook_id] = "created"
+        else:
+            status[pb.playbook_id] = "reused"
+        await db.set_playbook_members(
+            pb.playbook_id, [m.model_dump() for m in pb.members]
+        )
+        await db.set_playbook_globals(pb.playbook_id, pb.globals)
+        await db.replace_playbook_overrides(
+            pb.playbook_id, [s.model_dump() for s in pb.states]
+        )
+    return status
+
+
 async def ensure_scenario_setup(
     db: DatabaseStore,
     scenario: Scenario,
     overwrite: bool,
 ) -> dict[str, dict[str, str]]:
-    """Ensure every predicate, policy, and related-object entry exists.
+    """Ensure every predicate, policy, related-object entry, and playbook exists.
 
-    Returns {'predicates', 'policies', 'related_objects'} status maps.
+    Returns {'predicates', 'policies', 'related_objects', 'playbooks'} status maps.
     """
     pred_status: dict[str, str] = {}
     policy_status: dict[str, str] = {}
@@ -409,8 +429,11 @@ async def ensure_scenario_setup(
             db, entry, overwrite
         )
 
+    playbook_status = await ensure_playbooks(db, scenario)
+
     return {
         "predicates": pred_status,
         "policies": policy_status,
         "related_objects": related_status,
+        "playbooks": playbook_status,
     }
