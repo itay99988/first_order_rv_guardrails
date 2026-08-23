@@ -7,6 +7,8 @@ consequences are visible at the moment of change rather than discovered later.
 
 from __future__ import annotations
 
+import json
+import re
 import uuid
 
 from fastapi import APIRouter, HTTPException, Request
@@ -14,6 +16,7 @@ from pydantic import BaseModel
 
 from backend.engine.playbook import (
     Playbook,
+    ResolvedState,
     all_state_keys,
     collapse_overrides,
     expand_overrides,
@@ -25,6 +28,30 @@ from backend.routers.chat import _load_playbook, invalidate_monitors
 from backend.store.db import DatabaseStore
 
 router = APIRouter(tags=["playbooks"])
+
+
+def _is_irrevocable(formula: str) -> bool:
+    """True when the formula is historically-quantified (leading H).
+
+    Such a property never returns to True once violated, so states requiring
+    it True become permanently unreachable. Syntactic and deliberately
+    conservative -- it is a heuristic, not a proof.
+    """
+    return bool(re.match(r"H\b", (formula or "").strip()))
+
+
+async def _member_irrevocability(db: DatabaseStore, playbook: Playbook) -> dict[str, bool]:
+    """policy_id -> whether that member's formula is irrevocable."""
+    out: dict[str, bool] = {}
+    for member in playbook.members:
+        policy = await db.get_policy(member.policy_id)
+        out[member.policy_id] = _is_irrevocable(policy["formula_str"] if policy else "")
+    return out
+
+
+def _state_reachable(state: ResolvedState, blocked_policy_ids: set[str]) -> bool:
+    """False only when every currently-blocked member is required True here."""
+    return not any(state.verdicts.get(pid) for pid in blocked_policy_ids)
 
 
 def _get_db(request: Request) -> DatabaseStore:
@@ -229,12 +256,14 @@ async def get_states(request: Request, playbook_id: str):
     await _require(db, playbook_id)
     playbook = await _load_playbook(db, playbook_id)
     behaviours = group_behaviours(playbook)
+    irrevocable = await _member_irrevocability(db, playbook)
     return {
         "playbook_id": playbook_id,
         "state_count": len(all_state_keys(playbook.members)),
         "members": [
             {"policy_id": m.policy_id, "position": m.position,
-             "fires_on": m.fires_on, "guidance": m.guidance}
+             "fires_on": m.fires_on, "guidance": m.guidance,
+             "irrevocable": irrevocable.get(m.policy_id, False)}
             for m in sorted(playbook.members, key=lambda m: m.position)
         ],
         "behaviours": [
@@ -268,3 +297,82 @@ async def set_override(request: Request, playbook_id: str, state_key: str,
         )
     invalidate_monitors()
     return {"state_key": state_key}
+
+
+@router.get("/playbooks/{playbook_id}/trace")
+async def get_trace(request: Request, playbook_id: str, session_id: str = ""):
+    """Behaviour nodes plus the transitions a session actually took.
+
+    Edges are observed, not enumerated: 2^n states have no fixed transition
+    relation, and drawing every possible edge is unreadable past three members.
+    Reconstructed from each message's stored per-policy verdicts.
+
+    Also carries the reachability heuristic (R-17): for a member whose
+    formula is irrevocable (leading H), the verdict never returns to True.
+    Once the current state has that bit False, every node whose states all
+    require it True is permanently unreachable. Syntactic and conservative --
+    a heuristic, not a proof.
+    """
+    db = _get_db(request)
+    await _require(db, playbook_id)
+    playbook = await _load_playbook(db, playbook_id)
+    behaviours = group_behaviours(playbook)
+    irrevocable = await _member_irrevocability(db, playbook)
+
+    key_to_name = {
+        state.state_key: behaviour.name
+        for behaviour in behaviours
+        for state in behaviour.states
+    }
+
+    visited: list[str] = []
+    current_verdicts: dict[str, bool] | None = None
+    for message in await db.get_session_messages(session_id) if session_id else []:
+        raw = message.get("monitor_state")
+        if not raw:
+            continue
+        try:
+            per_policy = json.loads(raw)
+        except (TypeError, ValueError):
+            continue
+        if not all(m.policy_id in per_policy for m in playbook.members):
+            continue
+        state = resolve_state(playbook, per_policy)
+        visited.append(key_to_name.get(state.state_key, state.state_key))
+        current_verdicts = state.verdicts
+
+    blocked_policy_ids = {
+        policy_id
+        for policy_id, is_irrevocable in irrevocable.items()
+        if is_irrevocable
+        and current_verdicts is not None
+        and current_verdicts.get(policy_id) is False
+    }
+
+    edges: dict[tuple[str, str], int] = {}
+    for index in range(1, len(visited)):
+        edges[(visited[index - 1], visited[index])] = (
+            edges.get((visited[index - 1], visited[index]), 0) + 1
+        )
+
+    return {
+        "nodes": [
+            {"name": b.name, "rules": list(b.rules), "flagged": b.flagged,
+             "visited": b.name in visited, "state_count": len(b.states),
+             "reachable": current_verdicts is None or any(
+                 _state_reachable(s, blocked_policy_ids) for s in b.states
+             )}
+            for b in behaviours
+        ],
+        "edges": [
+            {"from": src, "to": dst, "count": count}
+            for (src, dst), count in edges.items()
+        ],
+        "current": visited[-1] if visited else None,
+        "members": [
+            {"policy_id": m.policy_id, "position": m.position,
+             "fires_on": m.fires_on, "guidance": m.guidance,
+             "irrevocable": irrevocable.get(m.policy_id, False)}
+            for m in sorted(playbook.members, key=lambda m: m.position)
+        ],
+    }

@@ -213,6 +213,8 @@ export interface PlaybookMember {
   position: number;
   fires_on: boolean;
   guidance: string;
+  /** Only present when read back (states/trace) -- absent when writing members. */
+  irrevocable?: boolean;
 }
 
 export interface PlaybookStateRow {
@@ -235,6 +237,36 @@ export interface PlaybookStates {
   members: PlaybookMember[];
   behaviours: PlaybookBehaviour[];
   warnings: string[];
+}
+
+/** One behaviour node in the state-machine graph. */
+export interface PlaybookTraceNode {
+  name: string;
+  rules: string[];
+  flagged: boolean;
+  visited: boolean;
+  state_count: number;
+  /**
+   * Reachability heuristic (R-17): false when every state behind this node
+   * requires an irrevocable (leading-`H`) member to be True while that
+   * member is currently False. Syntactic and conservative -- a heuristic,
+   * not a proof.
+   */
+  reachable: boolean;
+}
+
+/** One transition a session actually took, not every transition possible. */
+export interface PlaybookTraceEdge {
+  from: string;
+  to: string;
+  count: number;
+}
+
+export interface PlaybookTrace {
+  nodes: PlaybookTraceNode[];
+  edges: PlaybookTraceEdge[];
+  current: string | null;
+  members: PlaybookMember[];
 }
 
 /** Set when the session runs a playbook; null in policy mode. */

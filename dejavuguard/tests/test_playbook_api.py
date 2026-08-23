@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 from fastapi.testclient import TestClient
 
 from backend.main import create_app
+from backend.routers.playbooks import _is_irrevocable
+from backend.store.db import DatabaseStore
 
 
 @pytest.fixture
@@ -133,3 +137,95 @@ def test_deleting_a_playbook(client):
     pb = client.post("/api/playbooks", json={"name": "Budget"}).json()["playbook_id"]
     assert client.delete(f"/api/playbooks/{pb}").status_code == 204
     assert client.get("/api/playbooks").json() == []
+
+
+def test_trace_returns_nodes_and_observed_edges(client):
+    """Edges come from the messages a session actually produced."""
+    a = _policy(client, "p_a", "A")
+    pb = client.post("/api/playbooks", json={"name": "Budget"}).json()["playbook_id"]
+    client.put(f"/api/playbooks/{pb}/members", json={"members": [
+        {"policy_id": a, "position": 0, "fires_on": False, "guidance": "R."}]})
+
+    body = client.get(f"/api/playbooks/{pb}/trace?session_id=none").json()
+
+    assert {n["name"] for n in body["nodes"]} == {"(no guidance)", "R."}
+    assert body["edges"] == []
+    assert body["current"] is None
+
+
+# --- Reachability heuristic (R-17) ---
+
+
+def test_is_irrevocable_accepts_leading_h_with_or_without_a_space():
+    assert _is_irrevocable("H (p_fraud -> !q_comply)")
+    assert _is_irrevocable("H(p_fraud -> !q_comply)")
+
+
+def test_is_irrevocable_rejects_an_identifier_that_merely_starts_with_h():
+    assert not _is_irrevocable("Hello")
+
+
+def test_is_irrevocable_rejects_a_non_h_formula():
+    assert not _is_irrevocable("p_fraud -> !q_comply")
+
+
+async def _seed_irrevocable_session(db_path: str) -> None:
+    """A playbook with one irrevocable member, and a session that saw it go False."""
+    db = DatabaseStore(db_path)
+    await db.initialize()
+    await db.create_proposition("p_a", "a", "user")
+    await db.create_policy("pol-a", "A", "H(p_a)", True)
+    await db.set_policy_propositions("pol-a", ["p_a"])
+    await db.create_playbook("pb1", "Budget")
+    await db.set_playbook_members("pb1", [
+        {"policy_id": "pol-a", "position": 0, "fires_on": True,
+         "guidance": "Blocked."}])
+    await db.create_session("s1")
+    await db.add_message("s1", 0, "user", "hi", monitor_state={"pol-a": False})
+    await db.close()
+
+
+def test_trace_marks_states_requiring_a_false_irrevocable_member_unreachable(
+    tmp_path, monkeypatch,
+):
+    """R-17: once an irrevocable member is False, states requiring it True
+    are permanently unreachable -- shown, not hidden, and labelled a
+    heuristic rather than a proof."""
+    db_path = str(tmp_path / "trace.db")
+    monkeypatch.setenv("DATABASE_PATH", db_path)
+    asyncio.run(_seed_irrevocable_session(db_path))
+
+    with TestClient(create_app()) as client:
+        body = client.get("/api/playbooks/pb1/trace?session_id=s1").json()
+
+    assert body["current"] == "(no guidance)"
+    by_name = {n["name"]: n for n in body["nodes"]}
+    assert by_name["(no guidance)"]["reachable"] is True
+    assert by_name["Blocked."]["reachable"] is False
+
+    member = body["members"][0]
+    assert member["policy_id"] == "pol-a"
+    assert member["irrevocable"] is True
+
+
+def test_trace_treats_everything_reachable_when_there_is_no_current_state(client):
+    a = _policy(client, "p_a", "A")
+    pb = client.post("/api/playbooks", json={"name": "Budget"}).json()["playbook_id"]
+    client.put(f"/api/playbooks/{pb}/members", json={"members": [
+        {"policy_id": a, "position": 0, "fires_on": False, "guidance": "R."}]})
+
+    body = client.get(f"/api/playbooks/{pb}/trace?session_id=none").json()
+
+    assert body["current"] is None
+    assert all(n["reachable"] for n in body["nodes"])
+
+
+def test_states_endpoint_reports_irrevocable_per_member(client):
+    a = _policy(client, "p_a", "A")
+    pb = client.post("/api/playbooks", json={"name": "Budget"}).json()["playbook_id"]
+    client.put(f"/api/playbooks/{pb}/members", json={"members": [
+        {"policy_id": a, "position": 0, "fires_on": False, "guidance": "R."}]})
+
+    body = client.get(f"/api/playbooks/{pb}/states").json()
+
+    assert body["members"][0]["irrevocable"] is False

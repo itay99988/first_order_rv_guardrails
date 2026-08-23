@@ -8,6 +8,7 @@ import type {
   PlaybookGlobalRule,
   PlaybookMember,
   PlaybookStates,
+  PlaybookTrace,
   Policy,
   Proposition,
   SessionInfo,
@@ -301,6 +302,15 @@ export async function setPlaybookOverride(
   return request(
     `/api/playbooks/${playbookId}/states/${encodeURIComponent(stateKey)}`,
     { method: "PUT", body: JSON.stringify(data) },
+  );
+}
+
+export async function getPlaybookTrace(
+  playbookId: string,
+  sessionId: string,
+): Promise<PlaybookTrace> {
+  return request(
+    `/api/playbooks/${playbookId}/trace?session_id=${encodeURIComponent(sessionId)}`,
   );
 }
 
