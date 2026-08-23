@@ -20,6 +20,7 @@ import asyncio
 import json
 import logging
 import uuid
+from dataclasses import dataclass
 
 from backend.engine.dejavu_client import DejaVuClient, DejaVuError
 from backend.engine.formula_analysis import numeric_object_positions
@@ -28,12 +29,31 @@ from backend.engine.grounding import (
     GroundingMethod,
     GroundingResult,
 )
+from backend.engine.playbook import Playbook, resolve_state
 from backend.engine.spec_builder import build_dejavu_spec
 from backend.engine.trace import ConversationTrace
 from backend.models.builtins import BUILTIN_USER_TURN
-from backend.models.policy import MonitorVerdict, Policy, Proposition, ViolationInfo
+from backend.models.policy import (
+    MonitorVerdict,
+    PlaybookStateInfo,
+    Policy,
+    Proposition,
+    ViolationInfo,
+)
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class _PlaybookEvaluation:
+    """Outcome of resolving the playbook for one step.
+
+    ``state`` and ``unavailable`` are never both set. Both None means policy
+    mode, where blocking stays per-policy.
+    """
+
+    state: PlaybookStateInfo | None
+    unavailable: str | None
 
 
 class ConversationMonitor:
@@ -68,8 +88,10 @@ class ConversationMonitor:
         conversation_summary: str = "",
         summary_last_trace_index: int = -1,
         summary_updater: ConversationSummaryUpdater | None = None,
+        playbook: Playbook | None = None,
     ) -> None:
         self._grounding = grounding
+        self._playbook = playbook
         self._propositions = {p.prop_id: p for p in propositions}
         self._related_objects = self._index_related_objects(related_objects or [])
         self._canonical_history: list[dict] = list(canonical_history or [])
@@ -141,6 +163,43 @@ class ConversationMonitor:
             logger.error("Failed to create DejaVu session: %s", e)
             raise
 
+    def _evaluate_playbook(
+        self, per_policy: dict[str, bool]
+    ) -> _PlaybookEvaluation:
+        """Resolve the playbook state from this step's per-policy verdicts.
+
+        Three outcomes, which the caller must keep distinct:
+        - policy mode: no playbook, blocking stays per-policy
+        - available: a state, whose flag decides blocking
+        - unavailable: a member has no verdict, so the state vector is
+          undefined and the step fails closed
+        """
+        if self._playbook is None:
+            return _PlaybookEvaluation(state=None, unavailable=None)
+        missing = [
+            m.policy_id
+            for m in self._playbook.members
+            if m.policy_id not in per_policy
+        ]
+        if missing:
+            reason = (
+                f"Playbook '{self._playbook.name}' is unavailable: no verdict for "
+                f"{', '.join(missing)} (the policy may be disabled or deleted)"
+            )
+            logger.warning("%s", reason)
+            return _PlaybookEvaluation(state=None, unavailable=reason)
+        state = resolve_state(self._playbook, per_policy)
+        info = PlaybookStateInfo(
+            playbook_id=self._playbook.playbook_id,
+            playbook_name=self._playbook.name,
+            state_key=state.state_key,
+            label=state.label,
+            member_verdicts=state.verdicts,
+            rules=list(state.rules),
+            flagged=state.flagged,
+        )
+        return _PlaybookEvaluation(state=info, unavailable=None)
+
     async def process_message(self, role: str, text: str) -> MonitorVerdict:
         """Process a new message through the full RV pipeline.
 
@@ -208,6 +267,7 @@ class ConversationMonitor:
             for policy_id in self._policies:
                 per_policy[policy_id] = True
             await self._update_conversation_summary_if_passed(True, event)
+            fallback = self._evaluate_playbook(per_policy)
             return MonitorVerdict(
                 passed=True,
                 per_policy=per_policy,
@@ -217,6 +277,8 @@ class ConversationMonitor:
                 violations=[],
                 verified=False,
                 monitor_error=f"DejaVu session unavailable: {e}",
+                playbook_state=fallback.state,
+                guidance=list(fallback.state.rules) if fallback.state else [],
             )
 
         if self._dejavu_session_id is not None:
@@ -318,8 +380,51 @@ class ConversationMonitor:
             for policy_id in self._policies:
                 per_policy[policy_id] = True
 
-        # 6. Aggregate: block if ANY policy is violated
-        overall = all(per_policy.values()) if per_policy else True
+        # 6. Aggregate: block if ANY policy is violated, or if a playbook is
+        # configured, block only when the resolved state is flagged.
+        evaluation = self._evaluate_playbook(per_policy)
+        playbook_state = evaluation.state
+        if evaluation.unavailable:
+            # The state vector is undefined, so there is nothing to decide
+            # with. Falling back to per-policy blocking would monitor a
+            # different state space than the operator configured, which is
+            # worse than refusing the turn.
+            overall = False
+            violations = [
+                ViolationInfo(
+                    policy_id=self._playbook.playbook_id,
+                    policy_name=evaluation.unavailable,
+                    formula_str="",
+                    violated_at_index=event.index,
+                    labeling=dict(labeling),
+                    grounding_details=list(grounding_details),
+                    playbook_id=self._playbook.playbook_id,
+                    state_label=None,
+                )
+            ]
+        elif playbook_state is not None:
+            # Playbook mode: only the state flag blocks. A member returning
+            # False must not block on its own, or every state containing an F
+            # becomes unreachable and the truth table is pointless.
+            overall = not playbook_state.flagged
+            if playbook_state.flagged:
+                violations = [
+                    ViolationInfo(
+                        policy_id=playbook_state.playbook_id,
+                        policy_name=playbook_state.playbook_name,
+                        formula_str="",
+                        violated_at_index=event.index,
+                        labeling=dict(labeling),
+                        grounding_details=list(grounding_details),
+                        playbook_id=playbook_state.playbook_id,
+                        state_label=playbook_state.label,
+                    )
+                ]
+            else:
+                violations = []
+        else:
+            overall = all(per_policy.values()) if per_policy else True
+
         await self._update_conversation_summary_if_passed(overall, event)
 
         return MonitorVerdict(
@@ -332,6 +437,8 @@ class ConversationMonitor:
             verified=monitor_error is None,
             monitor_error=monitor_error,
             composite_event=sent_events,
+            playbook_state=playbook_state,
+            guidance=list(playbook_state.rules) if playbook_state else [],
         )
 
     async def _safe_ground(self, event, prop: Proposition) -> GroundingResult:

@@ -60,6 +60,28 @@ class Policy(BaseModel):
     enabled: bool = True
 
 
+class PlaybookStateInfo(BaseModel):
+    """The playbook state a message landed in.
+
+    Attributes:
+        playbook_id: Which playbook produced this state.
+        playbook_name: Human-readable name.
+        state_key: Canonical policy_id=T|F key, sorted by policy id.
+        label: User-assigned name for the state, if any.
+        member_verdicts: policy_id -> verdict for the playbook's members only.
+        rules: Ordered guidance selected by this state.
+        flagged: Whether this state is a violation.
+    """
+
+    playbook_id: str
+    playbook_name: str
+    state_key: str
+    label: str | None = None
+    member_verdicts: dict[str, bool] = Field(default_factory=dict)
+    rules: list[str] = Field(default_factory=list)
+    flagged: bool = False
+
+
 class ViolationInfo(BaseModel):
     """Details about a policy violation.
 
@@ -70,6 +92,8 @@ class ViolationInfo(BaseModel):
         violated_at_index: Trace index where violation occurred.
         labeling: Predicate truth values at the violating step.
         grounding_details: Reasoning from the grounding engine.
+        playbook_id: Which playbook flagged this violation, if any.
+        state_label: User-assigned name for the flagged state, if any.
     """
 
     policy_id: str
@@ -78,6 +102,8 @@ class ViolationInfo(BaseModel):
     violated_at_index: int
     labeling: dict[str, bool] = Field(default_factory=dict)
     grounding_details: list[dict] = Field(default_factory=list)
+    playbook_id: str | None = None
+    state_label: str | None = None
 
 
 class MonitorVerdict(BaseModel):
@@ -97,6 +123,10 @@ class MonitorVerdict(BaseModel):
         composite_event: The event list actually sent to DejaVu at this step,
             after numeric coercion. Reported rather than reconstructed so
             debugging surfaces show the real payload.
+        playbook_state: The playbook state this step landed in, if a
+            playbook is configured. None in policy mode.
+        guidance: Ordered guidance for the assistant, selected by the
+            playbook state. Empty in policy mode.
     """
 
     passed: bool
@@ -108,3 +138,5 @@ class MonitorVerdict(BaseModel):
     verified: bool = True
     monitor_error: str | None = None
     composite_event: list[dict] = Field(default_factory=list)
+    playbook_state: PlaybookStateInfo | None = None
+    guidance: list[str] = Field(default_factory=list)
