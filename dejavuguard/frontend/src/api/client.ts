@@ -4,6 +4,9 @@ import type {
   FormulaValidation,
   GroundingPromptPreview,
   OpenRouterModel,
+  Playbook,
+  PlaybookMember,
+  PlaybookStates,
   Policy,
   Proposition,
   SessionInfo,
@@ -218,5 +221,78 @@ export async function sendMessage(
   return request<ChatResponse>("/api/chat", {
     method: "POST",
     body: JSON.stringify({ session_id: sessionId, message }),
+  });
+}
+
+// --- Playbooks ---
+
+export async function getPlaybooks(): Promise<Playbook[]> {
+  return request<Playbook[]>("/api/playbooks");
+}
+
+export async function createPlaybook(data: {
+  name: string;
+  description?: string;
+}): Promise<{ playbook_id: string; name: string }> {
+  return request("/api/playbooks", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updatePlaybook(
+  playbookId: string,
+  data: { name?: string; description?: string },
+): Promise<Playbook> {
+  return request(`/api/playbooks/${playbookId}`, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deletePlaybook(playbookId: string): Promise<void> {
+  await request(`/api/playbooks/${playbookId}`, { method: "DELETE" });
+}
+
+export async function setPlaybookMembers(
+  playbookId: string,
+  members: PlaybookMember[],
+): Promise<{
+  state_count: number;
+  behaviour_count: number;
+  overrides_expanded: number;
+  conflicts: unknown[];
+  warnings: string[];
+}> {
+  return request(`/api/playbooks/${playbookId}/members`, {
+    method: "PUT",
+    body: JSON.stringify({ members }),
+  });
+}
+
+export async function getPlaybookStates(
+  playbookId: string,
+): Promise<PlaybookStates> {
+  return request(`/api/playbooks/${playbookId}/states`);
+}
+
+export async function setPlaybookOverride(
+  playbookId: string,
+  stateKey: string,
+  data: { rule_refs: unknown[] | null; flagged: boolean; label: string | null },
+): Promise<{ state_key: string }> {
+  return request(
+    `/api/playbooks/${playbookId}/states/${encodeURIComponent(stateKey)}`,
+    { method: "PUT", body: JSON.stringify(data) },
+  );
+}
+
+export async function setSessionMonitoring(
+  sessionId: string,
+  data: { mode: "policies" | "playbook"; playbook_id?: string | null },
+): Promise<{ monitoring_mode: string; playbook_id: string | null }> {
+  return request(`/api/chat/sessions/${sessionId}/monitoring`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
   });
 }

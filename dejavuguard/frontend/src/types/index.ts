@@ -22,6 +22,7 @@ export interface ChatResponse {
    * the turn was not actually checked against any policy.
    */
   monitor_error?: string | null;
+  playbook_state?: PlaybookStateInfo | null;
 }
 
 // --- Policy ---
@@ -193,4 +194,56 @@ export interface FormulaValidation {
   valid: boolean;
   error: string | null;
   propositions: string[];
+}
+
+// --- Playbook ---
+
+export interface Playbook {
+  playbook_id: string;
+  name: string;
+  description: string | null;
+  member_count: number;
+  state_count: number;
+  behaviour_count: number;
+  flagged_count: number;
+}
+
+export interface PlaybookMember {
+  policy_id: string;
+  position: number;
+  fires_on: boolean;
+  guidance: string;
+}
+
+export interface PlaybookStateRow {
+  state_key: string;
+  verdicts: Record<string, boolean>;
+  customised: boolean;
+  label: string | null;
+}
+
+export interface PlaybookBehaviour {
+  name: string;
+  rules: string[];
+  flagged: boolean;
+  states: PlaybookStateRow[];
+}
+
+export interface PlaybookStates {
+  playbook_id: string;
+  state_count: number;
+  members: PlaybookMember[];
+  behaviours: PlaybookBehaviour[];
+  warnings: string[];
+}
+
+/** Set when the session runs a playbook; null in policy mode. */
+export interface PlaybookStateInfo {
+  playbook_id: string;
+  playbook_name: string;
+  state_key: string;
+  label: string | null;
+  member_verdicts: Record<string, boolean>;
+  rules: string[];
+  flagged: boolean;
 }
