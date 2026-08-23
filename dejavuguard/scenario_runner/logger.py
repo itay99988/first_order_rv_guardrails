@@ -28,6 +28,9 @@ def _status_label(result: RunResult) -> str:
         return "SETUP ERROR"
     if result.runtime_error:
         return "RUNTIME ERROR"
+    # Nothing was verified -- report that rather than a policy verdict.
+    if result.total_unverified:
+        return "UNVERIFIED"
     return "PASS" if result.passed else "FAIL"
 
 
@@ -57,6 +60,13 @@ def _render_message_block(outcome: MessageOutcome) -> str:
         lines.append(f"    expected:  {_format_bool_map(outcome.expected)}")
     if outcome.mismatches:
         lines.append(f"    MISMATCH:  {_format_mismatches(outcome.mismatches)}")
+    if outcome.monitor_error:
+        lines.append(
+            f"    UNVERIFIED: DejaVu produced no verdict -- {outcome.monitor_error}"
+        )
+        lines.append(
+            "                the verdicts above are carried-over state, not evidence"
+        )
     for detail in outcome.grounding_details:
         prop_id = detail.get("prop_id", "?")
         matched = bool(detail.get("match") or detail.get("found"))
@@ -139,6 +149,8 @@ def _outcome_to_dict(outcome: MessageOutcome) -> dict[str, Any]:
         },
         "violations": outcome.violations,
         "grounding_details": outcome.grounding_details,
+        "monitor_error": outcome.monitor_error,
+        "verified": outcome.monitor_error is None,
     }
 
 
@@ -160,6 +172,7 @@ def _result_to_dict(result: RunResult, timestamp: datetime) -> dict[str, Any]:
             "messages": result.total_messages,
             "expected": result.total_expected,
             "mismatches": result.total_mismatches,
+            "unverified": result.total_unverified,
             "passed": result.passed,
         },
         "outcomes": [_outcome_to_dict(o) for o in result.outcomes],

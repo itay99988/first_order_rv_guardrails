@@ -22,6 +22,7 @@ import logging
 import uuid
 
 from backend.engine.dejavu_client import DejaVuClient, DejaVuError
+from backend.engine.formula_analysis import numeric_object_positions
 from backend.engine.grounding import (
     ConversationSummaryUpdater,
     GroundingMethod,
@@ -84,6 +85,11 @@ class ConversationMonitor:
         self._dejavu_properties: list[str] = []
         self._all_policies = policies
         self._all_propositions = propositions
+        # Object positions the active policies order with <, <=, > or >=.
+        # DejaVu compares those numerically, so they must carry bare numbers.
+        self._numeric_positions = self._collect_numeric_positions(
+            policies, propositions
+        )
         self.trace = ConversationTrace(session_id=session_id or str(uuid.uuid4()))
 
         # Track per-policy verdicts (updated from DejaVu responses)
@@ -189,12 +195,16 @@ class ConversationMonitor:
         # 5. Send composite events to DejaVu
         per_policy: dict[str, bool] = {}
         violations: list[ViolationInfo] = []
+        monitor_error: str | None = None
+        sent_events: list[dict] = []
 
         try:
             await self._ensure_dejavu_session()
-        except DejaVuError:
-            # If DejaVu is unavailable, fail-open: all policies pass
-            logger.warning("DejaVu unavailable, failing open (all policies pass)")
+        except DejaVuError as e:
+            # If DejaVu is unavailable, fail-open: all policies pass.
+            # The step was NOT verified, so say so -- callers must be able to
+            # tell "checked and clean" apart from "never checked".
+            logger.warning("DejaVu unavailable, failing open (all policies pass): %s", e)
             for policy_id in self._policies:
                 per_policy[policy_id] = True
             await self._update_conversation_summary_if_passed(True, event)
@@ -205,6 +215,8 @@ class ConversationMonitor:
                 grounding_details=grounding_details,
                 trace_index=event.index,
                 violations=[],
+                verified=False,
+                monitor_error=f"DejaVu session unavailable: {e}",
             )
 
         if self._dejavu_session_id is not None:
@@ -227,15 +239,14 @@ class ConversationMonitor:
                                 sorted_mentions = sorted(
                                     mentions, key=self._object_sort_key
                                 )
-                                args = [
-                                    str(m.get("canonical_form") or m.get("mention") or "")
-                                    for m in sorted_mentions
-                                ]
+                                args = self._event_args(sorted_mentions)
                             else:
                                 args = []
                             events.append({"name": prop_id, "args": args})
                     else:
                         events.append({"name": prop_id, "args": []})
+
+            sent_events = events
 
             try:
                 # Always send a DejaVu step, even when the composite event is
@@ -291,7 +302,13 @@ class ConversationMonitor:
                         )
 
             except DejaVuError as e:
+                # DejaVu answered and rejected the event -- typically our own
+                # encoding is at fault (e.g. a non-numeric argument under `<`).
+                # This is deterministic, not transient: record it so the step is
+                # never mistaken for a verified pass.
                 logger.warning("DejaVu error during event send: %s", e)
+                prefix = f"{monitor_error}; " if monitor_error else ""
+                monitor_error = f"{prefix}DejaVu rejected the event: {e}"
             for policy_id in self._policies:
                 per_policy[policy_id] = self._per_policy_verdicts.get(
                     policy_id, True
@@ -312,6 +329,9 @@ class ConversationMonitor:
             grounding_details=grounding_details,
             trace_index=event.index,
             violations=violations,
+            verified=monitor_error is None,
+            monitor_error=monitor_error,
+            composite_event=sent_events,
         )
 
     async def _safe_ground(self, event, prop: Proposition) -> GroundingResult:
@@ -392,6 +412,35 @@ class ConversationMonitor:
         self._summary_last_trace_index = event.index
 
     @staticmethod
+    def _collect_numeric_positions(
+        policies: list[Policy],
+        propositions: list[Proposition],
+    ) -> set[tuple[str, str]]:
+        """Union the numeric object positions implied by all enabled policies."""
+        arities = {p.prop_id: p.arity for p in propositions}
+        positions: set[tuple[str, str]] = set()
+        for policy in policies:
+            if not policy.enabled:
+                continue
+            positions |= numeric_object_positions(policy.formula_str, arities)
+        return positions
+
+    @staticmethod
+    def _event_args(sorted_mentions: list[dict]) -> list[str]:
+        """Build DejaVu args from canonical forms, verbatim.
+
+        Canonical forms are passed through untouched. Producing a well-formed
+        value is the grounding layer's job -- the prompt states the required
+        form per object -- and judging it is DejaVu's. Normalising here would
+        put a third party in the middle guessing at number conventions, which
+        risks silently substituting a different value than either layer meant.
+        """
+        return [
+            str(m.get("canonical_form") or m.get("mention") or "")
+            for m in sorted_mentions
+        ]
+
+    @staticmethod
     def _index_related_objects(relations: list[dict]) -> dict[tuple[str, str], list[dict]]:
         indexed: dict[tuple[str, str], list[dict]] = {}
         for relation in relations:
@@ -470,8 +519,30 @@ class ConversationMonitor:
                     f"{policy_suffix}"
                 )
 
-        if not context_lines:
+        # Slots an active policy orders numerically. Stating the required form
+        # here fixes the cause: the model emits a comparable value in the first
+        # place, instead of a unit-carrying one that has to be repaired later.
+        numeric_lines: list[str] = []
+        for idx in range(prop.arity):
+            object_id = f"o{idx + 1}"
+            if (prop.prop_id, object_id) not in self._numeric_positions:
+                continue
+            numeric_lines.append(
+                f"- Object {prop.prop_id}.{object_id} "
+                f"({self._object_description(prop.prop_id, object_id)}) is compared "
+                "numerically by an active policy. Its canonical_form MUST be a bare "
+                "number: digits only, optionally with a leading '-' and a single "
+                "'.' as the decimal separator. No units, currency symbols, letters, "
+                "spaces or thousands separators, and never a ',' -- a comma is "
+                "rejected outright, so write 12000 not 12,000, and 1234.56 not "
+                '1.234,56. Examples: "12000", "12000.5", "-500". Never "$12,000", '
+                '"12000 USD", "USD 12000" or "12.000,50".'
+            )
+
+        if not context_lines and not numeric_lines:
             return "NONE", "[]"
+
+        context_lines.extend(numeric_lines)
 
         history_entries: list[dict[str, str]] = []
         for item in self._canonical_history:

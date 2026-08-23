@@ -38,6 +38,9 @@ class MessageOutcome:
     expected: dict[str, bool] | None
     mismatches: dict[str, tuple[bool | None, bool | None]] = field(default_factory=dict)
     composite_event: list[dict[str, Any]] = field(default_factory=list)
+    # Set when DejaVu never produced a verdict for this message. The
+    # per_policy values above are then carried-over state, not evidence.
+    monitor_error: str | None = None
 
 
 @dataclass
@@ -71,11 +74,17 @@ class RunResult:
         return sum(len(o.mismatches) for o in self.outcomes)
 
     @property
+    def total_unverified(self) -> int:
+        """Messages DejaVu never evaluated."""
+        return sum(1 for o in self.outcomes if o.monitor_error)
+
+    @property
     def passed(self) -> bool:
         return (
             self.setup_error is None
             and self.runtime_error is None
             and self.total_mismatches == 0
+            and self.total_unverified == 0
         )
 
 
@@ -248,7 +257,13 @@ async def _replay_message(
 ) -> MessageOutcome:
     """Run one message through the monitor pipeline."""
     verdict = await monitor.process_message(msg.role, msg.text)
-    composite_event = _composite_from_grounding(
+    # Prefer the event the monitor actually sent. Reconstructing it from
+    # grounding details predates numeric coercion and would now show a
+    # payload DejaVu never saw; keep it only as a fallback for older monitors.
+    composite_event = [
+        {"prop_id": e.get("name"), "args": e.get("args", [])}
+        for e in getattr(verdict, "composite_event", None) or []
+    ] or _composite_from_grounding(
         verdict.grounding_details,
         verdict.labeling,
     )
@@ -265,6 +280,7 @@ async def _replay_message(
         expected=msg.expected_verdict,
         mismatches=mismatches,
         composite_event=composite_event,
+        monitor_error=getattr(verdict, "monitor_error", None),
     )
 
 

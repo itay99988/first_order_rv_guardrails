@@ -44,7 +44,7 @@ _HTML_STYLE = """\
 
 
 def _status_class(result: RunResult) -> str:
-    if result.setup_error or result.runtime_error:
+    if result.setup_error or result.runtime_error or result.total_unverified:
         return "error"
     return "pass" if result.passed else "fail"
 
@@ -54,6 +54,8 @@ def _status_label(result: RunResult) -> str:
         return "SETUP ERROR"
     if result.runtime_error:
         return "RUNTIME ERROR"
+    if result.total_unverified:
+        return "UNVERIFIED"
     return "PASS" if result.passed else "FAIL"
 
 

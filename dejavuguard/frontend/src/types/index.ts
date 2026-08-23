@@ -16,6 +16,12 @@ export interface ChatResponse {
   violation: ViolationInfo | null;
   monitor_state: Record<string, boolean> | null;
   blocked_response: boolean;
+  /**
+   * Set when DejaVu produced no verdict for this turn. `monitor_state` is
+   * then carried-over state and `blocked` carries no verification weight --
+   * the turn was not actually checked against any policy.
+   */
+  monitor_error?: string | null;
 }
 
 // --- Policy ---

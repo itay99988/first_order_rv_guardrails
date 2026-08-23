@@ -154,6 +154,9 @@ def _exit_code(results: Iterable[RunResult]) -> int:
         return 2
     if any(r.runtime_error for r in results):
         return 4
+    # A step DejaVu never evaluated is a pipeline failure, not a pass.
+    if any(r.total_unverified > 0 for r in results):
+        return 4
     if any(r.total_mismatches > 0 for r in results):
         return 1
     return 0
@@ -214,10 +217,12 @@ async def _main_async(args: argparse.Namespace) -> int:
             status = (
                 "SETUP ERROR" if result.setup_error
                 else "RUNTIME ERROR" if result.runtime_error
+                else "UNVERIFIED" if result.total_unverified
                 else "PASS" if result.passed else "FAIL"
             )
             print(
                 f"   {status} "
+                f"unverified={result.total_unverified} "
                 f"messages={result.total_messages} "
                 f"expected={result.total_expected} "
                 f"mismatches={result.total_mismatches}"

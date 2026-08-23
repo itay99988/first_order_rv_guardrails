@@ -15,6 +15,13 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
+from backend.engine.formula_analysis import (
+    DEJAVU_KEYWORDS,
+    extract_formula_calls,
+    is_relation_variable,
+    split_formula_args,
+    strip_string_literals,
+)
 from backend.engine.grounding import build_grounding_prompts
 from backend.models.builtins import is_builtin_proposition
 from backend.models.chat import ChatMessage
@@ -88,11 +95,9 @@ class UpdatePolicyRequest(BaseModel):
     enabled: bool | None = None
 
 
-# DejaVu reserved words — these are NOT predicate IDs
-_DEJAVU_KEYWORDS = frozenset({
-    "true", "false", "Forall", "Exists", "forall", "exists",
-    "H", "P", "S", "Z", "where", "pred", "prop",
-})
+# DejaVu reserved words — these are NOT predicate IDs.
+# Defined in the engine so the monitor can share the same parsing primitives.
+_DEJAVU_KEYWORDS = DEJAVU_KEYWORDS
 
 
 def _extract_rule_definitions(formula_str: str) -> tuple[set[str], set[str]]:
@@ -147,70 +152,13 @@ def _extract_identifiers(formula_str: str) -> set[str]:
     return all_ids - _DEJAVU_KEYWORDS - quant_vars - rule_names - rule_params
 
 
-def _split_formula_args(args_str: str) -> list[str]:
-    """Split predicate call arguments while preserving quoted commas."""
-    args: list[str] = []
-    current: list[str] = []
-    quote_char: str | None = None
-    escape_next = False
-
-    for ch in args_str:
-        if escape_next:
-            current.append(ch)
-            escape_next = False
-            continue
-        if ch == "\\" and quote_char:
-            current.append(ch)
-            escape_next = True
-            continue
-        if quote_char:
-            current.append(ch)
-            if ch == quote_char:
-                quote_char = None
-            continue
-        if ch in ("'", '"'):
-            current.append(ch)
-            quote_char = ch
-            continue
-        if ch == ",":
-            args.append("".join(current).strip())
-            current = []
-            continue
-        current.append(ch)
-
-    tail = "".join(current).strip()
-    if tail:
-        args.append(tail)
-    return args
-
-
-def _extract_formula_calls(formula_str: str) -> list[tuple[str, list[str]]]:
-    """Extract simple predicate calls and their raw argument strings."""
-    calls: list[tuple[str, list[str]]] = []
-    for match in re.finditer(r"\b([A-Za-z_]\w*)\s*\(([^()]*)\)", formula_str):
-        call_name = match.group(1)
-        if call_name in _DEJAVU_KEYWORDS:
-            continue
-        calls.append((call_name, _split_formula_args(match.group(2))))
-    return calls
-
-
-def _is_relation_variable(token: str) -> bool:
-    """Return True for unquoted identifier arguments used as policy variables."""
-    raw = (token or "").strip()
-    if not raw:
-        return False
-    if raw[0] in ("'", '"') or raw[-1:] in ("'", '"'):
-        return False
-    if raw in _DEJAVU_KEYWORDS:
-        return False
-    return bool(re.fullmatch(r"[A-Za-z_]\w*", raw))
-
-
-def _strip_formula_string_literals(formula_str: str) -> str:
-    """Remove quoted literals so comparison extraction only sees variables."""
-    cleaned = re.sub(r'"(?:\\.|[^"\\])*"', "", formula_str)
-    return re.sub(r"'(?:\\.|[^'\\])*'", "", cleaned)
+# The formula-parsing primitives below live in backend.engine.formula_analysis
+# so the monitor can reuse them without importing router modules (which would
+# create an import cycle). Re-exported here under their original names.
+_split_formula_args = split_formula_args
+_extract_formula_calls = extract_formula_calls
+_is_relation_variable = is_relation_variable
+_strip_formula_string_literals = strip_string_literals
 
 
 def _find_variable_comparisons(formula_str: str) -> list[tuple[str, str]]:
