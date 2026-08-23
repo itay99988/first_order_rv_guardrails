@@ -74,6 +74,62 @@ class DatabaseStore:
             )
             """
         )
+        await self._db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS playbooks (
+                playbook_id TEXT PRIMARY KEY,
+                name        TEXT NOT NULL,
+                description TEXT,
+                created_at  TEXT DEFAULT (datetime('now')),
+                updated_at  TEXT DEFAULT (datetime('now'))
+            )
+            """
+        )
+        await self._db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS playbook_members (
+                playbook_id TEXT REFERENCES playbooks(playbook_id) ON DELETE CASCADE,
+                policy_id   TEXT REFERENCES policies(policy_id) ON DELETE CASCADE,
+                position    INTEGER NOT NULL DEFAULT 0,
+                fires_on    INTEGER NOT NULL DEFAULT 0,
+                guidance    TEXT NOT NULL DEFAULT '',
+                PRIMARY KEY (playbook_id, policy_id)
+            )
+            """
+        )
+        await self._db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS playbook_global_rules (
+                rule_id      TEXT PRIMARY KEY,
+                playbook_id  TEXT REFERENCES playbooks(playbook_id) ON DELETE CASCADE,
+                name         TEXT NOT NULL,
+                guidance     TEXT NOT NULL,
+                position     INTEGER DEFAULT 0,
+                apply_to_all INTEGER DEFAULT 0
+            )
+            """
+        )
+        await self._db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS playbook_state_overrides (
+                playbook_id TEXT REFERENCES playbooks(playbook_id) ON DELETE CASCADE,
+                state_key   TEXT NOT NULL,
+                rule_refs   TEXT,
+                flagged     INTEGER,
+                label       TEXT,
+                PRIMARY KEY (playbook_id, state_key)
+            )
+            """
+        )
+
+        cursor = await self._db.execute("PRAGMA table_info(sessions)")
+        session_columns = {row["name"] for row in await cursor.fetchall()}
+        if "monitoring_mode" not in session_columns:
+            await self._db.execute(
+                "ALTER TABLE sessions ADD COLUMN monitoring_mode TEXT DEFAULT 'policies'"
+            )
+        if "playbook_id" not in session_columns:
+            await self._db.execute("ALTER TABLE sessions ADD COLUMN playbook_id TEXT")
 
         cursor = await self._db.execute("PRAGMA table_info(propositions)")
         rows = await cursor.fetchall()
@@ -389,6 +445,193 @@ class DatabaseStore:
             "ORDER BY prop_id, object_id, related_prop_id, related_object_id"
         )
 
+    # Playbooks CRUD
+
+    async def create_playbook(
+        self, playbook_id: str, name: str, description: str | None = None
+    ) -> None:
+        """Create a playbook with no members."""
+        await self._db.execute(
+            "INSERT INTO playbooks (playbook_id, name, description) VALUES (?, ?, ?)",
+            (playbook_id, name, description),
+        )
+        await self._db.commit()
+
+    async def get_playbook(self, playbook_id: str) -> dict | None:
+        return await self._fetch_one(
+            "SELECT * FROM playbooks WHERE playbook_id = ?", (playbook_id,)
+        )
+
+    async def list_playbooks(self) -> list[dict]:
+        return await self._fetch_all("SELECT * FROM playbooks ORDER BY name")
+
+    async def update_playbook(
+        self, playbook_id: str, name: str | None = None, description: str | None = None
+    ) -> None:
+        sets, params = [], []
+        if name is not None:
+            sets.append("name = ?")
+            params.append(name)
+        if description is not None:
+            sets.append("description = ?")
+            params.append(description)
+        if not sets:
+            return
+        sets.append("updated_at = datetime('now')")
+        params.append(playbook_id)
+        sql = f"UPDATE playbooks SET {', '.join(sets)} WHERE playbook_id = ?"  # noqa: S608
+        await self._db.execute(sql, tuple(params))
+        await self._db.commit()
+
+    async def delete_playbook(self, playbook_id: str) -> None:
+        await self._db.execute(
+            "DELETE FROM playbooks WHERE playbook_id = ?", (playbook_id,)
+        )
+        await self._db.commit()
+
+    async def set_playbook_members(self, playbook_id: str, members: list[dict]) -> None:
+        """Replace the whole member set."""
+        await self._db.execute(
+            "DELETE FROM playbook_members WHERE playbook_id = ?", (playbook_id,)
+        )
+        for member in members:
+            await self._db.execute(
+                "INSERT INTO playbook_members "
+                "(playbook_id, policy_id, position, fires_on, guidance) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (
+                    playbook_id,
+                    member["policy_id"],
+                    int(member.get("position", 0)),
+                    1 if member.get("fires_on") else 0,
+                    member.get("guidance", ""),
+                ),
+            )
+        await self._db.commit()
+
+    async def list_playbook_members(self, playbook_id: str) -> list[dict]:
+        return await self._fetch_all(
+            "SELECT * FROM playbook_members WHERE playbook_id = ? ORDER BY position",
+            (playbook_id,),
+        )
+
+    async def get_playbooks_using_policy(self, policy_id: str) -> list[dict]:
+        return await self._fetch_all(
+            "SELECT p.* FROM playbooks p "
+            "JOIN playbook_members m ON m.playbook_id = p.playbook_id "
+            "WHERE m.policy_id = ?",
+            (policy_id,),
+        )
+
+    async def set_playbook_globals(self, playbook_id: str, rules: list[dict]) -> None:
+        await self._db.execute(
+            "DELETE FROM playbook_global_rules WHERE playbook_id = ?", (playbook_id,)
+        )
+        for rule in rules:
+            await self._db.execute(
+                "INSERT INTO playbook_global_rules "
+                "(rule_id, playbook_id, name, guidance, position, apply_to_all) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (
+                    rule["rule_id"],
+                    playbook_id,
+                    rule.get("name", ""),
+                    rule.get("guidance", ""),
+                    int(rule.get("position", 0)),
+                    1 if rule.get("apply_to_all") else 0,
+                ),
+            )
+        await self._db.commit()
+
+    async def list_playbook_globals(self, playbook_id: str) -> list[dict]:
+        return await self._fetch_all(
+            "SELECT * FROM playbook_global_rules WHERE playbook_id = ? ORDER BY position",
+            (playbook_id,),
+        )
+
+    async def set_playbook_override(
+        self,
+        playbook_id: str,
+        state_key: str,
+        rule_refs: list[dict] | None,
+        flagged: bool,
+        label: str | None,
+    ) -> None:
+        """Upsert one state override.
+
+        rule_refs is stored as JSON text; None stays SQL NULL so that 'not
+        customised' and 'customised to no guidance' remain distinguishable.
+        """
+        await self._db.execute(
+            "INSERT INTO playbook_state_overrides "
+            "(playbook_id, state_key, rule_refs, flagged, label) VALUES (?, ?, ?, ?, ?) "
+            "ON CONFLICT(playbook_id, state_key) DO UPDATE SET "
+            "rule_refs = excluded.rule_refs, flagged = excluded.flagged, "
+            "label = excluded.label",
+            (
+                playbook_id,
+                state_key,
+                json.dumps(rule_refs) if rule_refs is not None else None,
+                1 if flagged else 0,
+                label,
+            ),
+        )
+        await self._db.commit()
+
+    async def delete_playbook_override(self, playbook_id: str, state_key: str) -> None:
+        await self._db.execute(
+            "DELETE FROM playbook_state_overrides WHERE playbook_id = ? AND state_key = ?",
+            (playbook_id, state_key),
+        )
+        await self._db.commit()
+
+    async def list_playbook_overrides(self, playbook_id: str) -> list[dict]:
+        rows = await self._fetch_all(
+            "SELECT * FROM playbook_state_overrides WHERE playbook_id = ?", (playbook_id,)
+        )
+        for row in rows:
+            raw = row.get("rule_refs")
+            row["rule_refs"] = json.loads(raw) if raw is not None else None
+        return rows
+
+    async def replace_playbook_overrides(
+        self, playbook_id: str, overrides: list[dict]
+    ) -> None:
+        """Swap the whole override set, used after a membership migration."""
+        await self._db.execute(
+            "DELETE FROM playbook_state_overrides WHERE playbook_id = ?", (playbook_id,)
+        )
+        for override in overrides:
+            await self._db.execute(
+                "INSERT INTO playbook_state_overrides "
+                "(playbook_id, state_key, rule_refs, flagged, label) VALUES (?, ?, ?, ?, ?)",
+                (
+                    playbook_id,
+                    override["state_key"],
+                    json.dumps(override["rule_refs"])
+                    if override.get("rule_refs") is not None
+                    else None,
+                    1 if override.get("flagged") else 0,
+                    override.get("label"),
+                ),
+            )
+        await self._db.commit()
+
+    async def set_session_monitoring(
+        self, session_id: str, mode: str, playbook_id: str | None = None
+    ) -> None:
+        """Set a session's monitoring mode.
+
+        Switching to policies clears playbook_id, so a stale reference cannot
+        survive a mode change.
+        """
+        await self._db.execute(
+            "UPDATE sessions SET monitoring_mode = ?, playbook_id = ?, "
+            "updated_at = datetime('now') WHERE session_id = ?",
+            (mode, playbook_id if mode == "playbook" else None, session_id),
+        )
+        await self._db.commit()
+
     # Sessions CRUD
 
     async def create_session(self, session_id: str, name: str | None = None) -> None:
@@ -602,6 +845,8 @@ CREATE TABLE IF NOT EXISTS settings (
 CREATE TABLE IF NOT EXISTS sessions (
     session_id TEXT PRIMARY KEY,
     name TEXT,
+    monitoring_mode TEXT DEFAULT 'policies',
+    playbook_id TEXT,
     created_at TEXT DEFAULT (datetime('now')),
     updated_at TEXT DEFAULT (datetime('now'))
 );
@@ -611,6 +856,41 @@ CREATE TABLE IF NOT EXISTS conversation_summaries (
     summary_text TEXT NOT NULL DEFAULT '',
     last_trace_index INTEGER DEFAULT -1,
     updated_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS playbooks (
+    playbook_id TEXT PRIMARY KEY,
+    name        TEXT NOT NULL,
+    description TEXT,
+    created_at  TEXT DEFAULT (datetime('now')),
+    updated_at  TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS playbook_members (
+    playbook_id TEXT REFERENCES playbooks(playbook_id) ON DELETE CASCADE,
+    policy_id   TEXT REFERENCES policies(policy_id) ON DELETE CASCADE,
+    position    INTEGER NOT NULL DEFAULT 0,
+    fires_on    INTEGER NOT NULL DEFAULT 0,
+    guidance    TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (playbook_id, policy_id)
+);
+
+CREATE TABLE IF NOT EXISTS playbook_global_rules (
+    rule_id      TEXT PRIMARY KEY,
+    playbook_id  TEXT REFERENCES playbooks(playbook_id) ON DELETE CASCADE,
+    name         TEXT NOT NULL,
+    guidance     TEXT NOT NULL,
+    position     INTEGER DEFAULT 0,
+    apply_to_all INTEGER DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS playbook_state_overrides (
+    playbook_id TEXT REFERENCES playbooks(playbook_id) ON DELETE CASCADE,
+    state_key   TEXT NOT NULL,
+    rule_refs   TEXT,
+    flagged     INTEGER,
+    label       TEXT,
+    PRIMARY KEY (playbook_id, state_key)
 );
 
 CREATE TABLE IF NOT EXISTS messages (
