@@ -5,6 +5,7 @@ import type {
   GroundingPromptPreview,
   OpenRouterModel,
   Playbook,
+  PlaybookGlobalRule,
   PlaybookMember,
   PlaybookStates,
   Policy,
@@ -267,6 +268,16 @@ export async function setPlaybookMembers(
   return request(`/api/playbooks/${playbookId}/members`, {
     method: "PUT",
     body: JSON.stringify({ members }),
+  });
+}
+
+export async function setPlaybookGlobals(
+  playbookId: string,
+  globals: PlaybookGlobalRule[],
+): Promise<PlaybookGlobalRule[]> {
+  return request(`/api/playbooks/${playbookId}/globals`, {
+    method: "PUT",
+    body: JSON.stringify({ globals }),
   });
 }
 

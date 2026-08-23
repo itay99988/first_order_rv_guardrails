@@ -5,30 +5,21 @@ import {
   deletePlaybook as apiDeletePlaybook,
   getPlaybooks,
 } from "@/api/client";
-import type { Playbook } from "@/types";
-
-interface AsyncState<T> {
-  data: T | null;
-  loading: boolean;
-  error: string | null;
-}
+import type { AsyncState, Playbook } from "@/types";
 
 export function usePlaybooks() {
   const [playbooks, setPlaybooks] = useState<AsyncState<Playbook[]>>({
-    data: null,
-    loading: true,
-    error: null,
+    status: "idle",
   });
 
   const fetchPlaybooks = useCallback(async () => {
-    setPlaybooks((s) => ({ ...s, loading: true, error: null }));
+    setPlaybooks({ status: "loading" });
     try {
       const data = await getPlaybooks();
-      setPlaybooks({ data, loading: false, error: null });
+      setPlaybooks({ status: "success", data });
     } catch (e) {
       setPlaybooks({
-        data: null,
-        loading: false,
+        status: "error",
         error: e instanceof Error ? e.message : "Failed to load playbooks",
       });
     }

@@ -247,3 +247,19 @@ export interface PlaybookStateInfo {
   rules: string[];
   flagged: boolean;
 }
+
+/**
+ * A playbook-wide guidance rule. `rule_id` is optional on write (the server
+ * generates one when absent) but always present on read. `playbook_id` is
+ * only present on read (raw `SELECT *` off `playbook_global_rules`).
+ * `apply_to_all` round-trips as a SQLite 0/1 integer on read, not a JSON
+ * boolean -- type it as it actually arrives, not as written.
+ */
+export interface PlaybookGlobalRule {
+  rule_id?: string;
+  playbook_id?: string;
+  name: string;
+  guidance: string;
+  position: number;
+  apply_to_all: boolean | number;
+}
