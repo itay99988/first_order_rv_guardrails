@@ -110,6 +110,25 @@ def test_enforcement_warning_when_no_flagged_state_can_block(client):
     assert any("can no longer block" in w for w in warnings)
 
 
+def test_setting_globals_then_reading_them_back(client):
+    """PUT replaces the whole set; GET must let a client see what survived
+    before writing again, or it would silently wipe existing globals."""
+    pb = client.post("/api/playbooks", json={"name": "Budget"}).json()["playbook_id"]
+
+    put_resp = client.put(f"/api/playbooks/{pb}/globals", json={"globals": [
+        {"name": "Escalate", "guidance": "Call it out.", "position": 0,
+         "apply_to_all": True},
+    ]})
+    assert put_resp.status_code == 200
+
+    got = client.get(f"/api/playbooks/{pb}/globals").json()
+    assert len(got) == 1
+    assert got[0]["name"] == "Escalate"
+    assert got[0]["guidance"] == "Call it out."
+    assert got[0]["position"] == 0
+    assert bool(got[0]["apply_to_all"]) is True
+
+
 def test_deleting_a_playbook(client):
     pb = client.post("/api/playbooks", json={"name": "Budget"}).json()["playbook_id"]
     assert client.delete(f"/api/playbooks/{pb}").status_code == 204

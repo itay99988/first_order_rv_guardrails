@@ -198,6 +198,18 @@ async def set_members(request: Request, playbook_id: str, body: MembersRequest):
     }
 
 
+@router.get("/playbooks/{playbook_id}/globals")
+async def get_globals(request: Request, playbook_id: str):
+    """Read the playbook's global rules.
+
+    The PUT replaces the whole set, so a client that cannot read the current
+    rules first would silently wipe them.
+    """
+    db = _get_db(request)
+    await _require(db, playbook_id)
+    return await db.list_playbook_globals(playbook_id)
+
+
 @router.put("/playbooks/{playbook_id}/globals")
 async def set_globals(request: Request, playbook_id: str, body: GlobalsRequest):
     db = _get_db(request)

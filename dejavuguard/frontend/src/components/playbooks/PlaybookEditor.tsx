@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { ArrowLeft, Loader2, Plus, Trash2 } from "lucide-react";
 
 import {
+  getPlaybookGlobals,
   getPlaybookStates,
   getPolicies,
   setPlaybookGlobals,
@@ -55,9 +56,10 @@ export default function PlaybookEditor({ playbook, onBack }: Props) {
     setLoading(true);
     setLoadError(null);
     try {
-      const [allPolicies, states] = await Promise.all([
+      const [allPolicies, states, globals] = await Promise.all([
         getPolicies(),
         getPlaybookStates(playbook.playbook_id),
+        getPlaybookGlobals(playbook.playbook_id),
       ]);
 
       const existing = new Map(states.members.map((m) => [m.policy_id, m]));
@@ -71,6 +73,16 @@ export default function PlaybookEditor({ playbook, onBack }: Props) {
         };
       });
       setMemberRows(rows);
+
+      setGlobalRows(
+        globals
+          .sort((a, b) => a.position - b.position)
+          .map((g) => ({
+            name: g.name,
+            guidance: g.guidance,
+            apply_to_all: !!g.apply_to_all,
+          })),
+      );
     } catch (err) {
       setLoadError(
         err instanceof Error ? err.message : "Failed to load playbook editor",
@@ -258,17 +270,33 @@ export default function PlaybookEditor({ playbook, onBack }: Props) {
             </div>
           ))}
 
-          {memberRows.length === 0 && (
+          {memberRows.length === 0 && !loadError && (
             <p className="text-sm text-terminal-dim" data-testid="no-policies-for-members">
               No policies exist yet. Create one under Rules first.
             </p>
+          )}
+
+          {memberRows.length === 0 && loadError && (
+            <div
+              className="flex items-center justify-between text-sm text-terminal-red"
+              data-testid="members-load-failed"
+            >
+              <span>Policies could not be loaded, so membership isn't shown.</span>
+              <button
+                onClick={() => void load()}
+                className="rounded-none border border-border px-3 py-1.5 text-xs font-medium text-terminal-dim hover:bg-dark-hover hover:text-terminal-text"
+                data-testid="retry-load"
+              >
+                Retry
+              </button>
+            </div>
           )}
         </div>
 
         <div className="mt-3 flex justify-end">
           <button
             onClick={handleSaveMembers}
-            disabled={savingMembers}
+            disabled={savingMembers || !!loadError}
             className="btn-primary rounded-none px-4 py-2 text-sm font-medium"
             data-testid="save-members"
           >
@@ -407,7 +435,7 @@ export default function PlaybookEditor({ playbook, onBack }: Props) {
         <div className="mt-3 flex justify-end">
           <button
             onClick={handleSaveGlobals}
-            disabled={savingGlobals}
+            disabled={savingGlobals || !!loadError}
             className="btn-primary rounded-none px-4 py-2 text-sm font-medium"
             data-testid="save-globals"
           >

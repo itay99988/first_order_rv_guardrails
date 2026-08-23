@@ -271,6 +271,12 @@ export async function setPlaybookMembers(
   });
 }
 
+export async function getPlaybookGlobals(
+  playbookId: string,
+): Promise<PlaybookGlobalRule[]> {
+  return request(`/api/playbooks/${playbookId}/globals`);
+}
+
 export async function setPlaybookGlobals(
   playbookId: string,
   globals: PlaybookGlobalRule[],
