@@ -9,6 +9,7 @@ import {
   setPlaybookMembers,
 } from "@/api/client";
 import type { Playbook, PlaybookGlobalRule, PlaybookMember } from "@/types";
+import PlaybookStates from "./PlaybookStates";
 
 interface Props {
   playbook: Playbook;
@@ -455,18 +456,12 @@ export default function PlaybookEditor({ playbook, onBack }: Props) {
         )}
       </section>
 
-      {/* States table placeholder — built in Task 10 */}
+      {/* States table */}
       <section>
         <h3 className="mb-3 text-sm font-mono font-bold text-terminal-text uppercase tracking-wider">
           States
         </h3>
-        <div
-          className="rounded-none border border-dashed border-border p-6 text-center text-sm text-terminal-dim"
-          data-testid="playbook-states-placeholder"
-        >
-          The state truth table (behaviours, flags, overrides) will be added
-          here in a follow-up task.
-        </div>
+        <PlaybookStates playbookId={playbook.playbook_id} />
       </section>
     </div>
   );
