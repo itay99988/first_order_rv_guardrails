@@ -210,3 +210,102 @@ def group_behaviours(playbook: Playbook) -> list[Behaviour]:
         for (rules, flagged), states in grouped.items()
     ]
     return sorted(behaviours, key=lambda b: (not b.flagged, b.name))
+
+
+@dataclass(frozen=True)
+class CollapseConflict:
+    """Two branches that disagree about what the collapsed state should be.
+
+    Reported rather than resolved: picking one silently would discard an edit
+    the user made deliberately.
+    """
+
+    collapsed_key: str
+    candidates: tuple[StateOverride, ...]
+    proposed: StateOverride
+
+
+def expand_overrides(
+    overrides: Mapping[str, StateOverride],
+    added_policy_id: str,
+) -> dict[str, StateOverride]:
+    """Split every override into the two branches of a newly added policy.
+
+    A pinned override keeps exactly the rules it pinned, so the new policy
+    contributes nothing in those states. That is intentional -- a pin is a
+    statement of intent -- and the caller surfaces it rather than rewriting it.
+    """
+    expanded: dict[str, StateOverride] = {}
+    for key, override in overrides.items():
+        verdicts = parse_state_key(key)
+        for value in (True, False):
+            branch = dict(verdicts)
+            branch[added_policy_id] = value
+            new_key = state_key(branch)
+            expanded[new_key] = StateOverride(
+                state_key=new_key,
+                rule_refs=override.rule_refs,
+                flagged=override.flagged,
+                label=override.label,
+            )
+    return expanded
+
+
+def _same_behaviour(a: StateOverride, b: StateOverride) -> bool:
+    return (a.rule_refs, a.flagged, a.label) == (b.rule_refs, b.flagged, b.label)
+
+
+def collapse_overrides(
+    overrides: Mapping[str, StateOverride],
+    removed_policy_id: str,
+) -> tuple[dict[str, StateOverride], list[CollapseConflict]]:
+    """Merge branch pairs after a policy leaves the playbook.
+
+    Identical pairs collapse silently. Anything else -- differing pairs, or a
+    branch whose partner used defaults -- is returned as a conflict, because
+    collapsing it would invent a decision the user never made.
+    """
+    kept: dict[str, StateOverride] = {}
+    conflicts: list[CollapseConflict] = []
+    grouped: dict[str, dict[bool, StateOverride]] = {}
+
+    for key, override in overrides.items():
+        verdicts = parse_state_key(key)
+        if removed_policy_id not in verdicts:
+            kept[key] = override
+            continue
+        value = verdicts.pop(removed_policy_id)
+        grouped.setdefault(state_key(verdicts), {})[value] = override
+
+    for collapsed_key, branches in grouped.items():
+        true_branch = branches.get(True)
+        false_branch = branches.get(False)
+
+        if true_branch is not None and false_branch is not None and _same_behaviour(
+            true_branch, false_branch
+        ):
+            kept[collapsed_key] = StateOverride(
+                state_key=collapsed_key,
+                rule_refs=true_branch.rule_refs,
+                flagged=true_branch.flagged,
+                label=true_branch.label,
+            )
+            continue
+
+        # A group only exists because a branch was inserted into it, so at
+        # least one side is always present.
+        preferred = false_branch if false_branch is not None else true_branch
+        conflicts.append(
+            CollapseConflict(
+                collapsed_key=collapsed_key,
+                candidates=tuple(b for b in (true_branch, false_branch) if b is not None),
+                proposed=StateOverride(
+                    state_key=collapsed_key,
+                    rule_refs=preferred.rule_refs,
+                    flagged=preferred.flagged,
+                    label=preferred.label,
+                ),
+            )
+        )
+
+    return kept, conflicts
