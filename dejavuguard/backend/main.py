@@ -53,12 +53,14 @@ def create_app() -> FastAPI:
 
     # Import and mount routers
     from backend.routers.chat import router as chat_router
+    from backend.routers.playbooks import router as playbooks_router
     from backend.routers.policies import router as policies_router
     from backend.routers.settings import router as settings_router
 
     app.include_router(settings_router, prefix="/api")
     app.include_router(policies_router, prefix="/api")
     app.include_router(chat_router, prefix="/api")
+    app.include_router(playbooks_router, prefix="/api")
 
     @app.get("/api/health")
     async def health():
