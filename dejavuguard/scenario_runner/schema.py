@@ -147,8 +147,8 @@ class ScenarioMessage(BaseModel):
 
     expected_verdict maps policy_id -> expected per-policy verdict
     (True = passing, False = violated) after this message is processed.
-    expected_playbook_state / expected_guidance are only meaningful in
-    playbook mode; each is checked only when supplied.
+    expected_playbook_state / expected_guidance / expected_blocked are only
+    meaningful in playbook mode; each is checked only when supplied.
     """
 
     role: str
@@ -156,6 +156,7 @@ class ScenarioMessage(BaseModel):
     expected_verdict: dict[str, bool] | None = None
     expected_playbook_state: str | None = None
     expected_guidance: list[str] | None = None
+    expected_blocked: bool | None = None
 
     model_config = ConfigDict(extra="forbid")
 

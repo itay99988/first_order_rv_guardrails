@@ -4,7 +4,7 @@ Returns a fixed grounding verdict per (predicate, phrase) rule so scenarios
 are reproducible without an API key or a model. Start it with:
 
     uv run python -m scenario_runner.support.stub_grounding --port 9099 \
-        --rules scenario_runner/scenarios/playbook_scenario/grounding.json
+        --rules scenario_runner/support/playbook_grounding.json
 """
 
 from __future__ import annotations

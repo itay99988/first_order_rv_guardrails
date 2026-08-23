@@ -47,18 +47,25 @@ class MessageOutcome:
     guidance: list[str] = field(default_factory=list)
     expected_playbook_state: str | None = None
     expected_guidance: list[str] | None = None
+    # True when this message's turn was blocked (verdict.passed is False).
+    # Distinct from per_policy: in playbook mode blocking is driven by the
+    # resolved state's flagged bit, not by any single member's verdict.
+    blocked: bool = False
+    expected_blocked: bool | None = None
     guidance_mismatch: tuple[list[str], list[str]] | None = field(
         init=False, default=None
     )
     state_mismatch: tuple[str | None, str | None] | None = field(
         init=False, default=None
     )
+    blocked_mismatch: tuple[bool, bool] | None = field(init=False, default=None)
 
     def __post_init__(self) -> None:
         self.guidance_mismatch = _diff_guidance(self.expected_guidance, self.guidance)
         self.state_mismatch = _diff_state(
             self.expected_playbook_state, self.playbook_state_name
         )
+        self.blocked_mismatch = _diff_blocked(self.expected_blocked, self.blocked)
 
 
 @dataclass
@@ -105,6 +112,10 @@ class RunResult:
         return sum(1 for o in self.outcomes if o.state_mismatch)
 
     @property
+    def total_blocked_mismatches(self) -> int:
+        return sum(1 for o in self.outcomes if o.blocked_mismatch)
+
+    @property
     def passed(self) -> bool:
         return (
             self.setup_error is None
@@ -113,6 +124,7 @@ class RunResult:
             and self.total_unverified == 0
             and self.total_guidance_mismatches == 0
             and self.total_state_mismatches == 0
+            and self.total_blocked_mismatches == 0
         )
 
 
@@ -196,6 +208,13 @@ def _diff_guidance(
 def _diff_state(
     expected: str | None, actual: str | None
 ) -> tuple[str | None, str | None] | None:
+    """Return (expected, actual) when they differ, else None."""
+    if expected is None:
+        return None
+    return (expected, actual) if actual != expected else None
+
+
+def _diff_blocked(expected: bool | None, actual: bool) -> tuple[bool, bool] | None:
     """Return (expected, actual) when they differ, else None."""
     if expected is None:
         return None
@@ -343,6 +362,8 @@ async def _replay_message(
         guidance=list(getattr(verdict, "guidance", None) or []),
         expected_playbook_state=msg.expected_playbook_state,
         expected_guidance=msg.expected_guidance,
+        blocked=not verdict.passed,
+        expected_blocked=msg.expected_blocked,
     )
 
 

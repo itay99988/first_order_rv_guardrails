@@ -65,7 +65,8 @@
       "expected_verdict": {
         "budget-policy": true
       },
-      "expected_guidance": []
+      "expected_guidance": [],
+      "expected_blocked": false
     },
     {
       "role": "assistant",
@@ -75,7 +76,8 @@
       },
       "expected_guidance": [
         "Stay within the stated budget."
-      ]
+      ],
+      "expected_blocked": false
     }
   ]
 }
