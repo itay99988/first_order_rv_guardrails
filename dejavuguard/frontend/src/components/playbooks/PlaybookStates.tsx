@@ -16,7 +16,6 @@ export default function PlaybookStates({ playbookId }: Props) {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [onlyCustomised, setOnlyCustomised] = useState(false);
   const [onlyFlagged, setOnlyFlagged] = useState(false);
-  const [reachableFrom, setReachableFrom] = useState("");
   const [reverting, setReverting] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -84,22 +83,12 @@ export default function PlaybookStates({ playbookId }: Props) {
   }
 
   const { behaviours, state_count, warnings } = state.data;
-  const memberIds = reachableFrom
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
 
   const visibleBehaviours = behaviours
     .map((behaviour) => {
       const states = behaviour.states.filter((row) => {
         if (onlyCustomised && !row.customised) return false;
         if (onlyFlagged && !behaviour.flagged) return false;
-        if (
-          memberIds.length > 0 &&
-          !memberIds.some((id) => row.verdicts[id])
-        ) {
-          return false;
-        }
         return true;
       });
       return { behaviour, states };
@@ -134,17 +123,6 @@ export default function PlaybookStates({ playbookId }: Props) {
             data-testid="filter-only-flagged"
           />
           Only flagged
-        </label>
-        <label className="flex items-center gap-1.5">
-          Reachable from
-          <input
-            type="text"
-            value={reachableFrom}
-            onChange={(e) => setReachableFrom(e.target.value)}
-            placeholder="policy_id, policy_id"
-            className="rounded-none border border-border bg-dark-primary px-2 py-1 font-mono text-xs text-terminal-bright placeholder-terminal-dim focus:border-accent/50 focus:outline-none"
-            data-testid="filter-reachable-from"
-          />
         </label>
       </div>
 
