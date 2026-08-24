@@ -307,6 +307,11 @@ async def get_trace(request: Request, playbook_id: str, session_id: str = ""):
     relation, and drawing every possible edge is unreadable past three members.
     Reconstructed from each message's stored per-policy verdicts.
 
+    Each node also carries ``first_visit``, the index at which the session
+    first landed on it (null if never visited) -- the server already knows
+    the exact chronological order, and a client re-deriving it from the
+    aggregated edges alone gets it wrong on a cycle (R-18).
+
     Also carries the reachability heuristic (R-17): for a member whose
     formula is irrevocable (leading H), the verdict never returns to True.
     Once the current state has that bit False, every node whose states all
@@ -326,6 +331,7 @@ async def get_trace(request: Request, playbook_id: str, session_id: str = ""):
     }
 
     visited: list[str] = []
+    first_visit: dict[str, int] = {}
     current_verdicts: dict[str, bool] | None = None
     for message in await db.get_session_messages(session_id) if session_id else []:
         raw = message.get("monitor_state")
@@ -338,7 +344,9 @@ async def get_trace(request: Request, playbook_id: str, session_id: str = ""):
         if not all(m.policy_id in per_policy for m in playbook.members):
             continue
         state = resolve_state(playbook, per_policy)
-        visited.append(key_to_name.get(state.state_key, state.state_key))
+        name = key_to_name.get(state.state_key, state.state_key)
+        first_visit.setdefault(name, len(visited))
+        visited.append(name)
         current_verdicts = state.verdicts
 
     blocked_policy_ids = {
@@ -359,6 +367,7 @@ async def get_trace(request: Request, playbook_id: str, session_id: str = ""):
         "nodes": [
             {"name": b.name, "rules": list(b.rules), "flagged": b.flagged,
              "visited": b.name in visited, "state_count": len(b.states),
+             "first_visit": first_visit.get(b.name),
              "reachable": current_verdicts is None or any(
                  _state_reachable(s, blocked_policy_ids) for s in b.states
              )}

@@ -253,6 +253,13 @@ export interface PlaybookTraceNode {
    * not a proof.
    */
   reachable: boolean;
+  /**
+   * Index at which the session first landed on this node, or null if it was
+   * never visited. Supplied by the server, which knows the chronological
+   * sequence exactly; a client cannot recover it from the aggregated edges
+   * alone once the trace contains a cycle.
+   */
+  first_visit: number | null;
 }
 
 /** One transition a session actually took, not every transition possible. */

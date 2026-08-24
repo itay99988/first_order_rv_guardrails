@@ -153,6 +153,70 @@ def test_trace_returns_nodes_and_observed_edges(client):
     assert body["current"] is None
 
 
+async def _seed_cycle_session(db_path: str) -> None:
+    """A two-member playbook, labelled states, and a session that visits
+    'Clear', then 'Over budget', then back to 'Clear' -- a cycle that leaves
+    every visited node with an incoming edge (R-18)."""
+    db = DatabaseStore(db_path)
+    await db.initialize()
+    await db.create_proposition("p_a", "a", "user")
+    await db.create_proposition("p_b", "b", "user")
+    await db.create_policy("pol-a", "A", "p_a", True)
+    await db.create_policy("pol-b", "B", "p_b", True)
+    await db.set_policy_propositions("pol-a", ["p_a"])
+    await db.set_policy_propositions("pol-b", ["p_b"])
+    await db.create_playbook("pb1", "Budget")
+    await db.set_playbook_members("pb1", [
+        {"policy_id": "pol-a", "position": 0, "fires_on": True, "guidance": "Over."},
+        {"policy_id": "pol-b", "position": 1, "fires_on": True, "guidance": "Other."}])
+    # Each state needs DIFFERENT guidance to be a different behaviour. Merging
+    # keys on (rules, flagged), not on the label -- four states sharing empty
+    # guidance would collapse into one node however they are named.
+    await db.set_playbook_override("pb1", "pol-a=F;pol-b=F", [], False, "Clear")
+    await db.set_playbook_override(
+        "pb1", "pol-a=T;pol-b=F",
+        [{"type": "member", "policy_id": "pol-a"}], False, "Over budget",
+    )
+    await db.set_playbook_override(
+        "pb1", "pol-a=F;pol-b=T",
+        [{"type": "member", "policy_id": "pol-b"}], False, "Other flag",
+    )
+    await db.create_session("s1")
+    await db.add_message("s1", 0, "user", "hi",
+                          monitor_state={"pol-a": False, "pol-b": False})
+    await db.add_message("s1", 1, "user", "hi",
+                          monitor_state={"pol-a": True, "pol-b": False})
+    await db.add_message("s1", 2, "user", "hi",
+                          monitor_state={"pol-a": False, "pol-b": False})
+    await db.close()
+
+
+def test_trace_reports_first_visit_in_chronological_order_on_a_cycle(
+    tmp_path, monkeypatch,
+):
+    """R-18: the server, not the client, knows the true visit order. A
+    session that returns to its starting node ('Clear') still gets a
+    correct chronological first_visit, and nodes the session never reached
+    get null."""
+    db_path = str(tmp_path / "trace.db")
+    monkeypatch.setenv("DATABASE_PATH", db_path)
+    asyncio.run(_seed_cycle_session(db_path))
+
+    with TestClient(create_app()) as client:
+        body = client.get("/api/playbooks/pb1/trace?session_id=s1").json()
+
+    by_name = {n["name"]: n for n in body["nodes"]}
+    # Clear is visited first and again last; its first_visit stays 0.
+    assert by_name["Clear"]["first_visit"] == 0
+    assert by_name["Over budget"]["first_visit"] == 1
+    # Every node the session never reached carries null, whatever it is named.
+    assert all(
+        node["first_visit"] is None
+        for node in body["nodes"]
+        if not node["visited"]
+    )
+
+
 # --- Reachability heuristic (R-17) ---
 
 

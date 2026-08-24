@@ -14,14 +14,14 @@ const trace = {
     { policy_id: "p_a", position: 0, fires_on: false, guidance: "R.", irrevocable: true },
   ],
   nodes: [
-    { name: "Clear", rules: [], flagged: false, visited: true, state_count: 1, reachable: true },
+    { name: "Clear", rules: [], flagged: false, visited: true, state_count: 1, reachable: true, first_visit: 0 },
     {
       name: "Over budget", rules: ["Stay within budget."], flagged: true,
-      visited: true, state_count: 1, reachable: true,
+      visited: true, state_count: 1, reachable: true, first_visit: 1,
     },
     {
       name: "Blocked", rules: ["Escalate."], flagged: true,
-      visited: false, state_count: 1, reachable: false,
+      visited: false, state_count: 1, reachable: false, first_visit: null,
     },
   ],
   edges: [{ from: "Clear", to: "Over budget", count: 2 }],
@@ -92,6 +92,43 @@ describe("PlaybookGraph", () => {
     render(<PlaybookGraph playbookId="pb1" sessionId="s1" />);
     await waitFor(() =>
       expect(screen.getByTestId("playbook-graph-error")).toBeInTheDocument(),
+    );
+  });
+
+  it("orders the spine by first visit even when the trace returns to its start", async () => {
+    // A session that goes clear -> over budget -> clear gives both nodes an
+    // incoming edge, so there is no unambiguous node to walk forward from.
+    // `nodes` arrives sorted flagged-first by the server, putting "Over
+    // budget" ahead of "Clear" -- the order the spine must NOT use.
+    mockGet.mockResolvedValue({
+      current: "Clear",
+      members: [
+        { policy_id: "p_a", position: 0, fires_on: false, guidance: "R.", irrevocable: false },
+      ],
+      nodes: [
+        {
+          name: "Over budget", rules: ["Stay within budget."], flagged: true,
+          visited: true, state_count: 1, reachable: true, first_visit: 1,
+        },
+        {
+          name: "Clear", rules: [], flagged: false,
+          visited: true, state_count: 1, reachable: true, first_visit: 0,
+        },
+      ],
+      edges: [
+        { from: "Clear", to: "Over budget", count: 1 },
+        { from: "Over budget", to: "Clear", count: 1 },
+      ],
+    });
+
+    render(<PlaybookGraph playbookId="pb1" sessionId="s1" />);
+    await waitFor(() => expect(screen.getByTestId("node-Clear")).toBeInTheDocument());
+
+    const rendered = screen
+      .getAllByTestId(/^node-/)
+      .map((el) => el.getAttribute("data-testid"));
+    expect(rendered.indexOf("node-Clear")).toBeLessThan(
+      rendered.indexOf("node-Over budget"),
     );
   });
 });

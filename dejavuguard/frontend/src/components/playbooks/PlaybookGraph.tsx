@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 
 import { getPlaybookTrace } from "@/api/client";
-import type { AsyncState, PlaybookTrace, PlaybookTraceEdge, PlaybookTraceNode } from "@/types";
+import type { AsyncState, PlaybookTrace, PlaybookTraceNode } from "@/types";
 
 interface Props {
   playbookId: string;
@@ -19,48 +19,20 @@ const TRAY_COLS = 5;
 const TRAY_ROW_GAP = 90;
 
 /**
- * Left-to-right visit order for the spine.
+ * Left-to-right visit order for the spine, taken from the server.
  *
- * The trace endpoint has no separate "visit order" field -- only aggregated
- * (from, to, count) edges, whose array order already reflects each
- * transition's first occurrence (the backend dict preserves insertion
- * order). Walking forward from nodes with no incoming edge reconstructs the
- * order a session actually moved through; leftover nodes (pure cycles,
- * disconnected visits) are appended the same way.
+ * `first_visit` is authoritative: the trace endpoint records it while walking
+ * the session's messages in order, before collapsing them into aggregated
+ * edges. Reconstructing it on the client from those edges cannot work once
+ * the trace contains a cycle -- when a session returns to where it started,
+ * every node has an incoming edge, so there is no unambiguous starting point
+ * to walk forward from. That is the commonest shape, not a corner case: a
+ * budget playbook goes clear, over budget, clear again.
  */
-function spineOrder(
-  nodes: PlaybookTraceNode[],
-  edges: PlaybookTraceEdge[],
-): PlaybookTraceNode[] {
-  const visited = nodes.filter((n) => n.visited);
-  const byName = new Map(visited.map((n) => [n.name, n]));
-  const outgoing = new Map<string, string[]>();
-  const hasIncoming = new Set<string>();
-  for (const e of edges) {
-    if (!byName.has(e.from) || !byName.has(e.to)) continue;
-    if (!outgoing.has(e.from)) outgoing.set(e.from, []);
-    outgoing.get(e.from)?.push(e.to);
-    hasIncoming.add(e.to);
-  }
-
-  const placed = new Set<string>();
-  const order: PlaybookTraceNode[] = [];
-  const walkFrom = (start: string) => {
-    let current: string | undefined = start;
-    while (current !== undefined && !placed.has(current) && byName.has(current)) {
-      placed.add(current);
-      order.push(byName.get(current)!);
-      current = (outgoing.get(current) ?? []).find((t) => !placed.has(t));
-    }
-  };
-
-  for (const n of visited) {
-    if (!hasIncoming.has(n.name)) walkFrom(n.name);
-  }
-  for (const n of visited) {
-    if (!placed.has(n.name)) walkFrom(n.name);
-  }
-  return order;
+function spineOrder(nodes: PlaybookTraceNode[]): PlaybookTraceNode[] {
+  return nodes
+    .filter((n) => n.visited && n.first_visit !== null)
+    .sort((a, b) => (a.first_visit ?? 0) - (b.first_visit ?? 0));
 }
 
 function shortLabel(name: string): string {
@@ -135,7 +107,7 @@ export default function PlaybookGraph({ playbookId, sessionId }: Props) {
   }
 
   const { nodes, edges, current } = state.data;
-  const spine = spineOrder(nodes, edges);
+  const spine = spineOrder(nodes);
   const spineIndex = new Map(spine.map((n, i) => [n.name, i]));
   const unvisited = nodes.filter((n) => !n.visited);
 
