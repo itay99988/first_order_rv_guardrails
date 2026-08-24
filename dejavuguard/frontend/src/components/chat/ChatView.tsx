@@ -23,6 +23,7 @@ export default function ChatView() {
     messages,
     sendState,
     lastResponse,
+    fetchSessions,
     createSession,
     switchSession,
     deleteSession,
@@ -110,16 +111,20 @@ export default function ChatView() {
       ? messagesList[messagesList.length - 1].monitor_state
       : null;
 
+  // The session's actual monitoring mode, as persisted by the backend --
+  // not inferred from the last chat turn, so a session that was already in
+  // playbook mode before this page loaded reads correctly on first render.
+  const activeSession = sessionsList.find(
+    (s) => s.session_id === activeSessionId,
+  );
+  const monitoringMode = activeSession?.monitoring_mode ?? "policies";
+  const monitoringPlaybookId = activeSession?.playbook_id ?? null;
+
   // The playbook state (and its guidance) the last-processed turn landed
-  // in, when the session is in playbook mode. Persisted messages don't
-  // carry this -- only the response for the turn that just ran does -- so
-  // it's scoped to `lastResponse` and only ever attached to the newest
-  // message, which is the one it describes.
+  // in. Persisted messages don't carry this -- only the response for the
+  // turn that just ran does -- so it's scoped to `lastResponse` and only
+  // ever attached to the newest message, which is the one it describes.
   const activePlaybookState = lastResponse?.playbook_state ?? null;
-  const monitoringMode: "policies" | "playbook" = activePlaybookState
-    ? "playbook"
-    : "policies";
-  const monitoringPlaybookId = activePlaybookState?.playbook_id ?? null;
 
   return (
     <div className="flex h-full font-mono" data-testid="chat-view">
@@ -287,7 +292,7 @@ export default function ChatView() {
                   </button>
                 )}
                 <div className="flex items-center gap-3">
-                  {activePlaybookState && (
+                  {monitoringMode === "playbook" && activePlaybookState && (
                     <div
                       className={`flex items-center gap-1.5 border px-2 py-0.5 text-xs font-mono ${
                         activePlaybookState.flagged
@@ -312,6 +317,7 @@ export default function ChatView() {
                     sessionId={activeSessionId}
                     mode={monitoringMode}
                     playbookId={monitoringPlaybookId}
+                    onChanged={fetchSessions}
                   />
                 </div>
               )}

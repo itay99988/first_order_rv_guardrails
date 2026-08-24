@@ -231,6 +231,8 @@ export function createSessionInfo(
     created_at: "2025-01-01T00:00:00Z",
     updated_at: "2025-01-01T00:01:00Z",
     message_count: 4,
+    monitoring_mode: "policies",
+    playbook_id: null,
     ...overrides,
   };
 }

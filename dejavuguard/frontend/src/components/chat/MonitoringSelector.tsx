@@ -7,6 +7,9 @@ interface MonitoringSelectorProps {
   sessionId: string;
   mode: "policies" | "playbook";
   playbookId: string | null;
+  /** Called after a monitoring-mode change is persisted, so the parent can
+   * refresh its own copy of the session's mode (e.g. the session list). */
+  onChanged?: () => void;
 }
 
 /**
@@ -20,6 +23,7 @@ export default function MonitoringSelector({
   sessionId,
   mode,
   playbookId,
+  onChanged,
 }: MonitoringSelectorProps) {
   const [localMode, setLocalMode] = useState(mode);
   const [localPlaybookId, setLocalPlaybookId] = useState(playbookId);
@@ -40,7 +44,11 @@ export default function MonitoringSelector({
 
   const choosePolicies = () => {
     setLocalMode("policies");
-    void setSessionMonitoring(sessionId, { mode: "policies", playbook_id: null });
+    // Wrapped in Promise.resolve() so a test double that returns
+    // undefined (rather than a real Promise) still resolves the chain.
+    void Promise.resolve(
+      setSessionMonitoring(sessionId, { mode: "policies", playbook_id: null }),
+    ).then(() => onChanged?.());
   };
 
   const choosePlaybookMode = () => {
@@ -51,7 +59,9 @@ export default function MonitoringSelector({
 
   const choosePlaybook = (id: string) => {
     setLocalPlaybookId(id);
-    void setSessionMonitoring(sessionId, { mode: "playbook", playbook_id: id });
+    void Promise.resolve(
+      setSessionMonitoring(sessionId, { mode: "playbook", playbook_id: id }),
+    ).then(() => onChanged?.());
   };
 
   return (

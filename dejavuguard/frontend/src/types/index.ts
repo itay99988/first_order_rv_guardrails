@@ -152,6 +152,8 @@ export interface SessionInfo {
   created_at: string;
   updated_at: string;
   message_count: number;
+  monitoring_mode: "policies" | "playbook";
+  playbook_id: string | null;
 }
 
 export interface SessionMessage {

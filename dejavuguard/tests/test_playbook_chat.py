@@ -115,3 +115,59 @@ def test_switching_monitoring_mode(tmp_path, monkeypatch):
         assert resp.status_code == 200
         assert resp.json()["monitoring_mode"] == "policies"
         assert resp.json()["playbook_id"] is None
+
+
+def test_monitoring_mode_round_trips_through_get_and_list(tmp_path, monkeypatch):
+    """R-20: the mode set via PATCH .../monitoring must be readable back --
+    otherwise a client has no way to know which specification a session is
+    actually running, and would show a mode that doesn't match reality."""
+    db_path = str(tmp_path / "chat4.db")
+    monkeypatch.setenv("DATABASE_PATH", db_path)
+    asyncio.run(_seed(db_path))
+
+    with TestClient(create_app()) as client:
+        # s1 was seeded straight into playbook mode -- both read paths must
+        # agree with that, not just the write path that set it.
+        get_body = client.get("/api/chat/sessions/s1").json()
+        assert get_body["monitoring_mode"] == "playbook"
+        assert get_body["playbook_id"] == "pb1"
+
+        list_body = client.get("/api/chat/sessions").json()
+        s1 = next(s for s in list_body if s["session_id"] == "s1")
+        assert s1["monitoring_mode"] == "playbook"
+        assert s1["playbook_id"] == "pb1"
+
+        # Switch back to policies through the API and confirm both read
+        # paths follow.
+        resp = client.patch("/api/chat/sessions/s1/monitoring",
+                            json={"mode": "policies"})
+        assert resp.status_code == 200
+
+        get_body = client.get("/api/chat/sessions/s1").json()
+        assert get_body["monitoring_mode"] == "policies"
+        assert get_body["playbook_id"] is None
+
+        list_body = client.get("/api/chat/sessions").json()
+        s1 = next(s for s in list_body if s["session_id"] == "s1")
+        assert s1["monitoring_mode"] == "policies"
+        assert s1["playbook_id"] is None
+
+
+def test_never_switched_session_reads_as_policies(tmp_path, monkeypatch):
+    """A session row predating the monitoring_mode column (or simply never
+    PATCHed) must read as policy mode with no playbook, not None/missing."""
+    db_path = str(tmp_path / "chat5.db")
+    monkeypatch.setenv("DATABASE_PATH", db_path)
+    asyncio.run(_seed(db_path))
+
+    with TestClient(create_app()) as client:
+        session_id = client.post("/api/chat/sessions").json()["session_id"]
+
+        get_body = client.get(f"/api/chat/sessions/{session_id}").json()
+        assert get_body["monitoring_mode"] == "policies"
+        assert get_body["playbook_id"] is None
+
+        list_body = client.get("/api/chat/sessions").json()
+        row = next(s for s in list_body if s["session_id"] == session_id)
+        assert row["monitoring_mode"] == "policies"
+        assert row["playbook_id"] is None

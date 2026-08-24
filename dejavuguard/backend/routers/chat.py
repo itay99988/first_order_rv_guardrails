@@ -492,6 +492,8 @@ async def list_sessions(request: Request) -> list[SessionInfo]:
             created_at=r["created_at"] or "",
             updated_at=r["updated_at"] or "",
             message_count=r.get("message_count", 0),
+            monitoring_mode=r.get("monitoring_mode") or "policies",
+            playbook_id=r.get("playbook_id"),
         )
         for r in rows
     ]
@@ -526,6 +528,8 @@ async def get_session(request: Request, session_id: str):
         "name": session["name"],
         "created_at": session["created_at"],
         "updated_at": session["updated_at"],
+        "monitoring_mode": session.get("monitoring_mode") or "policies",
+        "playbook_id": session.get("playbook_id"),
         "messages": [
             SessionMessage(
                 id=m["id"],

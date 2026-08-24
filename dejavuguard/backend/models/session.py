@@ -18,6 +18,12 @@ class SessionInfo(BaseModel):
         created_at: ISO 8601 creation timestamp.
         updated_at: ISO 8601 last-update timestamp.
         message_count: Number of messages in this session.
+        monitoring_mode: "policies" (every enabled policy, the default) or
+            "playbook" (only the named playbook's members). Read path for
+            the mode set via PATCH .../monitoring -- without it a client has
+            no way to know which specification a session is actually running.
+        playbook_id: The playbook this session monitors under, when
+            monitoring_mode is "playbook". None in policy mode.
     """
 
     session_id: str
@@ -25,6 +31,8 @@ class SessionInfo(BaseModel):
     created_at: str = ""
     updated_at: str = ""
     message_count: int = 0
+    monitoring_mode: str = "policies"
+    playbook_id: str | None = None
 
 
 class SessionMessage(BaseModel):

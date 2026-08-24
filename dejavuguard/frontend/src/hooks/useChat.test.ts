@@ -26,6 +26,8 @@ function createSessionInfo(overrides: Partial<SessionInfo> = {}): SessionInfo {
     created_at: "2025-01-01T00:00:00Z",
     updated_at: "2025-01-01T00:00:00Z",
     message_count: 0,
+    monitoring_mode: "policies",
+    playbook_id: null,
     ...overrides,
   };
 }
