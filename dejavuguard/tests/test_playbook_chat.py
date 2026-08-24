@@ -171,3 +171,95 @@ def test_never_switched_session_reads_as_policies(tmp_path, monkeypatch):
         row = next(s for s in list_body if s["session_id"] == session_id)
         assert row["monitoring_mode"] == "policies"
         assert row["playbook_id"] is None
+
+
+class _FakeRequest:
+    """Just enough of fastapi.Request for chat._get_db(request)."""
+
+    def __init__(self, db: DatabaseStore) -> None:
+        self.app = type("_App", (), {"state": type("_State", (), {"db": db})()})()
+
+
+async def _open_seeded_db(tmp_path, name: str) -> DatabaseStore:
+    db_path = str(tmp_path / name)
+    await _seed(db_path)
+    db = DatabaseStore(db_path)
+    await db.initialize()
+    await db.set_session_monitoring("s1", "policies", None)
+    return db
+
+
+async def test_a_mode_switch_mid_construction_does_not_resurrect_the_old_monitor(
+    tmp_path,
+):
+    """R-26: a PATCH landing between the mode read and the cache store.
+
+    _get_or_create_monitor reads monitoring_mode, then awaits several DB
+    round-trips before storing the monitor. A mode switch inside that window
+    pops nothing -- there is nothing cached yet -- and the store afterwards
+    would put a monitor built from the OLD mode back into the cache, where it
+    survives every later turn. The session would then keep enforcing the old
+    specification while the UI shows the new one.
+    """
+    import backend.routers.chat as chat_mod
+
+    db = await _open_seeded_db(tmp_path, "race.db")
+    chat_mod.invalidate_monitors()
+    chat_mod._monitors.clear()
+    chat_mod._monitor_generation.clear()
+
+    started = asyncio.Event()
+    release = asyncio.Event()
+    real_get_policy_propositions = db.get_policy_propositions
+
+    async def _barrier(policy_id: str):
+        # Awaited strictly after the mode read and strictly before the store.
+        started.set()
+        await release.wait()
+        return await real_get_policy_propositions(policy_id)
+
+    db.get_policy_propositions = _barrier  # type: ignore[method-assign]
+
+    async def _switch_mid_flight():
+        await started.wait()
+        # The race precondition: nothing cached, so the PATCH's pop is a no-op.
+        assert "s1" not in chat_mod._monitors
+        body = chat_mod.MonitoringRequest(mode="playbook", playbook_id="pb1")
+        await chat_mod.set_session_monitoring(_FakeRequest(db), "s1", body)
+        release.set()
+
+    stale, _ = await asyncio.gather(
+        chat_mod._get_or_create_monitor(db, "s1"), _switch_mid_flight()
+    )
+
+    # The in-flight turn finishes on the mode it started with, but that
+    # staleness must not outlive it.
+    assert stale._playbook is None
+    assert "s1" not in chat_mod._monitors
+
+    db.get_policy_propositions = real_get_policy_propositions  # type: ignore[method-assign]
+    rebuilt = await chat_mod._get_or_create_monitor(db, "s1")
+    assert rebuilt is not stale
+    assert rebuilt._playbook is not None
+    await db.close()
+
+
+async def test_the_uncontended_path_still_caches_the_monitor(tmp_path):
+    """The guard must not degrade into never caching.
+
+    Without this, a fix that simply stopped storing monitors would pass the
+    race test above while rebuilding the monitor -- and losing its DejaVu
+    session -- on every single turn.
+    """
+    import backend.routers.chat as chat_mod
+
+    db = await _open_seeded_db(tmp_path, "uncontended.db")
+    chat_mod.invalidate_monitors()
+    chat_mod._monitors.clear()
+    chat_mod._monitor_generation.clear()
+
+    first = await chat_mod._get_or_create_monitor(db, "s1")
+
+    assert chat_mod._monitors.get("s1") is first
+    assert await chat_mod._get_or_create_monitor(db, "s1") is first
+    await db.close()

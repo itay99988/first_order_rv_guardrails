@@ -74,6 +74,11 @@ async def _load_playbook(db: DatabaseStore, playbook_id: str) -> Playbook | None
 # In-memory cache of monitors per session
 _monitors: dict[str, ConversationMonitor] = {}
 
+# Per-session cache generation. Bumped by anything that invalidates a
+# monitor, so a build that started before the change can tell that its
+# result is already stale and decline to cache it.
+_monitor_generation: dict[str, int] = {}
+
 # Per-session locks to prevent concurrent chat requests corrupting monitor state
 _session_locks: dict[str, asyncio.Lock] = {}
 
@@ -113,8 +118,14 @@ def invalidate_monitors() -> None:
     Must be called when policies or predicates change so that
     subsequent chat messages pick up the current set of enabled
     policies and their referenced predicates.
+
+    Bumping every registered generation as well closes the same
+    resurrection hole on this path: clearing the dict evicts nothing for a
+    monitor that is still being built, and it would be stored moments later.
     """
     _monitors.clear()
+    for session_id in _monitor_generation:
+        _monitor_generation[session_id] += 1
 
 
 def _get_db(request: Request) -> DatabaseStore:
@@ -125,6 +136,11 @@ async def _get_or_create_monitor(db: DatabaseStore, session_id: str) -> Conversa
     """Get or create a ConversationMonitor for a session."""
     if session_id in _monitors:
         return _monitors[session_id]
+
+    # Read the generation before anything this build depends on. setdefault,
+    # not get: a session absent from the dict would be skipped by the sweep in
+    # invalidate_monitors and resurrect anyway.
+    generation = _monitor_generation.setdefault(session_id, 0)
 
     # Load enabled policies and only their referenced predicates
     policy_rows = await db.list_policies(enabled_only=True)
@@ -242,7 +258,11 @@ async def _get_or_create_monitor(db: DatabaseStore, session_id: str) -> Conversa
         summary_updater=summary_updater,
         playbook=playbook,
     )
-    _monitors[session_id] = monitor
+    # Cache only if nothing invalidated this session while we were building.
+    # The in-flight turn still finishes on the specification it started with,
+    # but that staleness cannot outlive the turn.
+    if _monitor_generation.get(session_id, 0) == generation:
+        _monitors[session_id] = monitor
     return monitor
 
 
@@ -603,6 +623,7 @@ async def set_session_monitoring(request: Request, session_id: str,
 
     await db.set_session_monitoring(session_id, body.mode, body.playbook_id)
     _monitors.pop(session_id, None)
+    _monitor_generation[session_id] = _monitor_generation.get(session_id, 0) + 1
     updated = await db.get_session(session_id)
     return {
         "session_id": session_id,
