@@ -38,7 +38,11 @@ export default function Modal({ open, onClose, title, children }: ModalProps) {
         aria-label={title}
         data-testid="modal"
       >
-        <div className="mb-3 text-xs text-terminal-dim font-mono">┌── {title} ──</div>
+        {/* Decorative terminal frame; the <h2> below carries the real title,
+            so this must not be announced a second time. */}
+        <div aria-hidden="true" className="mb-3 text-xs text-terminal-dim font-mono">
+          ┌── {title} ──
+        </div>
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-sm font-mono uppercase tracking-wider text-accent">{title}</h2>
           <button

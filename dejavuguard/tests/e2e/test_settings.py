@@ -16,7 +16,9 @@ class TestSettingsPageLoad:
         """Settings page loads with heading."""
         app_page.click('[data-testid="nav-settings"]')
         expect(app_page.locator('[data-testid="settings-view"]')).to_be_visible()
-        expect(app_page.locator("text=Settings")).to_be_visible()
+        expect(
+            app_page.get_by_role("heading", name="Settings", exact=True)
+        ).to_be_visible()
 
     def test_openrouter_config_section(self, app_page: Page):
         """OpenRouter configuration section is visible."""
@@ -36,9 +38,10 @@ class TestSettingsPageLoad:
     def test_section_headings(self, app_page: Page):
         """All three section headings are present."""
         app_page.click('[data-testid="nav-settings"]')
-        expect(app_page.locator("text=Chat Model (OpenRouter)")).to_be_visible()
-        expect(app_page.locator("text=Grounding Model")).to_be_visible()
-        expect(app_page.locator("text=Grounding Prompt")).to_be_visible()
+        for name in ("Chat Model (OpenRouter)", "Grounding Model", "Grounding Prompts"):
+            expect(
+                app_page.get_by_role("heading", name=name, exact=True)
+            ).to_be_visible()
 
 
 class TestOpenRouterConfig:
@@ -120,11 +123,14 @@ class TestGroundingConfig:
         expect(app_page.locator('[data-testid="grounding-model-select"]')).to_be_visible()
 
     def test_provider_click_changes_highlight(self, app_page: Page):
-        """Clicking a provider button highlights it."""
+        """Clicking a provider button marks it as the pressed one."""
         app_page.click('[data-testid="nav-settings"]')
         app_page.click('[data-testid="provider-lmstudio"]')
         lm_btn = app_page.locator('[data-testid="provider-lmstudio"]')
-        expect(lm_btn).to_have_class(re.compile(r"bg-blue-50"))
+        expect(lm_btn).to_have_attribute("aria-pressed", "true")
+        expect(app_page.locator('[data-testid="provider-ollama"]')).to_have_attribute(
+            "aria-pressed", "false"
+        )
 
     def test_provider_changes_base_url(self, app_page: Page):
         """Changing provider updates the default base URL."""
@@ -169,24 +175,24 @@ class TestGroundingPromptEditor:
     def test_system_prompt_textarea_present(self, app_page: Page):
         """System prompt textarea exists."""
         app_page.click('[data-testid="nav-settings"]')
-        expect(app_page.locator('[data-testid="system-prompt-textarea"]')).to_be_visible()
+        expect(app_page.locator('[data-testid="single-system-prompt-textarea"]')).to_be_visible()
 
     def test_user_prompt_textarea_present(self, app_page: Page):
         """User prompt template textarea exists."""
         app_page.click('[data-testid="nav-settings"]')
-        expect(app_page.locator('[data-testid="user-prompt-textarea"]')).to_be_visible()
+        expect(app_page.locator('[data-testid="single-user-prompt-user-textarea"]')).to_be_visible()
 
     def test_system_prompt_editable(self, app_page: Page):
         """System prompt textarea accepts text."""
         app_page.click('[data-testid="nav-settings"]')
-        textarea = app_page.locator('[data-testid="system-prompt-textarea"]')
+        textarea = app_page.locator('[data-testid="single-system-prompt-textarea"]')
         textarea.fill("Custom system prompt for testing")
         expect(textarea).to_have_value("Custom system prompt for testing")
 
     def test_user_prompt_editable(self, app_page: Page):
         """User prompt textarea accepts text."""
         app_page.click('[data-testid="nav-settings"]')
-        textarea = app_page.locator('[data-testid="user-prompt-textarea"]')
+        textarea = app_page.locator('[data-testid="single-user-prompt-user-textarea"]')
         textarea.fill("Custom user prompt template")
         expect(textarea).to_have_value("Custom user prompt template")
 
@@ -198,16 +204,20 @@ class TestGroundingPromptEditor:
     def test_reset_restores_defaults(self, app_page: Page):
         """Reset button restores default prompt text."""
         app_page.click('[data-testid="nav-settings"]')
-        textarea = app_page.locator('[data-testid="system-prompt-textarea"]')
+        textarea = app_page.locator('[data-testid="single-system-prompt-textarea"]')
         textarea.fill("Completely custom text")
         app_page.click('[data-testid="reset-prompts"]')
         # After reset, textarea should contain the default text
-        expect(textarea).to_contain_text("precise content classifier")
+        expect(textarea).to_have_value(
+            re.compile(r"strict JSON-only extraction model for extended first-order grounding")
+        )
 
     def test_template_variables_hint(self, app_page: Page):
         """Template variables hint is shown below user prompt."""
         app_page.click('[data-testid="nav-settings"]')
-        expect(app_page.locator("text=proposition_description")).to_be_visible()
+        hints = app_page.get_by_text("Template variables:")
+        expect(hints.first).to_be_visible()
+        expect(hints.first).to_contain_text("{predicate_description}")
 
     def test_save_button_present(self, app_page: Page):
         """Save Changes button exists."""
@@ -307,11 +317,11 @@ class TestOpenRouterGroundingProvider:
         expect(app_page.locator('[data-testid="grounding-base-url"]')).to_be_visible()
 
     def test_openrouter_button_highlights_when_selected(self, app_page: Page):
-        """OpenRouter button gets highlighted styling when selected."""
+        """OpenRouter button reports itself as pressed when selected."""
         app_page.click('[data-testid="nav-settings"]')
         app_page.click('[data-testid="provider-openrouter"]')
         btn = app_page.locator('[data-testid="provider-openrouter"]')
-        expect(btn).to_have_class(re.compile(r"bg-blue-50"))
+        expect(btn).to_have_attribute("aria-pressed", "true")
 
 
 class TestModelCombobox:

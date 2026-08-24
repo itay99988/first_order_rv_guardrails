@@ -20,7 +20,9 @@ class TestChatPageLoad:
 
     def test_sessions_heading(self, app_page: Page):
         """Sessions heading is present."""
-        expect(app_page.locator("text=Sessions")).to_be_visible()
+        expect(
+            app_page.get_by_role("heading", name="Sessions", exact=True)
+        ).to_be_visible()
 
     def test_new_session_button(self, app_page: Page):
         """New session button is visible."""

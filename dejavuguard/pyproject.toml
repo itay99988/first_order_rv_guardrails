@@ -19,6 +19,7 @@ dev = [
     "pytest-cov>=4.0",
     "ruff>=0.3",
     "playwright>=1.42",
+    "pytest-playwright>=0.4",
 ]
 
 [dependency-groups]
@@ -28,6 +29,7 @@ dev = [
     "pytest-cov>=4.0",
     "ruff>=0.3",
     "playwright>=1.42",
+    "pytest-playwright>=0.4",
 ]
 
 [tool.setuptools.packages.find]

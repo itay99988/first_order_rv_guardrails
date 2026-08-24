@@ -148,7 +148,7 @@ export default function ChatView() {
         data-testid="session-list"
       >
         <div className="flex items-center justify-between border-b border-border px-3 py-3">
-          <span className="text-xs uppercase tracking-wider text-terminal-dim font-mono">Sessions</span>
+          <h2 className="text-xs uppercase tracking-wider text-terminal-dim font-mono">Sessions</h2>
           <button
             onClick={createSession}
             className="p-1.5 text-terminal-dim hover:text-accent"

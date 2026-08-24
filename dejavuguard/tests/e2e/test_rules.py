@@ -20,12 +20,16 @@ class TestRulesPageLoad:
     def test_propositions_heading(self, app_page: Page):
         """Predicates section heading is visible."""
         app_page.click('[data-testid="nav-rules"]')
-        expect(app_page.locator("text=Predicates")).to_be_visible()
+        expect(
+            app_page.get_by_role("heading", name="Predicates", exact=True)
+        ).to_be_visible()
 
     def test_policies_heading(self, app_page: Page):
         """Policies section heading is visible."""
         app_page.click('[data-testid="nav-rules"]')
-        expect(app_page.locator("text=Policies")).to_be_visible()
+        expect(
+            app_page.get_by_role("heading", name="Policies", exact=True)
+        ).to_be_visible()
 
     def test_add_proposition_button(self, app_page: Page):
         """Add proposition button is visible."""
@@ -56,7 +60,9 @@ class TestPropositionEditor:
         app_page.click('[data-testid="nav-rules"]')
         app_page.click('[data-testid="add-proposition"]')
         expect(app_page.locator('[data-testid="modal"]')).to_be_visible()
-        expect(app_page.locator("text=New Proposition")).to_be_visible()
+        expect(
+            app_page.get_by_role("heading", name="New Predicate", exact=True)
+        ).to_be_visible()
 
     def test_modal_has_prop_id_input(self, app_page: Page):
         """Modal contains proposition ID input."""
@@ -141,7 +147,9 @@ class TestFormulaBuilder:
             return  # Can't test modal without props
         add_btn.click()
         expect(app_page.locator('[data-testid="modal"]')).to_be_visible()
-        expect(app_page.locator("text=New Policy")).to_be_visible()
+        expect(
+            app_page.get_by_role("heading", name="New Policy", exact=True)
+        ).to_be_visible()
 
     def test_policy_name_input_present(self, app_page: Page):
         """Policy name input exists in formula builder."""
@@ -208,9 +216,8 @@ class TestFormulaBuilder:
         formula_input = app_page.locator('[data-testid="formula-input"]')
         expect(formula_input).to_have_class(re.compile(r"font-mono"))
 
-    def test_add_policy_disabled_without_propositions(self, app_page: Page):
-        """Add policy button is disabled when no propositions exist."""
+    def test_add_policy_enabled_without_propositions(self, app_page: Page):
+        """Add policy stays enabled with no predicates: user_turn is built in."""
         app_page.click('[data-testid="nav-rules"]')
         add_btn = app_page.locator('[data-testid="add-policy"]')
-        # When there are no propositions, button should be disabled
-        expect(add_btn).to_be_disabled()
+        expect(add_btn).to_be_enabled()

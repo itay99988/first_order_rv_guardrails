@@ -28,6 +28,11 @@ class TestAppLayout:
         """DejaVuGuard branding appears in sidebar."""
         expect(app_page.locator("text=DejaVuGuard")).to_be_visible()
 
+    def test_logo_video_is_decorative(self, app_page: Page):
+        """The branding animation is decorative; the wordmark names the app."""
+        video = app_page.locator('[data-testid="sidebar-logo"] video')
+        expect(video).to_have_attribute("aria-hidden", "true")
+
     def test_nav_links_present(self, app_page: Page):
         """All three navigation links are visible."""
         expect(app_page.locator('[data-testid="nav-chat"]')).to_be_visible()
@@ -62,10 +67,10 @@ class TestNavigation:
         expect(app_page.locator('[data-testid="chat-view"]')).to_be_visible()
 
     def test_active_nav_highlighted(self, app_page: Page):
-        """Active nav link has the highlight class."""
+        """Active nav link is marked as the current page."""
         app_page.click('[data-testid="nav-rules"]')
         nav_rules = app_page.locator('[data-testid="nav-rules"]')
-        expect(nav_rules).to_have_class(re.compile(r"bg-blue-50"))
+        expect(nav_rules).to_have_attribute("aria-current", "page")
 
     def test_unknown_route_redirects_to_chat(self, page: Page, base_url: str):
         """Unknown routes redirect to /chat."""

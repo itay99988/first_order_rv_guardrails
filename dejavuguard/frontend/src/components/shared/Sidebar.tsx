@@ -22,9 +22,12 @@ export default function Sidebar({ monitorStatus }: SidebarProps) {
       className="flex w-64 flex-col border-r border-border-subtle bg-dark-secondary"
       data-testid="sidebar"
     >
-      <div className="px-0 pt-2 pb-1 overflow-hidden">
+      <div className="px-0 pt-2 pb-1 overflow-hidden" data-testid="sidebar-logo">
+        {/* Decorative animation only: the wordmark below is the branding's
+            accessible name and its fallback if the video fails to load. */}
         <video
           src="/assets/intro_logo.mp4"
+          aria-hidden="true"
           autoPlay
           loop
           muted
@@ -35,6 +38,9 @@ export default function Sidebar({ monitorStatus }: SidebarProps) {
             WebkitMaskImage: "radial-gradient(ellipse 60% 50% at center, black 20%, transparent 80%)",
           }}
         />
+        <p className="px-3 pb-2 text-center text-xs font-mono uppercase tracking-[0.2em] text-terminal-dim">
+          DejaVuGuard
+        </p>
       </div>
 
       <nav className="flex-1 px-3 space-y-0.5" data-testid="sidebar-nav">

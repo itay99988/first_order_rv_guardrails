@@ -102,7 +102,12 @@ class TestChatModelComboboxInteraction:
         """Clicking a disabled trigger does not open the dropdown."""
         app_page.click('[data-testid="nav-settings"]')
         app_page.locator('[data-testid="custom-model-checkbox"]').check()
-        app_page.click('[data-testid="openrouter-model-select-trigger"]')
+        # aria-disabled keeps the trigger focusable, so Playwright refuses to
+        # click it as "not enabled": force the click to prove the handler is
+        # what keeps the dropdown shut.
+        app_page.click(
+            '[data-testid="openrouter-model-select-trigger"]', force=True
+        )
         expect(
             app_page.locator('[data-testid="openrouter-model-select-dropdown"]')
         ).not_to_be_visible()
