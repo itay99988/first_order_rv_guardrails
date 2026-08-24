@@ -12,7 +12,18 @@
 
 ## Global Constraints
 
-- Run backend tests with `--no-cov`: `uv run python -m pytest tests/ --ignore=tests/e2e -q --no-cov`. The default `addopts` enable branch coverage and the suite then hangs with no output.
+- ~~Run backend tests with `--no-cov`; the coverage `addopts` hang the suite.~~
+  **CORRECTED 2026-08-24 — this was wrong, and `--no-cov` is no longer needed.**
+  Coverage never hung anything. `tests/test_db.py`'s `db` fixture returned instead
+  of yielding, so `DatabaseStore.close()` was never called and aiosqlite's
+  non-daemon worker thread never got its stop sentinel: the suite passed in under
+  a minute and the *process* then sat in `Py_FinalizeEx` (fixed in `70c7d82`).
+  Piping a finished run through `tail` also traps the summary in the pipe buffer,
+  which looks identical to a hang — redirect to a file instead.
+  Use `uv run python -m pytest tests/ --ignore=tests/e2e -q`, coverage included;
+  it runs in ~65s and passes the `--cov-fail-under=80` gate at 83.68%. Because
+  every task below followed the old constraint, that gate was skipped for the
+  whole branch. The `--no-cov` in the per-step commands below is now redundant.
 - All commands run from `dejavuguard/`. Use `uv run` for Python.
 - Every new/modified Python file must pass `uv run ruff check <paths>` with zero findings. Line length 100.
 - State keys are **identity-based**: `policy_id=T|F` pairs joined by `;`, sorted by `policy_id`. Never positional.
