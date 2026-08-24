@@ -642,3 +642,12 @@ async def delete_session(request: Request, session_id: str):
     await db.delete_session(session_id)
     _monitors.pop(session_id, None)
     _session_locks.pop(session_id, None)
+    # Bumped, never popped: popping resets the counter to 0, which can equal
+    # the generation an in-flight build already captured, and that build would
+    # then cache a monitor for a session that no longer exists. The entry is
+    # one int per session id, and ids are uuid4, so nothing is ever reused.
+    _monitor_generation[session_id] = _monitor_generation.get(session_id, 0) + 1
+    # Bump rather than pop: popping resets the counter to 0, which can equal a
+    # generation captured by a build still in flight, so its monitor would be
+    # cached for a session that no longer exists and nothing would evict it.
+    _monitor_generation[session_id] = _monitor_generation.get(session_id, 0) + 1

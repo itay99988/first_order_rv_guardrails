@@ -263,3 +263,45 @@ async def test_the_uncontended_path_still_caches_the_monitor(tmp_path):
     assert chat_mod._monitors.get("s1") is first
     assert await chat_mod._get_or_create_monitor(db, "s1") is first
     await db.close()
+
+
+async def test_deleting_a_session_mid_construction_does_not_cache_its_monitor(
+    tmp_path,
+):
+    """delete_session has the same resurrection hole as the mode switch.
+
+    It pops _monitors, which evicts nothing while the monitor is still being
+    built, and the store afterwards would cache a monitor for a session that
+    no longer exists -- keyed by an id nothing will ever evict again.
+    """
+    import backend.routers.chat as chat_mod
+
+    db = await _open_seeded_db(tmp_path, "delete-race.db")
+    chat_mod.invalidate_monitors()
+    chat_mod._monitors.clear()
+    chat_mod._monitor_generation.clear()
+
+    started = asyncio.Event()
+    release = asyncio.Event()
+    real_get_policy_propositions = db.get_policy_propositions
+
+    async def _barrier(policy_id: str):
+        started.set()
+        await release.wait()
+        return await real_get_policy_propositions(policy_id)
+
+    db.get_policy_propositions = _barrier  # type: ignore[method-assign]
+
+    async def _delete_mid_flight():
+        await started.wait()
+        assert "s1" not in chat_mod._monitors
+        await chat_mod.delete_session(_FakeRequest(db), "s1")
+        release.set()
+
+    await asyncio.gather(
+        chat_mod._get_or_create_monitor(db, "s1"), _delete_mid_flight()
+    )
+
+    assert "s1" not in chat_mod._monitors
+    assert await db.get_session("s1") is None
+    await db.close()
