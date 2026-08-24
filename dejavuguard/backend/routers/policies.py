@@ -23,6 +23,7 @@ from backend.engine.formula_analysis import (
     strip_string_literals,
 )
 from backend.engine.grounding import build_grounding_prompts
+from backend.engine.playbook import StateOverride, collapse_overrides
 from backend.models.builtins import is_builtin_proposition
 from backend.models.chat import ChatMessage
 from backend.models.policy import GROUNDING_SCOPES, Policy, Proposition
@@ -966,6 +967,43 @@ async def update_policy(request: Request, policy_id: str, body: UpdatePolicyRequ
     )
 
 
+async def _collapse_overrides_for_deleted_policy(
+    db: DatabaseStore, policy_id: str
+) -> None:
+    """Re-key every playbook override that mentions a policy about to vanish.
+
+    The FK cascade drops the member row but leaves the override rows keyed on
+    the old, wider state space. Nothing then matches any state the playbook
+    can reach, so every stored flag, label and pinned rule set goes inert in
+    one step -- and irrecoverably, since a later membership edit only sees the
+    members that still exist.
+    """
+    for row in await db.get_playbooks_using_policy(policy_id):
+        playbook_id = row["playbook_id"]
+        stored = await db.list_playbook_overrides(playbook_id)
+        if not stored:
+            continue
+        overrides = {
+            o["state_key"]: StateOverride(
+                state_key=o["state_key"],
+                rule_refs=o["rule_refs"],
+                flagged=bool(o["flagged"]),
+                label=o["label"],
+            )
+            for o in stored
+        }
+        kept, conflicts = collapse_overrides(overrides, policy_id)
+        # A delete cannot pause to ask, so a disagreeing pair takes the
+        # collapse's own proposal -- the not-firing branch.
+        for conflict in conflicts:
+            kept[conflict.collapsed_key] = conflict.proposed
+        await db.replace_playbook_overrides(playbook_id, [
+            {"state_key": o.state_key, "rule_refs": o.rule_refs,
+             "flagged": o.flagged, "label": o.label}
+            for o in kept.values()
+        ])
+
+
 @router.delete("/policies/{policy_id}", status_code=204)
 async def delete_policy(request: Request, policy_id: str):
     """Delete a policy."""
@@ -973,6 +1011,7 @@ async def delete_policy(request: Request, policy_id: str):
     existing = await db.get_policy(policy_id)
     if not existing:
         raise HTTPException(404, f"Policy '{policy_id}' not found.")
+    await _collapse_overrides_for_deleted_policy(db, policy_id)
     await db.delete_policy(policy_id)
     invalidate_monitors()
 

@@ -293,3 +293,93 @@ def test_states_endpoint_reports_irrevocable_per_member(client):
     body = client.get(f"/api/playbooks/{pb}/states").json()
 
     assert body["members"][0]["irrevocable"] is False
+
+
+def _override_keys(client: TestClient, pb: str) -> dict[str, dict]:
+    """state_key -> the stored override, read back through the states view."""
+    body = client.get(f"/api/playbooks/{pb}/states").json()
+    return {
+        s["state_key"]: {"flagged": b["flagged"], "label": s["label"],
+                         "rules": b["rules"]}
+        for b in body["behaviours"] for s in b["states"]
+    }
+
+
+def _two_member_playbook(client: TestClient) -> tuple[str, str, str]:
+    """A playbook over two policies, returned sorted by policy id.
+
+    State keys sort by policy id, so the caller needs them in that order to
+    name a state at all.
+    """
+    a = _policy(client, "p_a", "A")
+    b = _policy(client, "p_b", "B")
+    first, second = sorted((a, b))
+    pb = client.post("/api/playbooks", json={"name": "Budget"}).json()["playbook_id"]
+    client.put(f"/api/playbooks/{pb}/members", json={"members": [
+        {"policy_id": first, "position": 0, "fires_on": False, "guidance": "R."},
+        {"policy_id": second, "position": 1, "fires_on": False, "guidance": "S."}]})
+    return pb, first, second
+
+
+def test_deleting_a_member_policy_rekeys_surviving_overrides(client):
+    """Overrides must follow the shrinking state space, not be orphaned.
+
+    The FK cascade drops the member row; without a migration the override
+    rows keep their old two-policy keys and match no state at all, so every
+    flag silently stops firing.
+    """
+    pb, first, second = _two_member_playbook(client)
+    for other in ("T", "F"):
+        client.put(f"/api/playbooks/{pb}/states/{first}=F;{second}={other}",
+                   json={"rule_refs": [], "flagged": True, "label": "Stop"})
+
+    assert client.delete(f"/api/policies/{second}").status_code == 204
+
+    states = _override_keys(client, pb)
+    assert set(states) == {f"{first}=T", f"{first}=F"}
+    assert states[f"{first}=F"]["flagged"] is True
+    assert states[f"{first}=F"]["label"] == "Stop"
+    assert states[f"{first}=F"]["rules"] == []
+    assert states[f"{first}=T"]["flagged"] is False
+
+
+def test_deleting_a_member_policy_keeps_the_playbook_able_to_block(client):
+    """The user-visible property: a blocking playbook still blocks."""
+    pb, first, second = _two_member_playbook(client)
+    for other in ("T", "F"):
+        client.put(f"/api/playbooks/{pb}/states/{first}=F;{second}={other}",
+                   json={"rule_refs": [], "flagged": True, "label": "Stop"})
+
+    client.delete(f"/api/policies/{second}")
+
+    body = client.get(f"/api/playbooks/{pb}/states").json()
+    assert any(b["flagged"] for b in body["behaviours"])
+    assert not any("can no longer block" in w for w in body["warnings"])
+
+
+def test_deleting_a_member_policy_resolves_a_conflict_to_the_not_firing_branch(
+    client,
+):
+    """Branches that disagree cannot pause a delete for the user.
+
+    The collapse's own preference -- the not-firing (False) branch -- is
+    taken, matching what set_members proposes for the same conflict.
+    """
+    pb, first, second = _two_member_playbook(client)
+    client.put(f"/api/playbooks/{pb}/states/{first}=F;{second}=F",
+               json={"rule_refs": [], "flagged": True, "label": "Stop"})
+    client.put(f"/api/playbooks/{pb}/states/{first}=F;{second}=T",
+               json={"rule_refs": [], "flagged": False, "label": "Go"})
+
+    client.delete(f"/api/policies/{second}")
+
+    states = _override_keys(client, pb)
+    assert states[f"{first}=F"]["flagged"] is True
+    assert states[f"{first}=F"]["label"] == "Stop"
+
+
+def test_deleting_a_policy_no_playbook_uses_still_works(client):
+    policy_id = _policy(client, "p_a", "A")
+
+    assert client.delete(f"/api/policies/{policy_id}").status_code == 204
+    assert client.get("/api/policies").json() == []
