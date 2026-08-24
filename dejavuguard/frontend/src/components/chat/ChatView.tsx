@@ -397,6 +397,7 @@ export default function ChatView() {
             {violation && violation.violation && (
               <ViolationAlert
                 violation={violation.violation}
+                monitorState={violation.monitor_state}
                 blockedResponse={violation.blocked_response}
                 onDismiss={() => setViolation(null)}
               />

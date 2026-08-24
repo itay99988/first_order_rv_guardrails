@@ -4,15 +4,37 @@ import type { ViolationInfo } from "@/types";
 
 interface ViolationAlertProps {
   violation: ViolationInfo;
+  /**
+   * The turn's per-policy verdicts. In playbook mode the monitor runs only
+   * the playbook's members, so this map *is* the state that blocked, in the
+   * same notation the states table uses.
+   */
+  monitorState?: Record<string, boolean> | null;
   blockedResponse: boolean;
   onDismiss: () => void;
 }
 
+/** The canonical state key: sorted by policy id, exactly as the engine writes it. */
+function stateKey(verdicts: Record<string, boolean>): string {
+  return Object.keys(verdicts)
+    .sort()
+    .map((id) => `${id}=${verdicts[id] ? "T" : "F"}`)
+    .join(";");
+}
+
 export default function ViolationAlert({
   violation,
+  monitorState,
   blockedResponse,
   onDismiss,
 }: ViolationAlertProps) {
+  // A playbook block names a playbook and a state, not a policy and a
+  // formula: rendering the policy wording would print the playbook's name
+  // under "policy" and then an empty line where the formula would go.
+  const byPlaybook = !!violation.playbook_id;
+  const key = monitorState ? stateKey(monitorState) : "";
+  const stateParts = [violation.state_label, key ? `(${key})` : ""].filter(Boolean);
+
   return (
     <div
       className="mx-4 mb-2 border-2 border-terminal-red bg-terminal-red/8 p-4"
@@ -24,12 +46,26 @@ export default function ViolationAlert({
           <ShieldAlert className="mt-0.5 h-5 w-5 flex-shrink-0 text-terminal-red" />
           <div>
             <p className="text-sm font-mono uppercase tracking-wider text-terminal-red font-bold">
-              {blockedResponse ? "Response blocked" : "Message blocked"} by
-              policy: {violation.policy_name}
+              {blockedResponse ? "Response blocked" : "Message blocked"} by{" "}
+              {byPlaybook ? "playbook" : "policy"}: {violation.policy_name}
             </p>
-            <p className="mt-1 font-mono text-xs text-terminal-red/70">
-              {violation.formula_str}
-            </p>
+            {byPlaybook
+              ? stateParts.length > 0 && (
+                  <p
+                    className="mt-1 font-mono text-xs text-terminal-red/70"
+                    data-testid="violation-playbook-state"
+                  >
+                    State: {stateParts.join(" ")}
+                  </p>
+                )
+              : violation.formula_str && (
+                  <p
+                    className="mt-1 font-mono text-xs text-terminal-red/70"
+                    data-testid="violation-formula"
+                  >
+                    {violation.formula_str}
+                  </p>
+                )}
             {violation.grounding_details.length > 0 && (
               <div className="mt-2 space-y-1">
                 {violation.grounding_details.map((g, i) =>

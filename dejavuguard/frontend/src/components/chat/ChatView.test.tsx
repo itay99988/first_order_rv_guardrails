@@ -376,4 +376,29 @@ describe("ChatView", () => {
 
     expect(screen.queryByTestId("playbook-graph")).toBeNull();
   });
+
+  it("tells a playbook block which state it landed in", async () => {
+    playbookSession();
+    mockUseChat.lastResponse = createChatResponse({
+      blocked: true,
+      monitor_state: { p_budget: false },
+      violation: {
+        policy_id: "pb1",
+        policy_name: "Budget playbook",
+        formula_str: "",
+        violated_at_index: 2,
+        labeling: {},
+        grounding_details: [],
+        playbook_id: "pb1",
+        state_label: "Over budget",
+      },
+      playbook_state: createPlaybookState({ label: "Over budget", flagged: true }),
+    });
+
+    render(<ChatView />);
+
+    const state = await screen.findByTestId("violation-playbook-state");
+    expect(state).toHaveTextContent("Over budget");
+    expect(state).toHaveTextContent("p_budget=F");
+  });
 });

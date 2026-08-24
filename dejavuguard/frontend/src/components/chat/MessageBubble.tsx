@@ -148,11 +148,26 @@ export default function MessageBubble({
               {violationInfo && (
                 <div className="mb-2">
                   <p className="font-bold text-terminal-red">
-                    Violation: {violationInfo.policy_name}
+                    {violationInfo.playbook_id ? "Blocked by playbook" : "Violation"}
+                    : {violationInfo.policy_name}
                   </p>
-                  <p className="text-terminal-red/70 font-mono">
-                    {violationInfo.formula_str}
-                  </p>
+                  {/* A playbook block has no formula -- a flagged state is
+                      what blocked -- so name the state instead of leaving
+                      the formula line empty. */}
+                  {violationInfo.playbook_id ? (
+                    violationInfo.state_label && (
+                      <p
+                        className="text-terminal-red/70 font-mono"
+                        data-testid="message-violation-state"
+                      >
+                        State: {violationInfo.state_label}
+                      </p>
+                    )
+                  ) : (
+                    <p className="text-terminal-red/70 font-mono">
+                      {violationInfo.formula_str}
+                    </p>
+                  )}
                 </div>
               )}
 

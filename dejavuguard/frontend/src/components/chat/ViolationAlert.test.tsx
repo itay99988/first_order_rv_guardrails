@@ -154,4 +154,95 @@ describe("ViolationAlert", () => {
       "Dismiss violation alert",
     );
   });
+
+  // --- Playbook blocks ---
+
+  // In playbook mode the violated "policy" is the playbook and there is no
+  // formula: what blocked is a state of the members, so the alert has to say
+  // which playbook and which state, or it says nothing at all.
+  function createPlaybookViolation(
+    overrides: Partial<ViolationInfo> = {},
+  ): ViolationInfo {
+    return createViolation({
+      policy_id: "pb1",
+      policy_name: "Budget playbook",
+      formula_str: "",
+      labeling: {},
+      playbook_id: "pb1",
+      state_label: "Over budget",
+      ...overrides,
+    });
+  }
+
+  it("names the playbook rather than a policy when a playbook blocked the turn", () => {
+    render(
+      <ViolationAlert
+        violation={createPlaybookViolation()}
+        monitorState={{ p_budget: false, p_tone: true }}
+        blockedResponse={false}
+        onDismiss={vi.fn()}
+      />,
+    );
+    expect(screen.getByTestId("violation-alert")).toHaveTextContent(
+      "playbook: Budget playbook",
+    );
+  });
+
+  it("names the flagged state and the verdicts that select it", () => {
+    render(
+      <ViolationAlert
+        violation={createPlaybookViolation()}
+        monitorState={{ p_budget: false, p_tone: true }}
+        blockedResponse={false}
+        onDismiss={vi.fn()}
+      />,
+    );
+    const state = screen.getByTestId("violation-playbook-state");
+    expect(state).toHaveTextContent("Over budget");
+    expect(state).toHaveTextContent("p_budget=F");
+    expect(state).toHaveTextContent("p_tone=T");
+  });
+
+  it("still identifies an unlabelled state by its verdicts", () => {
+    render(
+      <ViolationAlert
+        violation={createPlaybookViolation({ state_label: null })}
+        monitorState={{ p_budget: false }}
+        blockedResponse={false}
+        onDismiss={vi.fn()}
+      />,
+    );
+    expect(screen.getByTestId("violation-playbook-state")).toHaveTextContent(
+      "p_budget=F",
+    );
+  });
+
+  it("does not print an empty formula line for a playbook block", () => {
+    render(
+      <ViolationAlert
+        violation={createPlaybookViolation()}
+        monitorState={{ p_budget: false }}
+        blockedResponse={false}
+        onDismiss={vi.fn()}
+      />,
+    );
+    expect(screen.queryByTestId("violation-formula")).toBeNull();
+  });
+
+  it("still says 'policy' and shows the formula for a policy violation", () => {
+    render(
+      <ViolationAlert
+        violation={createViolation()}
+        blockedResponse={false}
+        onDismiss={vi.fn()}
+      />,
+    );
+    expect(screen.getByTestId("violation-alert")).toHaveTextContent(
+      "policy: Fraud Prevention",
+    );
+    expect(screen.getByTestId("violation-formula")).toHaveTextContent(
+      "H(p_fraud -> !q_comply)",
+    );
+    expect(screen.queryByTestId("violation-playbook-state")).toBeNull();
+  });
 });

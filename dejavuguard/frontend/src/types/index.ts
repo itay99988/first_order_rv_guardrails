@@ -59,6 +59,15 @@ export interface ViolationInfo {
   violated_at_index: number;
   labeling: Record<string, boolean>;
   grounding_details: GroundingDetail[];
+  /**
+   * Set when a playbook blocked the turn rather than a policy. `policy_name`
+   * is then the playbook's name (or, when the state vector was undefined,
+   * the reason it could not be evaluated) and `formula_str` is empty: what
+   * blocked is a flagged state, which has no formula.
+   */
+  playbook_id?: string | null;
+  /** The flagged state's label, when the user gave it one. */
+  state_label?: string | null;
 }
 
 export interface ObjectMention {

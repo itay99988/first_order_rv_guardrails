@@ -167,6 +167,35 @@ describe("MessageBubble", () => {
     expect(screen.getByText("H(p_fraud -> !q_comply)")).toBeInTheDocument();
   });
 
+  it("names the playbook and its state instead of an empty formula", async () => {
+    const user = userEvent.setup();
+    render(
+      <MessageBubble
+        role="assistant"
+        content="Bad response"
+        blocked={true}
+        violationInfo={createViolation({
+          policy_id: "pb1",
+          policy_name: "Budget playbook",
+          formula_str: "",
+          playbook_id: "pb1",
+          state_label: "Over budget",
+        })}
+        groundingDetails={null}
+        monitorState={null}
+      />,
+    );
+
+    await user.click(screen.getByTestId("toggle-details"));
+
+    expect(
+      screen.getByText("Blocked by playbook: Budget playbook"),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("message-violation-state")).toHaveTextContent(
+      "Over budget",
+    );
+  });
+
   it("shows grounding details in expanded panel", async () => {
     const user = userEvent.setup();
     const details = [
