@@ -216,3 +216,100 @@ async def test_playbook_mode_with_an_unresolvable_playbook_id_is_a_setup_error(
     assert result.setup_error is not None
     assert "pb-does-not-exist" in result.setup_error
     assert _exit_code([result]) != 0
+
+
+# In playbook mode the chat router monitors only the playbook's members, so a
+# non-member policy is not monitored and its predicates are not grounded at
+# all. A harness that grounds every scenario policy diverges from production
+# on exactly the property it exists to certify.
+
+class _RecordingGrounding:
+    """Grounds nothing, but remembers which predicates it was asked about."""
+
+    def __init__(self) -> None:
+        self.asked: list[str] = []
+
+    async def evaluate(self, event, proposition, **kwargs):
+        from backend.engine.grounding import GroundingResult
+
+        self.asked.append(proposition.prop_id)
+        return GroundingResult(
+            match=False, confidence=1.0, reasoning="stub", method="stub",
+            prop_id=proposition.prop_id,
+        )
+
+
+def _member_filter_scenario_dict() -> dict:
+    """Two policies, one predicate each; the playbook has only one member."""
+    def predicate(prop_id: str) -> dict:
+        return {
+            "prop_id": prop_id,
+            "description": f"the user mentions {prop_id}",
+            "role": "user",
+            "few_shot_examples": [{"text": "hi", "found": False}],
+        }
+
+    return {
+        "scenario_id": "pb-member-filter",
+        "description": "a scenario policy the playbook does not include",
+        "model": {"grounding_provider": "vllm", "grounding_model": "stub"},
+        "predicates": [predicate("p_member"), predicate("p_outsider")],
+        "policies": [
+            {"policy_id": "pol-member", "name": "member",
+             "formula_str": "H p_member"},
+            {"policy_id": "pol-outsider", "name": "outsider",
+             "formula_str": "H p_outsider"},
+        ],
+        "playbooks": [{
+            "playbook_id": "pb-only-member",
+            "name": "Only the member",
+            "members": [{"policy_id": "pol-member", "position": 0,
+                         "fires_on": False, "guidance": "Mind the member."}],
+            "globals": [],
+            "states": [],
+        }],
+        "monitoring": {"mode": "playbook", "playbook_id": "pb-only-member"},
+        "messages": [{"role": "user", "text": "ping"}],
+    }
+
+
+async def _run_member_filter_scenario(tmp_path):
+    import json
+    from unittest.mock import AsyncMock, patch
+
+    import scenario_runner.runner as runner_mod
+    from backend.store.db import DatabaseStore
+    from scenario_runner.cli import _run_one
+
+    path = tmp_path / "pb-member-filter.json"
+    path.write_text(json.dumps(_member_filter_scenario_dict()))
+
+    grounding = _RecordingGrounding()
+    db = DatabaseStore(":memory:")
+    await db.initialize()
+    try:
+        with patch("scenario_runner.setup._validate_formula",
+                   AsyncMock(return_value=(["p_member"], None))), \
+             patch.object(runner_mod, "LLMGrounding", lambda **kw: grounding):
+            result = await _run_one(db, path, overwrite=False, keep_session=False)
+    finally:
+        await db.close()
+    return result, grounding
+
+
+async def test_playbook_mode_does_not_ground_a_non_member_policys_predicates(
+    tmp_path,
+):
+    result, grounding = await _run_member_filter_scenario(tmp_path)
+
+    assert result.setup_error is None
+    assert result.runtime_error is None
+    assert "p_member" in grounding.asked
+    assert "p_outsider" not in grounding.asked
+
+
+async def test_playbook_mode_reports_verdicts_only_for_members(tmp_path):
+    """The non-member policy is not monitored, so it has no verdict at all."""
+    result, _ = await _run_member_filter_scenario(tmp_path)
+
+    assert list(result.outcomes[0].per_policy) == ["pol-member"]

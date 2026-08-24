@@ -302,10 +302,31 @@ async def run_scenario(
         ),
     )
 
-    pred_ids = [p.prop_id for p in scenario.predicates]
     policy_ids = [p.policy_id for p in scenario.policies]
-    propositions = await _load_propositions_for(db, pred_ids)
+    pred_ids = [p.prop_id for p in scenario.predicates]
+    if playbook is not None:
+        # Mirrors _get_or_create_monitor in backend/routers/chat.py, which
+        # narrows a playbook session to its members before building the
+        # monitor: a non-member policy is not monitored and its predicates are
+        # not grounded at all. Without the same narrowing here the harness
+        # grounds predicates production never would, and diverges from
+        # production on the very property it exists to certify.
+        #
+        # Duplicated rather than pushed down into ConversationMonitor on
+        # purpose: that would change the production default path. Unifying the
+        # two is a post-merge item -- if they drift again, this comment is what
+        # a future reader has to go on.
+        member_ids = {m.policy_id for m in playbook.members}
+        policy_ids = [pid for pid in policy_ids if pid in member_ids]
+
     policies = await _load_policies_for(db, policy_ids)
+
+    if playbook is not None:
+        # The router keeps only the predicates the surviving policies refer to.
+        needed = {pid for policy in policies for pid in policy.propositions}
+        pred_ids = [pid for pid in pred_ids if pid in needed]
+
+    propositions = await _load_propositions_for(db, pred_ids)
     related = await db.list_related_objects(prop_ids=pred_ids) if pred_ids else []
     uses_conversation_history = any(
         p.grounding_scope == "conversation_history" for p in propositions
