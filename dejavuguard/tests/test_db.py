@@ -22,7 +22,12 @@ async def db():
     """Create an in-memory database store, initialized and ready."""
     store = DatabaseStore(":memory:")
     await store.initialize()
-    return store
+    yield store
+    # Without this, aiosqlite's non-daemon worker thread never gets its stop
+    # sentinel. Most are reaped by Connection.__del__, but the last few stay
+    # reachable at session end and block Py_FinalizeEx -- the suite passes in
+    # under a minute and then the process refuses to exit.
+    await store.close()
 
 
 # Initialization
