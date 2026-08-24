@@ -9,7 +9,7 @@ import {
   XCircle,
 } from "lucide-react";
 
-import type { GroundingDetail, ViolationInfo } from "@/types";
+import type { GroundingDetail, PlaybookStateInfo, ViolationInfo } from "@/types";
 
 interface MessageBubbleProps {
   role: string;
@@ -18,6 +18,13 @@ interface MessageBubbleProps {
   violationInfo: ViolationInfo | null;
   groundingDetails: GroundingDetail[] | null;
   monitorState: Record<string, boolean> | null;
+  /**
+   * The playbook state -- and its guidance -- in force for this turn, when
+   * the session is in playbook mode. Only ever shown here, in the collapsed
+   * debug panel: guidance must stay invisible in the conversation itself,
+   * or "why did it answer that?" has no answer.
+   */
+  playbookState?: PlaybookStateInfo | null;
 }
 
 export default function MessageBubble({
@@ -27,6 +34,7 @@ export default function MessageBubble({
   violationInfo,
   groundingDetails,
   monitorState,
+  playbookState,
 }: MessageBubbleProps) {
   const [expanded, setExpanded] = useState(false);
   const isUser = role === "user";
@@ -106,7 +114,10 @@ export default function MessageBubble({
               )}
             </div>
 
-            {(groundingDetails?.length || violationInfo || monitorState) && (
+            {(groundingDetails?.length ||
+              violationInfo ||
+              monitorState ||
+              playbookState?.rules?.length) && (
               <button
                 onClick={() => setExpanded(!expanded)}
                 className="flex items-center gap-0.5 text-xs font-mono text-terminal-dim hover:text-terminal-text transition-colors"
@@ -225,6 +236,19 @@ export default function MessageBubble({
                         ) : null}
                       </div>
                     ))}
+                </div>
+              )}
+
+              {playbookState && playbookState.rules.length > 0 && (
+                <div className="mb-2">
+                  <p className="font-bold text-terminal-dim">
+                    Guidance applied ({playbookState.label ?? playbookState.state_key}):
+                  </p>
+                  <ul className="mt-0.5 list-disc space-y-0.5 pl-4 text-terminal-amber">
+                    {playbookState.rules.map((rule, i) => (
+                      <li key={i}>{rule}</li>
+                    ))}
+                  </ul>
                 </div>
               )}
 

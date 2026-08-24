@@ -1,10 +1,18 @@
 import { useEffect, useRef, useState } from "react";
-import { Loader2, MessageSquarePlus, Pencil, Plus, Trash2 } from "lucide-react";
+import {
+  BookOpen,
+  Loader2,
+  MessageSquarePlus,
+  Pencil,
+  Plus,
+  Trash2,
+} from "lucide-react";
 
 import { useChat } from "@/hooks/useChat";
 import type { ChatResponse } from "@/types";
 import MessageBubble from "./MessageBubble";
 import MessageInput from "./MessageInput";
+import MonitoringSelector from "./MonitoringSelector";
 import MonitorStatus from "./MonitorStatus";
 import ViolationAlert from "./ViolationAlert";
 
@@ -101,6 +109,17 @@ export default function ChatView() {
     messagesList.length > 0
       ? messagesList[messagesList.length - 1].monitor_state
       : null;
+
+  // The playbook state (and its guidance) the last-processed turn landed
+  // in, when the session is in playbook mode. Persisted messages don't
+  // carry this -- only the response for the turn that just ran does -- so
+  // it's scoped to `lastResponse` and only ever attached to the newest
+  // message, which is the one it describes.
+  const activePlaybookState = lastResponse?.playbook_state ?? null;
+  const monitoringMode: "policies" | "playbook" = activePlaybookState
+    ? "playbook"
+    : "policies";
+  const monitoringPlaybookId = activePlaybookState?.playbook_id ?? null;
 
   return (
     <div className="flex h-full font-mono" data-testid="chat-view">
@@ -229,44 +248,73 @@ export default function ChatView() {
         ) : (
           <>
             {/* Header */}
-            <div className="flex items-center justify-between border-b border-border px-4 py-3 bg-dark-secondary">
-              {editingHeader ? (
-                <input
-                  ref={headerInputRef}
-                  type="text"
-                  value={headerEditName}
-                  onChange={(e) => setHeaderEditName(e.target.value)}
-                  onBlur={commitHeaderRename}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") commitHeaderRename();
-                    if (e.key === "Escape") setEditingHeader(false);
-                  }}
-                  className="rounded-none border border-accent/40 bg-dark-primary px-2 py-0.5 text-sm font-mono text-terminal-bright outline-none focus:ring-1 focus:ring-accent/50"
-                  data-testid="header-rename-input"
-                />
-              ) : (
-                <button
-                  onClick={() =>
-                    startHeaderRename(
-                      sessionsList.find((s) => s.session_id === activeSessionId)
-                        ?.name || `Session ${activeSessionId.slice(0, 8)}`,
-                    )
-                  }
-                  className="group flex items-center gap-1.5 rounded-none px-1 py-0.5 text-sm font-mono text-accent hover:bg-dark-hover"
-                  title="Click to rename"
-                  data-testid="header-session-name"
-                >
-                  <span>
-                    {sessionsList.find((s) => s.session_id === activeSessionId)
-                      ?.name || `Session ${activeSessionId.slice(0, 8)}`}
-                  </span>
-                  <Pencil
-                    size={13}
-                    className="text-terminal-dim opacity-0 group-hover:opacity-100"
+            <div className="border-b border-border bg-dark-secondary px-4 py-3">
+              <div className="flex items-center justify-between">
+                {editingHeader ? (
+                  <input
+                    ref={headerInputRef}
+                    type="text"
+                    value={headerEditName}
+                    onChange={(e) => setHeaderEditName(e.target.value)}
+                    onBlur={commitHeaderRename}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") commitHeaderRename();
+                      if (e.key === "Escape") setEditingHeader(false);
+                    }}
+                    className="rounded-none border border-accent/40 bg-dark-primary px-2 py-0.5 text-sm font-mono text-terminal-bright outline-none focus:ring-1 focus:ring-accent/50"
+                    data-testid="header-rename-input"
                   />
-                </button>
+                ) : (
+                  <button
+                    onClick={() =>
+                      startHeaderRename(
+                        sessionsList.find((s) => s.session_id === activeSessionId)
+                          ?.name || `Session ${activeSessionId.slice(0, 8)}`,
+                      )
+                    }
+                    className="group flex items-center gap-1.5 rounded-none px-1 py-0.5 text-sm font-mono text-accent hover:bg-dark-hover"
+                    title="Click to rename"
+                    data-testid="header-session-name"
+                  >
+                    <span>
+                      {sessionsList.find((s) => s.session_id === activeSessionId)
+                        ?.name || `Session ${activeSessionId.slice(0, 8)}`}
+                    </span>
+                    <Pencil
+                      size={13}
+                      className="text-terminal-dim opacity-0 group-hover:opacity-100"
+                    />
+                  </button>
+                )}
+                <div className="flex items-center gap-3">
+                  {activePlaybookState && (
+                    <div
+                      className={`flex items-center gap-1.5 border px-2 py-0.5 text-xs font-mono ${
+                        activePlaybookState.flagged
+                          ? "border-terminal-red/40 bg-terminal-red/10 text-terminal-red"
+                          : "border-accent/30 bg-accent-muted text-accent"
+                      }`}
+                      data-testid="playbook-state-badge"
+                    >
+                      <BookOpen size={12} />
+                      <span>
+                        {activePlaybookState.label ??
+                          activePlaybookState.playbook_name}
+                      </span>
+                    </div>
+                  )}
+                  <MonitorStatus monitorState={latestMonitorState} />
+                </div>
+              </div>
+              {activeSessionId && (
+                <div className="mt-2">
+                  <MonitoringSelector
+                    sessionId={activeSessionId}
+                    mode={monitoringMode}
+                    playbookId={monitoringPlaybookId}
+                  />
+                </div>
               )}
-              <MonitorStatus monitorState={latestMonitorState} />
             </div>
 
             {/* Messages */}
@@ -287,7 +335,7 @@ export default function ChatView() {
                   </p>
                 </div>
               )}
-              {messagesList.map((msg) => (
+              {messagesList.map((msg, i) => (
                 <MessageBubble
                   key={msg.id}
                   role={msg.role}
@@ -296,6 +344,13 @@ export default function ChatView() {
                   violationInfo={msg.violation_info}
                   groundingDetails={msg.grounding_details}
                   monitorState={msg.monitor_state}
+                  // Persisted messages don't carry playbook state -- only
+                  // the response for the turn that just ran does -- so it's
+                  // only ever attached to the newest message, the one it
+                  // describes.
+                  playbookState={
+                    i === messagesList.length - 1 ? activePlaybookState : null
+                  }
                 />
               ))}
             </div>

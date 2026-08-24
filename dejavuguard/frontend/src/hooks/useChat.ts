@@ -46,12 +46,16 @@ export function useChat() {
     await fetchSessions();
     setActiveSessionId(session_id);
     setMessages({ status: "success", data: [] });
+    setLastResponse(null);
     return session_id;
   }, [fetchSessions]);
 
   const switchSession = useCallback(async (sessionId: string) => {
     setActiveSessionId(sessionId);
     setMessages({ status: "loading" });
+    // Discard the previous session's last-turn info (violation, playbook
+    // state) so it can't be mistaken for something that happened here.
+    setLastResponse(null);
     try {
       const { messages: msgs } = await getSessionMessages(sessionId);
       setMessages({ status: "success", data: msgs });
