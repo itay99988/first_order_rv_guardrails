@@ -162,20 +162,27 @@ def resolve_state(playbook: Playbook, verdicts: Mapping[str, bool]) -> ResolvedS
     key = state_key(relevant)
     override = playbook.overrides.get(key)
 
-    if override is not None and override.rule_refs is not None:
+    pinned = override is not None and override.rule_refs is not None
+    if pinned:
         rules = _resolve_refs(playbook, override.rule_refs)
-        customised = True
     else:
         rules = default_rules(playbook, relevant)
-        customised = False
 
+    flagged = bool(override.flagged) if override else False
+    label = override.label if override else None
+
+    # An unedited state derives its guidance, is unflagged and unlabelled, so
+    # any of the three departing from that is a user edit. Reading only
+    # rule_refs would report a state overridden purely to flag it as
+    # "default": the one state that blocks becomes the one state the UI hides
+    # under "Only customised" and offers no Revert for.
     return ResolvedState(
         state_key=key,
         verdicts=relevant,
         rules=rules,
-        flagged=bool(override.flagged) if override else False,
-        label=override.label if override else None,
-        customised=customised,
+        flagged=flagged,
+        label=label,
+        customised=pinned or flagged or label is not None,
     )
 
 

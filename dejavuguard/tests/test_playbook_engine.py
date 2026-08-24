@@ -110,6 +110,29 @@ def test_absent_override_is_not_customised():
     assert state.customised is False
 
 
+def test_a_flag_only_override_is_customised():
+    """A state overridden purely to flag it is still a user edit.
+
+    Keying customised on rule_refs alone reports it as "default", so the UI
+    hides it under "Only customised" and offers no Revert -- the one state
+    that blocks becomes the one state you cannot find.
+    """
+    key = state_key({"p_budget": False, "p_allergy": False})
+    pb = _playbook({key: StateOverride(key, None, True, None)})
+    state = resolve_state(pb, {"p_budget": False, "p_allergy": False})
+    assert state.customised is True
+    # The guidance is still derived: flagging must not pin the rules.
+    assert state.rules == ("Stay within the stated budget.",)
+
+
+def test_a_label_only_override_is_customised():
+    key = state_key({"p_budget": False, "p_allergy": False})
+    pb = _playbook({key: StateOverride(key, None, False, "Over budget")})
+    state = resolve_state(pb, {"p_budget": False, "p_allergy": False})
+    assert state.customised is True
+    assert state.rules == ("Stay within the stated budget.",)
+
+
 def test_flag_defaults_to_false_and_is_read_from_the_override():
     key = state_key({"p_budget": False, "p_allergy": False})
     pb = _playbook({key: StateOverride(key, None, True, "Over budget")})
