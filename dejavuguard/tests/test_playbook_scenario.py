@@ -121,3 +121,24 @@ def test_grounding_base_url_is_kept_when_no_override_is_given():
     assert _scenario_grounding_settings(base, scenario).base_url == (
         "http://localhost:11434"
     )
+
+
+def test_a_blocked_mismatch_gets_a_nonzero_exit_code():
+    """CI must not read a failing batch as success.
+
+    _exit_code keyed only on verdict mismatches, so a run whose report says
+    FAIL because blocking, guidance or the state name was wrong still exited
+    0 -- and an automated run would never notice.
+    """
+    from scenario_runner.cli import _exit_code
+
+    result = _result(_outcome(["A."], None, blocked=False, expected_blocked=True))
+
+    assert result.passed is False
+    assert _exit_code([result]) != 0
+
+
+def test_a_guidance_mismatch_gets_a_nonzero_exit_code():
+    from scenario_runner.cli import _exit_code
+
+    assert _exit_code([_result(_outcome(["A."], ["B."]))]) != 0

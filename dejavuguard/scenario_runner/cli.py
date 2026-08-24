@@ -166,7 +166,10 @@ def _exit_code(results: Iterable[RunResult]) -> int:
     # A step DejaVu never evaluated is a pipeline failure, not a pass.
     if any(r.total_unverified > 0 for r in results):
         return 4
-    if any(r.total_mismatches > 0 for r in results):
+    # Every remaining failure category, not just verdict mismatches: a run
+    # whose report says FAIL on blocking, guidance or the state name must not
+    # exit 0, or an automated run never notices it.
+    if any(not r.passed for r in results):
         return 1
     return 0
 

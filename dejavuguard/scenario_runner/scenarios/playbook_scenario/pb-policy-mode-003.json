@@ -116,7 +116,9 @@
       "text": "Understood. Here's my recommendation: let's go with the premium package at $14,500.",
       "expected_verdict": {
         "budget-policy": false
-      }
+      },
+      "expected_blocked": true,
+      "expected_guidance": []
     }
   ]
 }
