@@ -40,7 +40,15 @@ export function useChat() {
   }, []);
 
   const fetchSessions = useCallback(async () => {
-    setSessions({ status: "loading" });
+    // A refetch keeps the current list on screen. It is used to pick up a
+    // rename, a new message count or a changed monitoring mode, and every
+    // value derived from the list -- the active session's mode and playbook
+    // among them -- falls back to its default while the list is empty. Going
+    // through `loading` therefore made the mode selector flick to "Policies"
+    // and back on every mode change. Only the first fetch has nothing to show.
+    setSessions((prev) =>
+      prev.status === "success" ? prev : { status: "loading" },
+    );
     try {
       const data = await getSessions();
       setSessions({ status: "success", data });

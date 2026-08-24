@@ -423,4 +423,51 @@ describe("useChat", () => {
       expect(result.current.sessions.error).toBe("Network error");
     }
   });
+
+  // Everything ChatView derives from the sessions list -- the monitoring
+  // mode and playbook of the active session among them -- falls back to its
+  // default the moment the list is empty. Blanking it to `loading` on a
+  // refetch made the mode selector visibly flick to "Policies" and back
+  // every time the mode changed.
+  it("keeps the loaded sessions on screen while a refetch is in flight", async () => {
+    const loaded = [
+      createSessionInfo({
+        session_id: "sess_1",
+        monitoring_mode: "playbook",
+        playbook_id: "pb1",
+      }),
+    ];
+    vi.mocked(getSessions).mockResolvedValue(loaded);
+
+    const { result } = renderHook(() => useChat());
+    await waitFor(() => expect(result.current.sessions.status).toBe("success"));
+
+    let release: (value: SessionInfo[]) => void = () => {};
+    vi.mocked(getSessions).mockReturnValueOnce(
+      new Promise<SessionInfo[]>((resolve) => {
+        release = resolve;
+      }),
+    );
+
+    let refetch: Promise<void>;
+    act(() => {
+      refetch = result.current.fetchSessions();
+    });
+
+    expect(result.current.sessions).toEqual({ status: "success", data: loaded });
+
+    await act(async () => {
+      release(loaded);
+      await refetch;
+    });
+    expect(result.current.sessions).toEqual({ status: "success", data: loaded });
+  });
+
+  it("still shows loading for the very first fetch", async () => {
+    vi.mocked(getSessions).mockReturnValue(new Promise<SessionInfo[]>(() => {}));
+
+    const { result } = renderHook(() => useChat());
+
+    await waitFor(() => expect(result.current.sessions.status).toBe("loading"));
+  });
 });
