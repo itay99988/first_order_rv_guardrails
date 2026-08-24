@@ -11,6 +11,7 @@ const mockGetPlaybookGlobals = vi.fn();
 const mockSetPlaybookMembers = vi.fn();
 const mockSetPlaybookGlobals = vi.fn();
 const mockSetPlaybookOverride = vi.fn();
+const mockGetPlaybookTrace = vi.fn();
 
 vi.mock("@/api/client", () => ({
   getPolicies: (...args: unknown[]) => mockGetPolicies(...args),
@@ -19,6 +20,7 @@ vi.mock("@/api/client", () => ({
   setPlaybookMembers: (...args: unknown[]) => mockSetPlaybookMembers(...args),
   setPlaybookGlobals: (...args: unknown[]) => mockSetPlaybookGlobals(...args),
   setPlaybookOverride: (...args: unknown[]) => mockSetPlaybookOverride(...args),
+  getPlaybookTrace: (...args: unknown[]) => mockGetPlaybookTrace(...args),
 }));
 
 const playbook: Playbook = {
@@ -39,6 +41,15 @@ describe("PlaybookEditor", () => {
     mockSetPlaybookMembers.mockReset();
     mockSetPlaybookGlobals.mockReset();
     mockSetPlaybookOverride.mockReset().mockResolvedValue({ state_key: "p1=T" });
+    mockGetPlaybookTrace.mockReset().mockResolvedValue({
+      current: null,
+      members: [],
+      nodes: [
+        { name: "watch", rules: ["watch"], flagged: false, visited: false,
+          state_count: 1, reachable: true, first_visit: null },
+      ],
+      edges: [],
+    });
   });
 
   it("populates member and global rows from the loaded data", async () => {
@@ -153,5 +164,39 @@ describe("PlaybookEditor", () => {
     await waitFor(() =>
       expect(mockGetPlaybookStates.mock.calls.length).toBeGreaterThan(before),
     );
+  });
+
+  // The graph is the whole state machine, drawn from the same behaviours the
+  // table lists. It is mounted here, in its parent, so that unmounting it
+  // fails a test rather than leaving a component no user can reach.
+  it("shows the state graph next to the states table", async () => {
+    mockGetPolicies.mockResolvedValue([
+      { policy_id: "p1", name: "P1", formula_str: "a", propositions: [], enabled: true },
+    ]);
+    mockGetPlaybookStates.mockResolvedValue({
+      playbook_id: "pb1",
+      state_count: 2,
+      members: [{ policy_id: "p1", position: 0, fires_on: true, guidance: "watch" }],
+      behaviours: [
+        {
+          name: "watch", rules: ["watch"], flagged: false,
+          states: [
+            { state_key: "p1=T", verdicts: { p1: true }, customised: false, label: null },
+          ],
+        },
+      ],
+      warnings: [],
+    });
+    mockGetPlaybookGlobals.mockResolvedValue([]);
+
+    render(<PlaybookEditor playbook={playbook} onBack={vi.fn()} />);
+    await screen.findByTestId("playbook-states");
+
+    await userEvent.click(screen.getByTestId("states-view-graph"));
+
+    expect(await screen.findByTestId("playbook-graph")).toBeInTheDocument();
+    // No session is being replayed here, so every behaviour is unvisited.
+    expect(mockGetPlaybookTrace).toHaveBeenCalledWith("pb1", "");
+    expect(screen.queryByTestId("playbook-states")).toBeNull();
   });
 });

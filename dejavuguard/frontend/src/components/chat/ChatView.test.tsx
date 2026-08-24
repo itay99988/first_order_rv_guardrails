@@ -60,6 +60,23 @@ vi.mock("@/hooks/useChat", () => ({
   useChat: () => mockUseChat,
 }));
 
+// The graph the header badge opens is the real PlaybookGraph, not a stub, so
+// this file fails if it is ever unmounted from the header again.
+const mockGetPlaybookTrace = vi.fn();
+vi.mock("@/api/client", () => ({
+  getPlaybookTrace: (...a: unknown[]) => mockGetPlaybookTrace(...a),
+}));
+
+const trace = {
+  current: "Over budget",
+  members: [],
+  nodes: [
+    { name: "Over budget", rules: ["Stay within budget."], flagged: true,
+      visited: true, state_count: 1, reachable: true, first_visit: 0 },
+  ],
+  edges: [],
+};
+
 describe("ChatView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -69,7 +86,26 @@ describe("ChatView", () => {
     mockUseChat.sendState = "idle";
     mockUseChat.lastResponse = null;
     mockUseChat.clearLastResponse.mockReset();
+    mockGetPlaybookTrace.mockReset().mockResolvedValue(trace);
   });
+
+  function playbookSession() {
+    mockUseChat.activeSessionId = "sess-1";
+    mockUseChat.sessions = {
+      status: "success",
+      data: [
+        createSessionInfo({
+          session_id: "sess-1",
+          monitoring_mode: "playbook",
+          playbook_id: "pb1",
+        }),
+      ],
+    };
+    mockUseChat.messages = { status: "success", data: [] };
+    mockUseChat.lastResponse = createChatResponse({
+      playbook_state: createPlaybookState({ label: "Over budget" }),
+    });
+  }
 
   // --- Layout ---
 
@@ -316,5 +352,28 @@ describe("ChatView", () => {
     // Name appears in both sidebar item and header — expect at least 2
     const matches = screen.getAllByText("My Chat");
     expect(matches.length).toBeGreaterThanOrEqual(2);
+  });
+
+  // --- Playbook state graph ---
+
+  it("opens the state graph for the active playbook from the header badge", async () => {
+    playbookSession();
+    render(<ChatView />);
+
+    await userEvent.click(screen.getByTestId("playbook-state-badge"));
+
+    expect(await screen.findByTestId("playbook-graph")).toBeInTheDocument();
+    expect(mockGetPlaybookTrace).toHaveBeenCalledWith("pb1", "sess-1");
+  });
+
+  it("closes the state graph again", async () => {
+    playbookSession();
+    render(<ChatView />);
+
+    await userEvent.click(screen.getByTestId("playbook-state-badge"));
+    await screen.findByTestId("playbook-graph");
+    await userEvent.click(screen.getByTestId("modal-close"));
+
+    expect(screen.queryByTestId("playbook-graph")).toBeNull();
   });
 });

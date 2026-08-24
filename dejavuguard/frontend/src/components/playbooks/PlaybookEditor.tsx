@@ -9,6 +9,7 @@ import {
   setPlaybookMembers,
 } from "@/api/client";
 import type { Playbook, PlaybookGlobalRule, PlaybookMember } from "@/types";
+import PlaybookGraph from "./PlaybookGraph";
 import PlaybookStates from "./PlaybookStates";
 
 interface Props {
@@ -58,6 +59,7 @@ export default function PlaybookEditor({ playbook, onBack }: Props) {
   // after a save reloads that pane instead of leaving it offering rules that
   // no longer exist.
   const [statesToken, setStatesToken] = useState(0);
+  const [statesView, setStatesView] = useState<"table" | "graph">("table");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -466,13 +468,39 @@ export default function PlaybookEditor({ playbook, onBack }: Props) {
 
       {/* States table */}
       <section>
-        <h3 className="mb-3 text-sm font-mono font-bold text-terminal-text uppercase tracking-wider">
-          States
-        </h3>
-        <PlaybookStates
-          playbookId={playbook.playbook_id}
-          reloadToken={statesToken}
-        />
+        <div className="mb-3 flex items-center justify-between">
+          <h3 className="text-sm font-mono font-bold text-terminal-text uppercase tracking-wider">
+            States
+          </h3>
+          <div className="flex items-center" data-testid="states-view-toggle">
+            {(["table", "graph"] as const).map((view) => (
+              <button
+                key={view}
+                onClick={() => setStatesView(view)}
+                className={`rounded-none border px-3 py-1.5 text-xs font-medium ${
+                  statesView === view
+                    ? "border-accent/40 bg-accent-muted text-accent"
+                    : "border-border text-terminal-dim hover:bg-dark-hover hover:text-terminal-text"
+                }`}
+                data-testid={`states-view-${view}`}
+              >
+                {view === "table" ? "Table" : "Graph"}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {statesView === "table" ? (
+          <PlaybookStates
+            playbookId={playbook.playbook_id}
+            reloadToken={statesToken}
+          />
+        ) : (
+          // No session to replay here, so every behaviour reads as unvisited:
+          // this is the playbook's map, not one conversation's path through
+          // it. The chat header badge opens the same graph for a session.
+          <PlaybookGraph playbookId={playbook.playbook_id} sessionId="" />
+        )}
       </section>
     </div>
   );

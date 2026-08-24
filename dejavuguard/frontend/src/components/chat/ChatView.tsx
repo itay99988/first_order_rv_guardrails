@@ -9,6 +9,8 @@ import {
 } from "lucide-react";
 
 import { useChat } from "@/hooks/useChat";
+import PlaybookGraph from "@/components/playbooks/PlaybookGraph";
+import Modal from "@/components/shared/Modal";
 import type { ChatResponse } from "@/types";
 import MessageBubble from "./MessageBubble";
 import MessageInput from "./MessageInput";
@@ -36,6 +38,7 @@ export default function ChatView() {
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editingHeader, setEditingHeader] = useState(false);
+  const [graphOpen, setGraphOpen] = useState(false);
   const [headerEditName, setHeaderEditName] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
   const sidebarInputRef = useRef<HTMLInputElement>(null);
@@ -304,8 +307,10 @@ export default function ChatView() {
                 )}
                 <div className="flex items-center gap-3">
                   {monitoringMode === "playbook" && activePlaybookState && (
-                    <div
-                      className={`flex items-center gap-1.5 border px-2 py-0.5 text-xs font-mono ${
+                    <button
+                      onClick={() => setGraphOpen(true)}
+                      title="Show where this session has been in the playbook"
+                      className={`flex items-center gap-1.5 border px-2 py-0.5 text-xs font-mono hover:brightness-125 ${
                         activePlaybookState.flagged
                           ? "border-terminal-red/40 bg-terminal-red/10 text-terminal-red"
                           : "border-accent/30 bg-accent-muted text-accent"
@@ -317,7 +322,7 @@ export default function ChatView() {
                         {activePlaybookState.label ??
                           activePlaybookState.playbook_name}
                       </span>
-                    </div>
+                    </button>
                   )}
                   <MonitorStatus monitorState={latestMonitorState} />
                 </div>
@@ -371,6 +376,22 @@ export default function ChatView() {
                 />
               ))}
             </div>
+
+            {/* State graph for the running playbook. Scoped to the active
+                session, so the spine is where this conversation has actually
+                been rather than every path the playbook allows. */}
+            {activePlaybookState && (
+              <Modal
+                open={graphOpen}
+                onClose={() => setGraphOpen(false)}
+                title={`${activePlaybookState.playbook_name} states`}
+              >
+                <PlaybookGraph
+                  playbookId={activePlaybookState.playbook_id}
+                  sessionId={activeSessionId}
+                />
+              </Modal>
+            )}
 
             {/* Violation Alert */}
             {violation && violation.violation && (
