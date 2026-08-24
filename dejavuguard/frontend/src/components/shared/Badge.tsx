@@ -18,9 +18,9 @@ export default function Badge({ variant, children }: BadgeProps) {
       data-testid="badge"
       data-variant={variant}
     >
-      <span aria-hidden="true">{"[ "}</span>
+      <span aria-hidden="true" className="whitespace-pre">{"[ "}</span>
       <span>{children}</span>
-      <span aria-hidden="true">{" ]"}</span>
+      <span aria-hidden="true" className="whitespace-pre">{" ]"}</span>
     </span>
   );
 }
