@@ -228,8 +228,15 @@ async def test_a_mode_switch_mid_construction_does_not_resurrect_the_old_monitor
         await chat_mod.set_session_monitoring(_FakeRequest(db), "s1", body)
         release.set()
 
-    stale, _ = await asyncio.gather(
-        chat_mod._get_or_create_monitor(db, "s1"), _switch_mid_flight()
+    # wait_for, not a bare gather: `started` is set only from inside the
+    # barrier, so if the build never reaches it -- no enabled policies, or an
+    # early return on a cache hit -- _switch_mid_flight waits forever and the
+    # test wedges with no output. A timeout turns that into a visible failure.
+    stale, _ = await asyncio.wait_for(
+        asyncio.gather(
+            chat_mod._get_or_create_monitor(db, "s1"), _switch_mid_flight()
+        ),
+        timeout=10,
     )
 
     # The in-flight turn finishes on the mode it started with, but that
@@ -298,8 +305,13 @@ async def test_deleting_a_session_mid_construction_does_not_cache_its_monitor(
         await chat_mod.delete_session(_FakeRequest(db), "s1")
         release.set()
 
-    await asyncio.gather(
-        chat_mod._get_or_create_monitor(db, "s1"), _delete_mid_flight()
+    # See the note on the mode-switch test: a bare gather wedges silently if
+    # the barrier is never reached.
+    await asyncio.wait_for(
+        asyncio.gather(
+            chat_mod._get_or_create_monitor(db, "s1"), _delete_mid_flight()
+        ),
+        timeout=10,
     )
 
     assert "s1" not in chat_mod._monitors
