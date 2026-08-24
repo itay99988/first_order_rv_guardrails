@@ -117,6 +117,138 @@ describe("PlaybookStates", () => {
     );
   });
 
+  // Spec Testing-5 names the filters; they had no test at all, and the
+  // ledger recorded them as tested. The two read different fields -- one the
+  // row's own `customised`, one its behaviour's `flagged` -- so a mix-up
+  // hides exactly the rows the user asked to see.
+  describe("filters", () => {
+    // Flagged but not customised, customised but not flagged: the two
+    // filters read different fields, and a fixture where the two coincide
+    // cannot tell one from the other.
+    const crossed = {
+      ...twoStatesOneBehaviour,
+      behaviours: [
+        {
+          name: "Flagged default", rules: [], flagged: true,
+          states: [
+            { state_key: "a=F;b=T", verdicts: { a: false, b: true }, customised: false, label: null },
+          ],
+        },
+        {
+          name: "Customised, harmless", rules: ["Be nice."], flagged: false,
+          states: [
+            { state_key: "a=T;b=T", verdicts: { a: true, b: true }, customised: true, label: null },
+          ],
+        },
+      ],
+    };
+
+    it("'Only customised' hides the states with no override, flagged or not", async () => {
+      mockGet.mockResolvedValue(crossed);
+      render(<PlaybookStates playbookId="pb1" />);
+      await screen.findByTestId("state-row-a=T;b=T");
+
+      await userEvent.click(screen.getByTestId("filter-only-customised"));
+
+      expect(screen.getByTestId("state-row-a=T;b=T")).toBeInTheDocument();
+      expect(screen.queryByTestId("state-row-a=F;b=T")).toBeNull();
+    });
+
+    it("'Only flagged' hides the states whose behaviour does not block, customised or not", async () => {
+      mockGet.mockResolvedValue(crossed);
+      render(<PlaybookStates playbookId="pb1" />);
+      await screen.findByTestId("state-row-a=T;b=T");
+
+      await userEvent.click(screen.getByTestId("filter-only-flagged"));
+
+      expect(screen.getByTestId("state-row-a=F;b=T")).toBeInTheDocument();
+      expect(screen.queryByTestId("state-row-a=T;b=T")).toBeNull();
+      expect(screen.queryByTestId("behaviour-Customised, harmless")).toBeNull();
+    });
+
+    it("unticking a filter brings the hidden states back", async () => {
+      mockGet.mockResolvedValue(twoStatesOneBehaviour);
+      render(<PlaybookStates playbookId="pb1" />);
+      await screen.findByTestId("state-row-a=T;b=T");
+
+      await userEvent.click(screen.getByTestId("filter-only-flagged"));
+      await userEvent.click(screen.getByTestId("filter-only-flagged"));
+
+      expect(screen.getByTestId("state-row-a=T;b=T")).toBeInTheDocument();
+    });
+
+    it("says so rather than showing an empty table when the two filters agree on nothing", async () => {
+      // Each filter alone keeps a row; together they keep none.
+      mockGet.mockResolvedValue(crossed);
+      render(<PlaybookStates playbookId="pb1" />);
+      await screen.findByTestId("state-row-a=F;b=T");
+
+      await userEvent.click(screen.getByTestId("filter-only-customised"));
+      await userEvent.click(screen.getByTestId("filter-only-flagged"));
+
+      expect(screen.getByTestId("no-visible-behaviours")).toBeInTheDocument();
+      expect(screen.queryByTestId("state-row-a=F;b=T")).toBeNull();
+      expect(screen.queryByTestId("state-row-a=T;b=T")).toBeNull();
+    });
+  });
+
+  describe("revert", () => {
+    it("sends the one payload that deletes the override", async () => {
+      mockGet.mockResolvedValue(twoStatesOneBehaviour);
+      render(<PlaybookStates playbookId="pb1" />);
+
+      await userEvent.click(await screen.findByTestId("revert-a=F;b=T"));
+
+      await waitFor(() =>
+        expect(mockSetOverride).toHaveBeenCalledWith("pb1", "a=F;b=T", {
+          rule_refs: null,
+          flagged: false,
+          label: null,
+        }),
+      );
+    });
+
+    it("reloads the states afterwards, so the row stops saying customised", async () => {
+      mockGet.mockResolvedValue(twoStatesOneBehaviour);
+      render(<PlaybookStates playbookId="pb1" />);
+      await screen.findByTestId("revert-a=F;b=T");
+      const before = mockGet.mock.calls.length;
+
+      await userEvent.click(screen.getByTestId("revert-a=F;b=T"));
+
+      await waitFor(() =>
+        expect(mockGet.mock.calls.length).toBeGreaterThan(before),
+      );
+    });
+
+    it("is offered only on the rows that have an override to remove", async () => {
+      mockGet.mockResolvedValue(twoStatesOneBehaviour);
+      render(<PlaybookStates playbookId="pb1" />);
+      await screen.findByTestId("state-row-a=T;b=T");
+
+      expect(screen.queryByTestId("revert-a=T;b=T")).toBeNull();
+      expect(screen.getByTestId("revert-a=F;b=T")).toBeInTheDocument();
+    });
+
+    it("shows progress and cannot be pressed twice", async () => {
+      mockGet.mockResolvedValue(twoStatesOneBehaviour);
+      let release: (value: { state_key: string }) => void = () => {};
+      mockSetOverride.mockReturnValue(
+        new Promise<{ state_key: string }>((resolve) => {
+          release = resolve;
+        }),
+      );
+      render(<PlaybookStates playbookId="pb1" />);
+
+      await userEvent.click(await screen.findByTestId("revert-a=F;b=T"));
+
+      const button = screen.getByTestId("revert-a=F;b=T");
+      expect(button).toBeDisabled();
+      expect(button).toHaveTextContent("Reverting...");
+      release({ state_key: "a=F;b=T" });
+    });
+  });
+
   // A state overridden only to flag it keeps its derived guidance, so
   // nothing about the rules gives it away: the row is "customised" or it is
   // not, and if it is not, the one state that blocks is the one state the
