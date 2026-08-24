@@ -54,7 +54,7 @@ describe("RulesView", () => {
     render(<RulesView />);
     expect(screen.getByTestId("no-propositions")).toBeInTheDocument();
     expect(screen.getByTestId("no-propositions")).toHaveTextContent(
-      "No propositions defined yet",
+      "No predicates defined yet",
     );
   });
 
@@ -158,7 +158,7 @@ describe("RulesView", () => {
     render(<RulesView />);
 
     await user.click(screen.getByTestId("add-proposition"));
-    expect(screen.getByText("New Proposition")).toBeInTheDocument();
+    expect(screen.getByText("New Predicate")).toBeInTheDocument();
   });
 
   it("clicking Add policy opens formula builder modal", async () => {

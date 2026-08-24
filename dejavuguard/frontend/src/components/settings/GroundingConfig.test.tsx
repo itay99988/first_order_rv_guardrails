@@ -60,8 +60,17 @@ describe("GroundingConfig", () => {
   it("Ollama is selected by default (highlighted)", () => {
     renderConfig();
     const ollamaButton = screen.getByTestId("provider-ollama");
-    expect(ollamaButton).toHaveClass("bg-blue-50");
-    expect(ollamaButton).toHaveClass("text-blue-600");
+    expect(ollamaButton).toHaveAttribute("aria-pressed", "true");
+    expect(ollamaButton).toHaveClass("bg-accent-muted");
+    expect(ollamaButton).toHaveClass("text-accent");
+  });
+
+  it("unselected providers are not reported as pressed", () => {
+    renderConfig();
+    expect(screen.getByTestId("provider-openrouter")).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
   });
 
   it("renders base URL input when local provider selected", () => {

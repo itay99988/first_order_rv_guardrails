@@ -113,7 +113,9 @@ export default function GroundingConfig({
             {providers.map(({ value, label }) => (
               <button
                 key={value}
+                type="button"
                 onClick={() => handleProviderChange(value)}
+                aria-pressed={grounding.provider === value}
                 className={`rounded-none border px-3 py-1.5 text-sm font-medium transition-colors ${
                   grounding.provider === value
                     ? "border-accent/40 bg-accent-muted text-accent"

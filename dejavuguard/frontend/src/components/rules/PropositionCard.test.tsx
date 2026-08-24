@@ -128,7 +128,7 @@ describe("PropositionCard", () => {
       />,
     );
     expect(
-      screen.getByLabelText("Edit proposition p_fraud"),
+      screen.getByLabelText("Edit predicate p_fraud"),
     ).toBeInTheDocument();
   });
 
@@ -142,7 +142,7 @@ describe("PropositionCard", () => {
       />,
     );
     expect(
-      screen.getByLabelText("Delete proposition p_fraud"),
+      screen.getByLabelText("Delete predicate p_fraud"),
     ).toBeInTheDocument();
   });
 });

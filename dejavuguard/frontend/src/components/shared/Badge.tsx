@@ -16,8 +16,11 @@ export default function Badge({ variant, children }: BadgeProps) {
     <span
       className={`inline-flex items-center rounded-none px-2.5 py-0.5 text-xs font-medium font-mono ${variantClasses[variant]}`}
       data-testid="badge"
+      data-variant={variant}
     >
-      [ {children} ]
+      <span aria-hidden="true">{"[ "}</span>
+      <span>{children}</span>
+      <span aria-hidden="true">{" ]"}</span>
     </span>
   );
 }

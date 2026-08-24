@@ -45,18 +45,24 @@ describe("MonitorStatus", () => {
     expect(screen.getByTestId("chat-monitor-status")).toBeInTheDocument();
   });
 
-  it("shows green indicator dot when all passing", () => {
+  it("reports a passing status when all passing", () => {
     render(<MonitorStatus monitorState={{ pol_fraud: true }} />);
     const status = screen.getByTestId("chat-monitor-status");
-    const dot = status.querySelector("span");
-    expect(dot?.className).toContain("bg-emerald-500");
+    expect(status).toHaveAttribute("data-status", "passing");
+    expect(status.querySelector("span")).toHaveClass("text-terminal-green");
   });
 
-  it("shows red indicator dot when violation detected", () => {
+  it("reports a violation status when a policy fails", () => {
     render(<MonitorStatus monitorState={{ pol_fraud: false }} />);
     const status = screen.getByTestId("chat-monitor-status");
-    const dot = status.querySelector("span");
-    expect(dot?.className).toContain("bg-red-500");
+    expect(status).toHaveAttribute("data-status", "violation");
+    expect(status.querySelector("span")).toHaveClass("text-terminal-red");
+  });
+
+  it("hides the decorative indicator glyph from assistive technology", () => {
+    render(<MonitorStatus monitorState={{ pol_fraud: true }} />);
+    const glyph = screen.getByTestId("chat-monitor-status").querySelector("span");
+    expect(glyph).toHaveAttribute("aria-hidden", "true");
   });
 
   it("handles a single passing policy", () => {

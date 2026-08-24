@@ -13,8 +13,10 @@ export default function MonitorStatus({ monitorState }: MonitorStatusProps) {
     <div
       className="flex items-center gap-2 text-xs font-mono"
       data-testid="chat-monitor-status"
+      data-status={allPassing ? "passing" : "violation"}
     >
       <span
+        aria-hidden="true"
         className={`text-sm ${allPassing ? "text-terminal-green" : "text-terminal-red"}`}
       >
         {"\u25A0"}

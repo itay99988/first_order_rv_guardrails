@@ -117,7 +117,7 @@ export default function MessageBubble({
               ) : (
                 <>
                   <CheckCircle size={12} className="text-terminal-green" />
-                  <span className="text-terminal-green">{"\u2713"} Passed</span>
+                  <span className="text-terminal-green">Passed</span>
                 </>
               )}
             </div>

@@ -94,13 +94,19 @@ describe("SettingsView", () => {
   it("renders GroundingConfig section", () => {
     mockUseSettings.mockReturnValue(createHookReturn());
     render(<SettingsView />);
-    expect(screen.getByText("Grounding Model")).toBeInTheDocument();
+    // "Grounding Model" also appears as a radio option in the chat-model card,
+    // so target the section heading specifically.
+    expect(
+      screen.getByRole("heading", { name: "Grounding Model" }),
+    ).toBeInTheDocument();
   });
 
   it("renders GroundingPromptEditor section", () => {
     mockUseSettings.mockReturnValue(createHookReturn());
     render(<SettingsView />);
-    expect(screen.getByText("Grounding Prompt")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Grounding Prompts" }),
+    ).toBeInTheDocument();
   });
 
   it('does not render loading or error states when status is "success"', () => {
