@@ -2,13 +2,45 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import ChatView from "./ChatView";
-import { createSessionInfo, createSessionMessage } from "../../test/mocks";
+import {
+  createChatResponse,
+  createSessionInfo,
+  createSessionMessage,
+} from "../../test/mocks";
 import type {
   AsyncState,
   SessionInfo,
   SessionMessage,
   ChatResponse,
+  PlaybookStateInfo,
 } from "../../types";
+
+function createPlaybookState(
+  overrides: Partial<PlaybookStateInfo> = {},
+): PlaybookStateInfo {
+  return {
+    playbook_id: "pb1",
+    playbook_name: "Playbook A",
+    state_key: "s1",
+    label: null,
+    member_verdicts: {},
+    rules: [],
+    flagged: false,
+    ...overrides,
+  };
+}
+
+// ChatView mounts the real MonitoringSelector; stub it so tests here focus
+// on ChatView's own wiring (does it forward the right mode/playbookId, does
+// it clear stale state on change) rather than the selector's own behaviour,
+// which MonitoringSelector.test.tsx already covers.
+vi.mock("./MonitoringSelector", () => ({
+  default: ({ onChanged }: { onChanged?: () => void }) => (
+    <button data-testid="fake-monitoring-changed" onClick={() => onChanged?.()}>
+      change mode
+    </button>
+  ),
+}));
 
 const mockUseChat = {
   sessions: { status: "success", data: [] } as AsyncState<SessionInfo[]>,
@@ -16,6 +48,7 @@ const mockUseChat = {
   messages: { status: "idle" } as AsyncState<SessionMessage[]>,
   sendState: "idle" as "idle" | "sending" | "error",
   lastResponse: null as ChatResponse | null,
+  clearLastResponse: vi.fn(),
   createSession: vi.fn(),
   switchSession: vi.fn(),
   deleteSession: vi.fn(),
@@ -35,6 +68,7 @@ describe("ChatView", () => {
     mockUseChat.messages = { status: "idle" };
     mockUseChat.sendState = "idle";
     mockUseChat.lastResponse = null;
+    mockUseChat.clearLastResponse.mockReset();
   });
 
   // --- Layout ---
@@ -165,6 +199,88 @@ describe("ChatView", () => {
     };
     render(<ChatView />);
     expect(screen.getByTestId("chat-monitor-status")).toBeInTheDocument();
+  });
+
+  // --- Playbook state badge ---
+
+  it("shows the playbook state badge with its label when a playbook state exists", () => {
+    mockUseChat.activeSessionId = "sess-1";
+    mockUseChat.sessions = {
+      status: "success",
+      data: [
+        createSessionInfo({
+          session_id: "sess-1",
+          monitoring_mode: "playbook",
+          playbook_id: "pb1",
+        }),
+      ],
+    };
+    mockUseChat.messages = { status: "success", data: [] };
+    mockUseChat.lastResponse = createChatResponse({
+      playbook_state: createPlaybookState({
+        label: "Over budget",
+        flagged: true,
+      }),
+    });
+    render(<ChatView />);
+
+    const badge = screen.getByTestId("playbook-state-badge");
+    expect(badge).toHaveTextContent("Over budget");
+    expect(badge.className).toContain("terminal-red");
+  });
+
+  it("does not show the playbook state badge when there is no playbook state", () => {
+    mockUseChat.activeSessionId = "sess-1";
+    mockUseChat.sessions = {
+      status: "success",
+      data: [createSessionInfo({ session_id: "sess-1" })],
+    };
+    mockUseChat.messages = { status: "success", data: [] };
+    mockUseChat.lastResponse = createChatResponse();
+    render(<ChatView />);
+
+    expect(
+      screen.queryByTestId("playbook-state-badge"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("stops showing the previous playbook's state once the monitoring mode changes", async () => {
+    const user = userEvent.setup();
+    mockUseChat.activeSessionId = "sess-1";
+    mockUseChat.sessions = {
+      status: "success",
+      data: [
+        createSessionInfo({
+          session_id: "sess-1",
+          monitoring_mode: "playbook",
+          playbook_id: "pbA",
+        }),
+      ],
+    };
+    mockUseChat.messages = { status: "success", data: [] };
+    mockUseChat.lastResponse = createChatResponse({
+      playbook_state: createPlaybookState({ playbook_name: "Playbook A" }),
+    });
+    mockUseChat.clearLastResponse.mockImplementation(() => {
+      mockUseChat.lastResponse = null;
+    });
+
+    const { rerender } = render(<ChatView />);
+    expect(screen.getByTestId("playbook-state-badge")).toHaveTextContent(
+      "Playbook A",
+    );
+
+    // Simulate MonitoringSelector reporting a completed mode/playbook
+    // change -- ChatView must refresh the session list AND drop the stale
+    // playbook_state, not just one of the two.
+    await user.click(screen.getByTestId("fake-monitoring-changed"));
+    rerender(<ChatView />);
+
+    expect(mockUseChat.fetchSessions).toHaveBeenCalled();
+    expect(mockUseChat.clearLastResponse).toHaveBeenCalled();
+    expect(
+      screen.queryByTestId("playbook-state-badge"),
+    ).not.toBeInTheDocument();
   });
 
   it("renders MessageInput when session is active", () => {

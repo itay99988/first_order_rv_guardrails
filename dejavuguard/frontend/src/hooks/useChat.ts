@@ -28,6 +28,17 @@ export function useChat() {
   );
   const [lastResponse, setLastResponse] = useState<ChatResponse | null>(null);
 
+  // Discard the last turn's playbook/violation state without touching
+  // anything else. Needed after a monitoring-mode change on the *active*
+  // session: switching restarts the DejaVu automaton, so the previous
+  // playbook_state no longer describes anything real -- showing it next to
+  // a selector that now says something else would have them contradict
+  // each other, and re-selecting the same playbook would leave a badge
+  // that doesn't reflect the restarted automaton either.
+  const clearLastResponse = useCallback(() => {
+    setLastResponse(null);
+  }, []);
+
   const fetchSessions = useCallback(async () => {
     setSessions({ status: "loading" });
     try {
@@ -169,6 +180,7 @@ export function useChat() {
     messages,
     sendState,
     lastResponse,
+    clearLastResponse,
     fetchSessions,
     createSession,
     switchSession,

@@ -23,6 +23,7 @@ export default function ChatView() {
     messages,
     sendState,
     lastResponse,
+    clearLastResponse,
     fetchSessions,
     createSession,
     switchSession,
@@ -125,6 +126,16 @@ export default function ChatView() {
   // turn that just ran does -- so it's scoped to `lastResponse` and only
   // ever attached to the newest message, which is the one it describes.
   const activePlaybookState = lastResponse?.playbook_state ?? null;
+
+  // Switching mode restarts the DejaVu automaton for this session, so the
+  // previous playbook_state no longer describes anything real -- refresh
+  // the persisted mode AND drop the stale state, or the badge/guidance
+  // panel would keep showing the old playbook's verdict next to a selector
+  // that now says something else.
+  const handleMonitoringChanged = () => {
+    fetchSessions();
+    clearLastResponse();
+  };
 
   return (
     <div className="flex h-full font-mono" data-testid="chat-view">
@@ -317,7 +328,7 @@ export default function ChatView() {
                     sessionId={activeSessionId}
                     mode={monitoringMode}
                     playbookId={monitoringPlaybookId}
-                    onChanged={fetchSessions}
+                    onChanged={handleMonitoringChanged}
                   />
                 </div>
               )}

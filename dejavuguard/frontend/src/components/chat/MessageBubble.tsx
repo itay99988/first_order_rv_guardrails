@@ -19,10 +19,18 @@ interface MessageBubbleProps {
   groundingDetails: GroundingDetail[] | null;
   monitorState: Record<string, boolean> | null;
   /**
-   * The playbook state -- and its guidance -- in force for this turn, when
-   * the session is in playbook mode. Only ever shown here, in the collapsed
-   * debug panel: guidance must stay invisible in the conversation itself,
-   * or "why did it answer that?" has no answer.
+   * The playbook state the session landed in AFTER this turn was fully
+   * processed (`assistant_verdict.playbook_state`), when the session is in
+   * playbook mode. Only ever shown here, in the collapsed debug panel --
+   * never in the visible conversation.
+   *
+   * Not the same thing as the guidance actually injected ahead of the
+   * reply: that came from the *user* verdict's state, computed before the
+   * assistant responded, which can differ from the state shown here if the
+   * assistant's own message changed which members fire. `ChatResponse`
+   * doesn't expose the pre-reply state, so this panel shows what it has --
+   * "where the conversation is now" -- not "what was injected then". See
+   * R-22.
    */
   playbookState?: PlaybookStateInfo | null;
 }
@@ -242,8 +250,13 @@ export default function MessageBubble({
               {playbookState && playbookState.rules.length > 0 && (
                 <div className="mb-2">
                   <p className="font-bold text-terminal-dim">
-                    Guidance applied ({playbookState.label ?? playbookState.state_key}):
+                    Playbook state after this turn (
+                    {playbookState.label ?? playbookState.state_key}):
                   </p>
+                  {/* This is the state the session landed in after the
+                      reply, not the guidance actually injected ahead of it
+                      (that came from the user verdict's earlier state,
+                      which ChatResponse doesn't expose -- R-22). */}
                   <ul className="mt-0.5 list-disc space-y-0.5 pl-4 text-terminal-amber">
                     {playbookState.rules.map((rule, i) => (
                       <li key={i}>{rule}</li>

@@ -2,7 +2,11 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import MessageBubble from "./MessageBubble";
-import type { ViolationInfo, GroundingDetail } from "../../types";
+import type {
+  ViolationInfo,
+  GroundingDetail,
+  PlaybookStateInfo,
+} from "../../types";
 
 function createViolation(
   overrides: Partial<ViolationInfo> = {},
@@ -27,6 +31,21 @@ function createGroundingDetail(
     confidence: 0.95,
     reasoning: "User explicitly requested fraud methods",
     method: "llm",
+    ...overrides,
+  };
+}
+
+function createPlaybookState(
+  overrides: Partial<PlaybookStateInfo> = {},
+): PlaybookStateInfo {
+  return {
+    playbook_id: "pb1",
+    playbook_name: "Budget",
+    state_key: "s1",
+    label: "Over budget",
+    member_verdicts: { pol_budget: false },
+    rules: ["Stay within budget.", "Offer a cheaper alternative."],
+    flagged: true,
     ...overrides,
   };
 }
@@ -289,5 +308,56 @@ describe("MessageBubble", () => {
 
     await user.click(toggle);
     expect(screen.queryByTestId("message-details")).not.toBeInTheDocument();
+  });
+
+  // --- Playbook guidance stays out of the visible conversation ---
+
+  it("never shows playbook guidance in the collapsed/default render", () => {
+    render(
+      <MessageBubble
+        role="assistant"
+        content="Here's a car under budget."
+        blocked={false}
+        violationInfo={null}
+        groundingDetails={null}
+        monitorState={null}
+        playbookState={createPlaybookState()}
+      />,
+    );
+
+    // The panel is collapsed by default -- none of the guidance text, or
+    // the panel itself, may be present in the rendered conversation.
+    expect(screen.queryByTestId("message-details")).not.toBeInTheDocument();
+    expect(screen.queryByText("Stay within budget.")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Offer a cheaper alternative."),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/Over budget/)).not.toBeInTheDocument();
+  });
+
+  it("shows playbook state and its rules only once details are expanded", async () => {
+    const user = userEvent.setup();
+    render(
+      <MessageBubble
+        role="assistant"
+        content="Here's a car under budget."
+        blocked={false}
+        violationInfo={null}
+        groundingDetails={null}
+        monitorState={null}
+        playbookState={createPlaybookState()}
+      />,
+    );
+
+    await user.click(screen.getByTestId("toggle-details"));
+
+    expect(screen.getByTestId("message-details")).toBeInTheDocument();
+    expect(
+      screen.getByText("Playbook state after this turn (Over budget):"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Stay within budget.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Offer a cheaper alternative."),
+    ).toBeInTheDocument();
   });
 });
