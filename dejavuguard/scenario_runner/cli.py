@@ -26,6 +26,7 @@ from typing import Iterable
 from pydantic import ValidationError
 
 from backend.config import get_config
+from backend.models.settings import GroundingProvider
 from backend.store.db import DatabaseStore
 
 from .logger import write_logs
@@ -86,8 +87,9 @@ def _make_parser() -> argparse.ArgumentParser:
     )
     p.add_argument(
         "--grounding-provider", default=None, metavar="PROVIDER",
-        help="override every scenario's grounding_provider (e.g. ollama, "
-             "openrouter, lm_studio, vllm, openai_compatible)"
+        help="override every scenario's grounding_provider. One of: "
+             + ", ".join(prov.value for prov in GroundingProvider)
+             + " ('custom' is any OpenAI-compatible server, e.g. a local stub)"
     )
     p.add_argument(
         "--grounding-base-url", default=None, metavar="URL",

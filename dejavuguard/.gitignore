@@ -23,6 +23,8 @@ dist/
 .env
 .env.local
 *.db
+*.db-wal
+*.db-shm
 *.sqlite
 
 # Session and user data
