@@ -233,6 +233,15 @@ export interface PlaybookStateRow {
   verdicts: Record<string, boolean>;
   customised: boolean;
   label: string | null;
+  /**
+   * The state's stored `rule_refs`, verbatim: `null` derive, `[]`
+   * deliberately no guidance, a list exactly those rules. Returned by the
+   * server rather than inferred from the resolved guidance, because a pin
+   * naming exactly the rules a state would have derived resolves
+   * identically to no pin at all -- and the two stop agreeing the moment a
+   * member is added to the playbook.
+   */
+  rule_refs: PlaybookRuleRef[] | null;
 }
 
 export interface PlaybookBehaviour {

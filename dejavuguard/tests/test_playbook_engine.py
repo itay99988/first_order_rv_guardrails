@@ -199,3 +199,54 @@ def test_unknown_policy_in_verdicts_is_ignored():
 def test_missing_verdict_raises():
     with pytest.raises(KeyError):
         resolve_state(_playbook(), {"p_budget": False})
+
+
+def test_resolve_state_reports_the_stored_rule_refs_verbatim():
+    """The three-way rule_refs has to be readable, not just resolvable.
+
+    A pin whose refs happen to name exactly the rules the state would have
+    derived resolves to the same guidance as no pin at all, so nothing about
+    the resolved rules tells the two apart -- and they diverge the moment a
+    member is added, because a derived state picks the new member up and a
+    pinned one does not.
+    """
+    pinned_to_default = StateOverride(
+        state_key="p_allergy=T;p_budget=F",
+        rule_refs=[{"type": "member", "policy_id": "p_budget"},
+                   {"type": "member", "policy_id": "p_allergy"}],
+        flagged=True,
+        label=None,
+    )
+    playbook = _playbook({pinned_to_default.state_key: pinned_to_default})
+
+    state = resolve_state(playbook, {"p_budget": False, "p_allergy": True})
+
+    assert state.rule_refs == pinned_to_default.rule_refs
+    # Same guidance as deriving would give: the refs are the only witness.
+    assert state.rules == (
+        "Stay within the stated budget.",
+        "Avoid the stated allergen.",
+    )
+
+
+def test_resolve_state_keeps_no_guidance_distinct_from_derive():
+    """None and [] are different instructions and must read back apart."""
+    key = "p_allergy=T;p_budget=F"
+    none_pinned = _playbook(
+        {key: StateOverride(state_key=key, rule_refs=[], flagged=False, label="Quiet")}
+    )
+    derived = _playbook(
+        {key: StateOverride(state_key=key, rule_refs=None, flagged=True, label=None)}
+    )
+
+    assert resolve_state(none_pinned, {"p_budget": False, "p_allergy": True}).rule_refs == []
+    assert (
+        resolve_state(derived, {"p_budget": False, "p_allergy": True}).rule_refs is None
+    )
+
+
+def test_an_unedited_state_has_no_rule_refs():
+    state = resolve_state(_playbook(), {"p_budget": True, "p_allergy": True})
+
+    assert state.rule_refs is None
+    assert state.customised is False

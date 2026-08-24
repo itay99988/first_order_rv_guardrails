@@ -23,12 +23,15 @@ const twoStatesOneBehaviour = {
       rules: ["Stay within budget."],
       flagged: true,
       states: [
-        { state_key: "a=F;b=T", verdicts: { a: false, b: true }, customised: true, label: null },
-        { state_key: "a=F;b=F", verdicts: { a: false, b: false }, customised: true, label: null },
+        { state_key: "a=F;b=T", verdicts: { a: false, b: true }, customised: true,
+          label: null, rule_refs: [] },
+        { state_key: "a=F;b=F", verdicts: { a: false, b: false }, customised: true,
+          label: null, rule_refs: [] },
       ],
     },
     { name: "(no guidance)", rules: [], flagged: false, states: [
-        { state_key: "a=T;b=T", verdicts: { a: true, b: true }, customised: false, label: null },
+        { state_key: "a=T;b=T", verdicts: { a: true, b: true }, customised: false,
+          label: null, rule_refs: null },
       ] },
   ],
   warnings: [],
@@ -58,7 +61,8 @@ function editable(overrides: Record<string, unknown> = {}) {
         rules: ["Stay within budget.", "Keep it polite."],
         flagged: false,
         states: [
-          { state_key: KEY, verdicts: { p_a: false, p_b: true }, customised: false, label: null },
+          { state_key: KEY, verdicts: { p_a: false, p_b: true }, customised: false,
+            label: null, rule_refs: null },
         ],
       },
     ],
@@ -131,13 +135,15 @@ describe("PlaybookStates", () => {
         {
           name: "Flagged default", rules: [], flagged: true,
           states: [
-            { state_key: "a=F;b=T", verdicts: { a: false, b: true }, customised: false, label: null },
+            { state_key: "a=F;b=T", verdicts: { a: false, b: true }, customised: false,
+              label: null, rule_refs: null },
           ],
         },
         {
           name: "Customised, harmless", rules: ["Be nice."], flagged: false,
           states: [
-            { state_key: "a=T;b=T", verdicts: { a: true, b: true }, customised: true, label: null },
+            { state_key: "a=T;b=T", verdicts: { a: true, b: true }, customised: true,
+              label: null, rule_refs: [] },
           ],
         },
       ],
@@ -263,7 +269,8 @@ describe("PlaybookStates", () => {
             rules: ["Stay within budget.", "Keep it polite."],
             flagged: true,
             states: [
-              { state_key: KEY, verdicts: { p_a: false, p_b: true }, customised: true, label: null },
+              { state_key: KEY, verdicts: { p_a: false, p_b: true }, customised: true,
+                label: null, rule_refs: null },
             ],
           },
         ],
@@ -383,7 +390,8 @@ describe("PlaybookStates", () => {
             {
               name: "(no guidance)", rules: [], flagged: false,
               states: [
-                { state_key: KEY, verdicts: { p_a: false, p_b: true }, customised: true, label: null },
+                { state_key: KEY, verdicts: { p_a: false, p_b: true }, customised: true,
+                  label: null, rule_refs: [] },
               ],
             },
           ],
@@ -400,16 +408,14 @@ describe("PlaybookStates", () => {
     });
 
     it("round-trips an empty pin as 'no guidance', not as the derived default", async () => {
-      // Pinned to []: customised, yet its resolved guidance is empty where the
-      // derived default would have been two rules. null and [] must not read
-      // back as the same thing.
       mockGet.mockResolvedValue(
         editable({
           behaviours: [
             {
               name: "(no guidance)", rules: [], flagged: false,
               states: [
-                { state_key: KEY, verdicts: { p_a: false, p_b: true }, customised: true, label: null },
+                { state_key: KEY, verdicts: { p_a: false, p_b: true }, customised: true,
+                  label: null, rule_refs: [] },
               ],
             },
           ],
@@ -418,6 +424,71 @@ describe("PlaybookStates", () => {
       render(<PlaybookStates playbookId="pb1" />);
       await openEditor();
 
+      expect(screen.getByTestId("override-source-none")).toBeChecked();
+      expect(screen.getByTestId("override-source-derived")).not.toBeChecked();
+    });
+
+    it("round-trips a pin that names exactly the derived rules as pinned", async () => {
+      // The case the endpoint now settles. Pinning what is already active --
+      // the obvious move when the boxes start pre-ticked -- resolves to the
+      // same guidance as deriving, so the resolved rules cannot tell them
+      // apart. Reading it as derived silently discards the pin, and the state
+      // then picks up the next member added to the playbook, which is exactly
+      // what pinning was meant to prevent.
+      mockGet.mockResolvedValue(
+        editable({
+          behaviours: [
+            {
+              name: "Over budget",
+              rules: ["Stay within budget.", "Keep it polite."],
+              flagged: true,
+              states: [
+                { state_key: KEY, verdicts: { p_a: false, p_b: true }, customised: true,
+                  label: null,
+                  rule_refs: [
+                    { type: "member", policy_id: "p_a" },
+                    { type: "member", policy_id: "p_b" },
+                  ] },
+              ],
+            },
+          ],
+        }),
+      );
+      render(<PlaybookStates playbookId="pb1" />);
+      await openEditor();
+
+      expect(screen.getByTestId("override-source-pinned")).toBeChecked();
+      expect(screen.getByTestId("override-source-derived")).not.toBeChecked();
+      expect(screen.getByTestId("override-ref-member-p_a")).toBeChecked();
+      expect(screen.getByTestId("override-ref-member-p_b")).toBeChecked();
+    });
+
+    it("reads null as derive and [] as no guidance, never as each other", async () => {
+      const withRefs = (rule_refs: unknown) =>
+        editable({
+          behaviours: [
+            {
+              name: "Over budget",
+              rules: ["Stay within budget.", "Keep it polite."],
+              flagged: true,
+              states: [
+                { state_key: KEY, verdicts: { p_a: false, p_b: true }, customised: true,
+                  label: null, rule_refs },
+              ],
+            },
+          ],
+        });
+
+      mockGet.mockResolvedValue(withRefs(null));
+      const derived = render(<PlaybookStates playbookId="pb1" />);
+      await openEditor();
+      expect(screen.getByTestId("override-source-derived")).toBeChecked();
+      expect(screen.getByTestId("override-source-none")).not.toBeChecked();
+      derived.unmount();
+
+      mockGet.mockResolvedValue(withRefs([]));
+      render(<PlaybookStates playbookId="pb1" />);
+      await openEditor();
       expect(screen.getByTestId("override-source-none")).toBeChecked();
       expect(screen.getByTestId("override-source-derived")).not.toBeChecked();
     });
@@ -437,7 +508,8 @@ describe("PlaybookStates", () => {
             {
               name: "Stay within budget.", rules: ["Stay within budget."], flagged: true,
               states: [
-                { state_key: KEY, verdicts: { p_a: false, p_b: true }, customised: true, label: null },
+                { state_key: KEY, verdicts: { p_a: false, p_b: true }, customised: true,
+                  label: null, rule_refs: [{ type: "member", policy_id: "p_a" }] },
               ],
             },
           ],
@@ -465,7 +537,8 @@ describe("PlaybookStates", () => {
               rules: ["Stay within budget.", "Keep it polite."],
               flagged: true,
               states: [
-                { state_key: KEY, verdicts: { p_a: false, p_b: true }, customised: true, label: null },
+                { state_key: KEY, verdicts: { p_a: false, p_b: true }, customised: true,
+                  label: null, rule_refs: null },
               ],
             },
           ],

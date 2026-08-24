@@ -273,7 +273,12 @@ async def get_states(request: Request, playbook_id: str):
                 "flagged": b.flagged,
                 "states": [
                     {"state_key": s.state_key, "verdicts": s.verdicts,
-                     "customised": s.customised, "label": s.label}
+                     "customised": s.customised, "label": s.label,
+                     # Verbatim, so a client can tell a pin from a derivation
+                     # rather than guessing from the resolved guidance: null
+                     # derives, [] is deliberately no guidance, a list is
+                     # exactly those rules.
+                     "rule_refs": s.rule_refs}
                     for s in b.states
                 ],
             }

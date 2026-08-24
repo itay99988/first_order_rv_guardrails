@@ -383,3 +383,95 @@ def test_deleting_a_policy_no_playbook_uses_still_works(client):
 
     assert client.delete(f"/api/policies/{policy_id}").status_code == 204
     assert client.get("/api/policies").json() == []
+
+
+def _state_rows(client: TestClient, pb: str) -> dict[str, dict]:
+    """state_key -> its row, as the states view returns it."""
+    body = client.get(f"/api/playbooks/{pb}/states").json()
+    return {s["state_key"]: s for b in body["behaviours"] for s in b["states"]}
+
+
+def test_states_endpoint_returns_the_stored_rule_refs(client):
+    """A client cannot infer a pin from the resolved guidance.
+
+    Pinning exactly the rules a state already derives -- the obvious thing to
+    do when the tick boxes start pre-ticked -- resolves identically to no pin
+    at all. Only the stored refs tell them apart, and they stop being the same
+    thing the moment a member is added.
+    """
+    a = _policy(client, "p_a", "A")
+    pb = client.post("/api/playbooks", json={"name": "Budget"}).json()["playbook_id"]
+    client.put(f"/api/playbooks/{pb}/members", json={"members": [
+        {"policy_id": a, "position": 0, "fires_on": False, "guidance": "R."}]})
+    key = f"{a}=F"
+
+    client.put(f"/api/playbooks/{pb}/states/{key}",
+               json={"rule_refs": [{"type": "member", "policy_id": a}],
+                     "flagged": False, "label": None})
+
+    row = _state_rows(client, pb)[key]
+    assert row["rule_refs"] == [{"type": "member", "policy_id": a}]
+    assert row["customised"] is True
+
+
+def test_states_endpoint_keeps_null_and_empty_rule_refs_apart(client):
+    """SQL NULL must arrive as null and [] must arrive as [], both ways."""
+    a = _policy(client, "p_a", "A")
+    pb = client.post("/api/playbooks", json={"name": "Budget"}).json()["playbook_id"]
+    client.put(f"/api/playbooks/{pb}/members", json={"members": [
+        {"policy_id": a, "position": 0, "fires_on": False, "guidance": "R."}]})
+    fires, quiet = f"{a}=F", f"{a}=T"
+
+    # Deliberately no guidance, kept customised by the flag alone elsewhere.
+    client.put(f"/api/playbooks/{pb}/states/{fires}",
+               json={"rule_refs": [], "flagged": False, "label": None})
+    rows = _state_rows(client, pb)
+    assert rows[fires]["rule_refs"] == []
+    assert rows[fires]["rule_refs"] is not None
+    # Never edited: derive.
+    assert rows[quiet]["rule_refs"] is None
+
+    # Flag-only: still deriving, so still null rather than an empty list.
+    client.put(f"/api/playbooks/{pb}/states/{fires}",
+               json={"rule_refs": None, "flagged": True, "label": None})
+    rows = _state_rows(client, pb)
+    assert rows[fires]["rule_refs"] is None
+    assert rows[fires]["customised"] is True
+
+
+def test_two_states_in_one_behaviour_report_their_own_rule_refs(client):
+    """rule_refs is per state, never per behaviour.
+
+    Behaviours group on (resolved rules, flagged), so a state pinned to
+    exactly the rules another state derives lands in the *same* behaviour as
+    that state -- which is correct, they do behave identically today. But
+    they are not the same instruction: add a member and the derived one picks
+    it up while the pinned one does not. Reporting rule_refs on the behaviour
+    would hand both states one value and collapse exactly the distinction
+    this endpoint is meant to carry.
+    """
+    pb, first, second = _two_member_playbook(client)
+    # Both members fire on F, so first=F;second=F derives ("R.", "S.") and
+    # first=T;second=T derives nothing. Pinning the latter to both members
+    # makes it resolve identically to the former.
+    derived_key, pinned_key = f"{first}=F;{second}=F", f"{first}=T;{second}=T"
+    client.put(f"/api/playbooks/{pb}/states/{pinned_key}",
+               json={"rule_refs": [{"type": "member", "policy_id": first},
+                                   {"type": "member", "policy_id": second}],
+                     "flagged": False, "label": None})
+
+    body = client.get(f"/api/playbooks/{pb}/states").json()
+    shared = [
+        b for b in body["behaviours"]
+        if {s["state_key"] for s in b["states"]} >= {derived_key, pinned_key}
+    ]
+
+    # One behaviour, because they resolve alike: refs must not fragment the
+    # grouping into nodes that behave identically.
+    assert len(shared) == 1
+    rows = {s["state_key"]: s for s in shared[0]["states"]}
+    assert rows[derived_key]["rule_refs"] is None
+    assert rows[pinned_key]["rule_refs"] == [
+        {"type": "member", "policy_id": first},
+        {"type": "member", "policy_id": second},
+    ]

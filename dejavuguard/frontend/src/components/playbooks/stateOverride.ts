@@ -88,40 +88,16 @@ export function derivedRules(
   return [...fromMembers, ...fromGlobals];
 }
 
-function sameRules(a: readonly string[], b: readonly string[]): boolean {
-  return a.length === b.length && a.every((rule, i) => rule === b[i]);
-}
-
 /**
- * Recover the editing draft for one state from what the states endpoint says.
+ * The editing draft for one state, read straight off what the states
+ * endpoint returned.
  *
- * That endpoint returns each behaviour's *resolved* guidance, never the
- * stored `rule_refs`, so whether a state is pinned has to be read back off
- * three facts: `customised` (true when any of refs/flag/label departs from
- * the default), the flag and label themselves, and whether the resolved
- * rules still match what would be derived.
- *
- *   - not customised            -> derived, definitively.
- *   - resolved != derived       -> pinned, definitively (only a pin can
- *                                  change the text).
- *   - customised, resolved ==
- *     derived, no flag or label -> pinned, definitively: something must
- *                                  account for `customised`, and it is not
- *                                  the flag or the label. This is the case
- *                                  that keeps `[]` from reading back as
- *                                  `null` on a state whose default is empty.
- *   - customised, resolved ==
- *     derived, flagged/labelled -> genuinely ambiguous: a flag-only override
- *                                  and a pin that happens to reproduce the
- *                                  default look identical from here. Read it
- *                                  as derived, the commoner and the less
- *                                  destructive reading -- saving it back
- *                                  then keeps the state on the default as
- *                                  membership changes rather than freezing
- *                                  today's text.
- *
- * A round-trip that cannot be exact would need the endpoint to return
- * `rule_refs`; the ambiguity above is the only case it would resolve.
+ * `rule_refs` arrives verbatim, so the three cases are known rather than
+ * inferred. They cannot be recovered from the resolved guidance: a pin
+ * naming exactly the rules a state would have derived resolves to the same
+ * text as no pin at all, and reading that back as "derived" would silently
+ * discard the pin -- the state would then pick up the next member added to
+ * the playbook, which is the one thing pinning exists to prevent.
  */
 export function draftForState(
   row: PlaybookStateRow,
@@ -129,37 +105,38 @@ export function draftForState(
   members: PlaybookMember[],
   globals: PlaybookGlobalRule[],
 ): OverrideDraft {
-  const derived = derivedRules(row.verdicts, members, globals);
-  const resolved = behaviour.rules;
-  const flagged = behaviour.flagged;
-  const label = row.label ?? "";
-
-  const matchesDerived = sameRules(resolved, derived);
-  const pinned =
-    row.customised &&
-    (!matchesDerived || (!flagged && row.label === null));
+  // `?? null` only for a server too old to send the field: read that as
+  // deriving rather than crashing the pane. A current server always sends it.
+  const refs = row.rule_refs ?? null;
 
   let source: GuidanceSource = "derived";
-  if (pinned) source = resolved.length === 0 ? "none" : "pinned";
+  if (refs !== null) source = refs.length === 0 ? "none" : "pinned";
+
+  const pinnable = pinnableRules(members, globals);
+  const pinnedKeys = (refs ?? [])
+    .map(refKey)
+    .filter((key) => pinnable.some((rule) => rule.key === key));
 
   return {
     source,
-    // Ticked either way: switching a derived state to "exactly these rules"
-    // should start from what it shows today, not from nothing.
-    selected: keysForRules(pinned ? resolved : derived, members, globals),
-    flagged,
-    label,
+    // A derived state starts with today's rules ticked, so switching it to
+    // "exactly these rules" begins from what it shows rather than nothing.
+    selected:
+      source === "derived"
+        ? keysForRules(derivedRules(row.verdicts, members, globals), members, globals)
+        : pinnedKeys,
+    flagged: behaviour.flagged,
+    label: row.label ?? "",
   };
 }
 
 /**
- * Best-effort ticks for a list of resolved guidance strings.
+ * Ticks for a list of derived guidance strings, matched back by text.
  *
- * Guidance text is the only handle the states endpoint gives us, so a rule
- * whose text no longer matches any member or global -- edited elsewhere in
- * the same session, say -- cannot be ticked and is dropped. The user sees
- * exactly what the checkboxes say they will save, which is the property that
- * matters; nothing is written until they press Save.
+ * Only used to pre-tick a state that is deriving, where there are no refs to
+ * read: a rule whose text matches no member or global is dropped rather than
+ * ticked. The user sees exactly what the checkboxes say they will save, and
+ * nothing is written until they press Save.
  */
 function keysForRules(
   rules: readonly string[],

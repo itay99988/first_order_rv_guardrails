@@ -77,6 +77,12 @@ class ResolvedState:
     flagged: bool
     label: str | None
     customised: bool
+    #: The stored ``rule_refs``, verbatim, with the three-way meaning intact:
+    #: ``None`` derive, ``[]`` deliberately none, a list exactly those. It
+    #: cannot be recovered from ``rules``, because a pin naming exactly the
+    #: rules the state would have derived resolves to the same guidance as no
+    #: pin at all -- and the two stop agreeing as soon as a member is added.
+    rule_refs: list[dict] | None = None
 
 
 @dataclass(frozen=True)
@@ -183,6 +189,7 @@ def resolve_state(playbook: Playbook, verdicts: Mapping[str, bool]) -> ResolvedS
         flagged=flagged,
         label=label,
         customised=pinned or flagged or label is not None,
+        rule_refs=override.rule_refs if override else None,
     )
 
 

@@ -116,7 +116,8 @@ describe("PlaybookEditor", () => {
         {
           name: "watch", rules: ["watch"], flagged: false,
           states: [
-            { state_key: "p1=T", verdicts: { p1: true }, customised: false, label: null },
+            { state_key: "p1=T", verdicts: { p1: true }, customised: false,
+              label: null, rule_refs: null },
           ],
         },
       ],
@@ -181,7 +182,8 @@ describe("PlaybookEditor", () => {
         {
           name: "watch", rules: ["watch"], flagged: false,
           states: [
-            { state_key: "p1=T", verdicts: { p1: true }, customised: false, label: null },
+            { state_key: "p1=T", verdicts: { p1: true }, customised: false,
+              label: null, rule_refs: null },
           ],
         },
       ],
