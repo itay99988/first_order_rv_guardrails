@@ -117,6 +117,62 @@ describe("PlaybookStates", () => {
     );
   });
 
+  // A state overridden only to flag it keeps its derived guidance, so
+  // nothing about the rules gives it away: the row is "customised" or it is
+  // not, and if it is not, the one state that blocks is the one state the
+  // filter hides and the one with no way back. The backend reports it as
+  // customised; these assert the UI actually follows.
+  describe("a flag-only override", () => {
+    const flagOnly = () =>
+      editable({
+        behaviours: [
+          {
+            name: "Over budget",
+            rules: ["Stay within budget.", "Keep it polite."],
+            flagged: true,
+            states: [
+              { state_key: KEY, verdicts: { p_a: false, p_b: true }, customised: true, label: null },
+            ],
+          },
+        ],
+      });
+
+    it("shows the row as customised rather than default", async () => {
+      mockGet.mockResolvedValue(flagOnly());
+      render(<PlaybookStates playbookId="pb1" />);
+      const row = await screen.findByTestId(`state-row-${KEY}`);
+      expect(row).toHaveTextContent("customised");
+      expect(row).not.toHaveTextContent("default");
+    });
+
+    it("survives the 'Only customised' filter", async () => {
+      mockGet.mockResolvedValue(flagOnly());
+      render(<PlaybookStates playbookId="pb1" />);
+      await screen.findByTestId(`state-row-${KEY}`);
+
+      await userEvent.click(screen.getByTestId("filter-only-customised"));
+
+      expect(screen.getByTestId(`state-row-${KEY}`)).toBeInTheDocument();
+      expect(screen.queryByTestId("no-visible-behaviours")).toBeNull();
+    });
+
+    it("offers a Revert button, so the flag can be taken off again", async () => {
+      mockGet.mockResolvedValue(flagOnly());
+      render(<PlaybookStates playbookId="pb1" />);
+
+      expect(await screen.findByTestId(`revert-${KEY}`)).toBeInTheDocument();
+    });
+
+    it("opens for editing with the flag on and the guidance still derived", async () => {
+      mockGet.mockResolvedValue(flagOnly());
+      render(<PlaybookStates playbookId="pb1" />);
+      await openEditor();
+
+      expect(screen.getByTestId("override-flagged")).toBeChecked();
+      expect(screen.getByTestId("override-source-derived")).toBeChecked();
+    });
+  });
+
   describe("state override editor", () => {
     it("flags a state, which is the only thing that makes a playbook block", async () => {
       mockGet.mockResolvedValue(editable());
