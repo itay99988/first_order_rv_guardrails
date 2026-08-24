@@ -53,6 +53,12 @@ export default function PlaybookEditor({ playbook, onBack }: Props) {
   const [globalsError, setGlobalsError] = useState<string | null>(null);
   const [globalsSaved, setGlobalsSaved] = useState(false);
 
+  // Members and global guidance both decide what each state resolves to, and
+  // the states pane builds its pinnable-rule list from them. Bumping this
+  // after a save reloads that pane instead of leaving it offering rules that
+  // no longer exist.
+  const [statesToken, setStatesToken] = useState(0);
+
   const load = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
@@ -122,6 +128,7 @@ export default function PlaybookEditor({ playbook, onBack }: Props) {
         conflicts: result.conflicts,
         warnings: result.warnings,
       });
+      setStatesToken((n) => n + 1);
     } catch (err) {
       setMembersError(
         err instanceof Error ? err.message : "Failed to save members",
@@ -160,6 +167,7 @@ export default function PlaybookEditor({ playbook, onBack }: Props) {
         }));
       await setPlaybookGlobals(playbook.playbook_id, globals);
       setGlobalsSaved(true);
+      setStatesToken((n) => n + 1);
     } catch (err) {
       setGlobalsError(
         err instanceof Error ? err.message : "Failed to save global guidance",
@@ -461,7 +469,10 @@ export default function PlaybookEditor({ playbook, onBack }: Props) {
         <h3 className="mb-3 text-sm font-mono font-bold text-terminal-text uppercase tracking-wider">
           States
         </h3>
-        <PlaybookStates playbookId={playbook.playbook_id} />
+        <PlaybookStates
+          playbookId={playbook.playbook_id}
+          reloadToken={statesToken}
+        />
       </section>
     </div>
   );

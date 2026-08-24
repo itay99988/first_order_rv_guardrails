@@ -304,3 +304,26 @@ export interface PlaybookGlobalRule {
   position: number;
   apply_to_all: boolean | number;
 }
+
+/**
+ * One entry of a state's pinned `rule_refs`. A ref names a rule rather than
+ * copying its text, so editing a member's guidance updates every state that
+ * pinned it.
+ */
+export type PlaybookRuleRef =
+  | { type: "member"; policy_id: string }
+  | { type: "global"; rule_id: string };
+
+/**
+ * The write payload for one state override.
+ *
+ * `rule_refs` is three-valued and the three are NOT interchangeable:
+ * `null` derives the default guidance from the firing members, `[]` means
+ * deliberately no guidance at all, and a list means exactly those rules in
+ * that order.
+ */
+export interface PlaybookOverridePayload {
+  rule_refs: PlaybookRuleRef[] | null;
+  flagged: boolean;
+  label: string | null;
+}

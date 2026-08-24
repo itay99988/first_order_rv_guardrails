@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Playbook } from "@/types";
@@ -9,6 +10,7 @@ const mockGetPlaybookStates = vi.fn();
 const mockGetPlaybookGlobals = vi.fn();
 const mockSetPlaybookMembers = vi.fn();
 const mockSetPlaybookGlobals = vi.fn();
+const mockSetPlaybookOverride = vi.fn();
 
 vi.mock("@/api/client", () => ({
   getPolicies: (...args: unknown[]) => mockGetPolicies(...args),
@@ -16,6 +18,7 @@ vi.mock("@/api/client", () => ({
   getPlaybookGlobals: (...args: unknown[]) => mockGetPlaybookGlobals(...args),
   setPlaybookMembers: (...args: unknown[]) => mockSetPlaybookMembers(...args),
   setPlaybookGlobals: (...args: unknown[]) => mockSetPlaybookGlobals(...args),
+  setPlaybookOverride: (...args: unknown[]) => mockSetPlaybookOverride(...args),
 }));
 
 const playbook: Playbook = {
@@ -35,6 +38,7 @@ describe("PlaybookEditor", () => {
     mockGetPlaybookGlobals.mockReset();
     mockSetPlaybookMembers.mockReset();
     mockSetPlaybookGlobals.mockReset();
+    mockSetPlaybookOverride.mockReset().mockResolvedValue({ state_key: "p1=T" });
   });
 
   it("populates member and global rows from the loaded data", async () => {
@@ -83,5 +87,71 @@ describe("PlaybookEditor", () => {
     expect(screen.getByTestId("members-load-failed")).toBeInTheDocument();
     expect(screen.getByTestId("save-members")).toBeDisabled();
     expect(screen.getByTestId("save-globals")).toBeDisabled();
+  });
+
+  // The point of the states pane is that a playbook built entirely through
+  // this editor can end up with a state that blocks. That is a property of
+  // the editor, not of the states table on its own, so it is asserted from
+  // here: unmount or unwire the pane and this fails.
+  it("can flag a state end-to-end from the editor", async () => {
+    mockGetPolicies.mockResolvedValue([
+      { policy_id: "p1", name: "P1", formula_str: "a", propositions: [], enabled: true },
+    ]);
+    mockGetPlaybookStates.mockResolvedValue({
+      playbook_id: "pb1",
+      state_count: 2,
+      members: [{ policy_id: "p1", position: 0, fires_on: true, guidance: "watch" }],
+      behaviours: [
+        {
+          name: "watch", rules: ["watch"], flagged: false,
+          states: [
+            { state_key: "p1=T", verdicts: { p1: true }, customised: false, label: null },
+          ],
+        },
+      ],
+      warnings: [],
+    });
+    mockGetPlaybookGlobals.mockResolvedValue([]);
+
+    render(<PlaybookEditor playbook={playbook} onBack={vi.fn()} />);
+
+    await waitFor(() =>
+      expect(screen.getByTestId("edit-p1=T")).toBeInTheDocument(),
+    );
+    await userEvent.click(screen.getByTestId("edit-p1=T"));
+    await userEvent.click(screen.getByTestId("override-flagged"));
+    await userEvent.type(screen.getByTestId("override-label"), "Blocked");
+    await userEvent.click(screen.getByTestId("override-save"));
+
+    await waitFor(() =>
+      expect(mockSetPlaybookOverride).toHaveBeenCalledWith("pb1", "p1=T", {
+        rule_refs: null,
+        flagged: true,
+        label: "Blocked",
+      }),
+    );
+  });
+
+  it("reloads the states pane after saving members, since it decides what they resolve to", async () => {
+    mockGetPolicies.mockResolvedValue([
+      { policy_id: "p1", name: "P1", formula_str: "a", propositions: [], enabled: true },
+    ]);
+    mockGetPlaybookStates.mockResolvedValue({
+      playbook_id: "pb1", state_count: 1, members: [], behaviours: [], warnings: [],
+    });
+    mockGetPlaybookGlobals.mockResolvedValue([]);
+    mockSetPlaybookMembers.mockResolvedValue({
+      overrides_expanded: 0, conflicts: [], warnings: [],
+    });
+
+    render(<PlaybookEditor playbook={playbook} onBack={vi.fn()} />);
+    await screen.findByTestId("playbook-states");
+    const before = mockGetPlaybookStates.mock.calls.length;
+
+    await userEvent.click(screen.getByTestId("save-members"));
+
+    await waitFor(() =>
+      expect(mockGetPlaybookStates.mock.calls.length).toBeGreaterThan(before),
+    );
   });
 });

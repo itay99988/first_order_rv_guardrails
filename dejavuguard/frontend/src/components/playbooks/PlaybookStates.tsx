@@ -1,28 +1,61 @@
-import { useCallback, useEffect, useState } from "react";
-import { ChevronDown, ChevronRight, Flag, Loader2, RotateCcw } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  ChevronDown,
+  ChevronRight,
+  Flag,
+  Loader2,
+  Pencil,
+  RotateCcw,
+} from "lucide-react";
 
-import { getPlaybookStates, setPlaybookOverride } from "@/api/client";
+import {
+  getPlaybookGlobals,
+  getPlaybookStates,
+  setPlaybookOverride,
+} from "@/api/client";
 import Badge from "@/components/shared/Badge";
-import type { AsyncState, PlaybookStates as PlaybookStatesData } from "@/types";
+import type {
+  AsyncState,
+  PlaybookGlobalRule,
+  PlaybookOverridePayload,
+  PlaybookStates as PlaybookStatesData,
+} from "@/types";
+import StateOverrideEditor from "./StateOverrideEditor";
+import { draftForState, pinnableRules } from "./stateOverride";
 
 interface Props {
   playbookId: string;
+  /**
+   * Bumped by the parent after it saves members or global guidance: both
+   * change what the states resolve to, and the pinnable-rule list is built
+   * from them, so a stale table would offer rules that no longer exist.
+   */
+  reloadToken?: number;
 }
 
-export default function PlaybookStates({ playbookId }: Props) {
-  const [state, setState] = useState<AsyncState<PlaybookStatesData>>({
-    status: "idle",
-  });
+interface Loaded {
+  states: PlaybookStatesData;
+  globals: PlaybookGlobalRule[];
+}
+
+export default function PlaybookStates({ playbookId, reloadToken = 0 }: Props) {
+  const [state, setState] = useState<AsyncState<Loaded>>({ status: "idle" });
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [onlyCustomised, setOnlyCustomised] = useState(false);
   const [onlyFlagged, setOnlyFlagged] = useState(false);
   const [reverting, setReverting] = useState<string | null>(null);
+  const [editing, setEditing] = useState<string | null>(null);
+  const [saving, setSaving] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setState({ status: "loading" });
     try {
-      const data = await getPlaybookStates(playbookId);
-      setState({ status: "success", data });
+      const [states, globals] = await Promise.all([
+        getPlaybookStates(playbookId),
+        getPlaybookGlobals(playbookId),
+      ]);
+      setState({ status: "success", data: { states, globals } });
     } catch (err) {
       setState({
         status: "error",
@@ -33,7 +66,7 @@ export default function PlaybookStates({ playbookId }: Props) {
 
   useEffect(() => {
     void load();
-  }, [load]);
+  }, [load, reloadToken]);
 
   const toggleGroup = (name: string) => {
     setCollapsed((prev) => ({ ...prev, [name]: !prev[name] }));
@@ -52,6 +85,32 @@ export default function PlaybookStates({ playbookId }: Props) {
       setReverting(null);
     }
   };
+
+  const handleSave = async (
+    stateKey: string,
+    payload: PlaybookOverridePayload,
+  ) => {
+    setSaving(stateKey);
+    setSaveError(null);
+    try {
+      await setPlaybookOverride(playbookId, stateKey, payload);
+      setEditing(null);
+      await load();
+    } catch (err) {
+      setSaveError(
+        err instanceof Error ? err.message : "Failed to save this state",
+      );
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  const loaded = state.status === "success" ? state.data : null;
+  const pinnable = useMemo(
+    () =>
+      loaded ? pinnableRules(loaded.states.members, loaded.globals) : [],
+    [loaded],
+  );
 
   if (state.status === "idle" || state.status === "loading") {
     return (
@@ -82,7 +141,8 @@ export default function PlaybookStates({ playbookId }: Props) {
     );
   }
 
-  const { behaviours, state_count, warnings } = state.data;
+  const { behaviours, state_count, warnings, members } = state.data.states;
+  const globals = state.data.globals;
 
   const visibleBehaviours = behaviours
     .map((behaviour) => {
@@ -186,34 +246,71 @@ export default function PlaybookStates({ playbookId }: Props) {
 
                   <div className="space-y-1.5" data-testid={`behaviour-rows-${behaviour.name}`}>
                     {states.map((row) => (
-                      <div
-                        key={row.state_key}
-                        className="flex flex-wrap items-center gap-1.5 border border-border/60 px-2 py-1.5"
-                        data-testid={`state-row-${row.state_key}`}
-                      >
-                        {Object.entries(row.verdicts).map(([policyId, verdict]) => (
-                          <Badge
-                            key={policyId}
-                            variant={verdict ? "success" : "neutral"}
-                          >
-                            {policyId}={verdict ? "T" : "F"}
+                      <div key={row.state_key} className="space-y-1.5">
+                        <div
+                          className="flex flex-wrap items-center gap-1.5 border border-border/60 px-2 py-1.5"
+                          data-testid={`state-row-${row.state_key}`}
+                        >
+                          {Object.entries(row.verdicts).map(([policyId, verdict]) => (
+                            <Badge
+                              key={policyId}
+                              variant={verdict ? "success" : "neutral"}
+                            >
+                              {policyId}={verdict ? "T" : "F"}
+                            </Badge>
+                          ))}
+
+                          <Badge variant={row.customised ? "info" : "neutral"}>
+                            {row.customised ? "customised" : "default"}
                           </Badge>
-                        ))}
 
-                        <Badge variant={row.customised ? "info" : "neutral"}>
-                          {row.customised ? "customised" : "default"}
-                        </Badge>
+                          {row.label && <Badge variant="info">{row.label}</Badge>}
 
-                        {row.customised && (
-                          <button
-                            onClick={() => void handleRevert(row.state_key)}
-                            disabled={reverting === row.state_key}
-                            className="ml-auto flex items-center gap-1 rounded-none border border-border px-2 py-1 text-xs font-medium text-terminal-dim hover:bg-dark-hover hover:text-terminal-text disabled:opacity-50"
-                            data-testid={`revert-${row.state_key}`}
-                          >
-                            <RotateCcw size={12} />
-                            {reverting === row.state_key ? "Reverting..." : "Revert"}
-                          </button>
+                          <div className="ml-auto flex items-center gap-1.5">
+                            <button
+                              onClick={() => {
+                                setSaveError(null);
+                                setEditing((prev) =>
+                                  prev === row.state_key ? null : row.state_key,
+                                );
+                              }}
+                              className="flex items-center gap-1 rounded-none border border-border px-2 py-1 text-xs font-medium text-terminal-dim hover:bg-dark-hover hover:text-terminal-text"
+                              data-testid={`edit-${row.state_key}`}
+                            >
+                              <Pencil size={12} />
+                              Edit
+                            </button>
+
+                            {row.customised && (
+                              <button
+                                onClick={() => void handleRevert(row.state_key)}
+                                disabled={reverting === row.state_key}
+                                className="flex items-center gap-1 rounded-none border border-border px-2 py-1 text-xs font-medium text-terminal-dim hover:bg-dark-hover hover:text-terminal-text disabled:opacity-50"
+                                data-testid={`revert-${row.state_key}`}
+                              >
+                                <RotateCcw size={12} />
+                                {reverting === row.state_key ? "Reverting..." : "Revert"}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {editing === row.state_key && (
+                          <StateOverrideEditor
+                            key={row.state_key}
+                            stateKey={row.state_key}
+                            initial={draftForState(row, behaviour, members, globals)}
+                            pinnable={pinnable}
+                            saving={saving === row.state_key}
+                            error={saveError}
+                            onSave={(payload) =>
+                              void handleSave(row.state_key, payload)
+                            }
+                            onCancel={() => {
+                              setSaveError(null);
+                              setEditing(null);
+                            }}
+                          />
                         )}
                       </div>
                     ))}

@@ -7,6 +7,7 @@ import type {
   Playbook,
   PlaybookGlobalRule,
   PlaybookMember,
+  PlaybookOverridePayload,
   PlaybookStates,
   PlaybookTrace,
   Policy,
@@ -297,7 +298,7 @@ export async function getPlaybookStates(
 export async function setPlaybookOverride(
   playbookId: string,
   stateKey: string,
-  data: { rule_refs: unknown[] | null; flagged: boolean; label: string | null },
+  data: PlaybookOverridePayload,
 ): Promise<{ state_key: string }> {
   return request(
     `/api/playbooks/${playbookId}/states/${encodeURIComponent(stateKey)}`,
