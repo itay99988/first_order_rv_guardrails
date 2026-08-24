@@ -168,13 +168,24 @@ async def _load_policies_for(
 
 
 def _scenario_grounding_settings(
-    base: GroundingSettings, scenario: Scenario
+    base: GroundingSettings,
+    scenario: Scenario,
+    base_url_override: str | None = None,
 ) -> GroundingSettings:
-    """Override base grounding settings with scenario-specific values."""
-    return base.model_copy(update={
+    """Override base grounding settings with scenario-specific values.
+
+    ``base_url_override`` exists so a run can point at a local stub server. A
+    scenario cannot carry the URL itself -- it is a property of the machine,
+    not of the conversation -- and without the override the base URL comes
+    from stored settings, which default to Ollama's port on a fresh database.
+    """
+    update = {
         "provider": scenario.model.grounding_provider,
         "model": scenario.model.grounding_model,
-    })
+    }
+    if base_url_override:
+        update["base_url"] = base_url_override
+    return base.model_copy(update=update)
 
 
 def _diff_verdicts(
@@ -228,11 +239,14 @@ async def run_scenario(
     policies_status: dict[str, str],
     related_objects_status: dict[str, str] | None = None,
     keep_session: bool = False,
+    grounding_base_url: str | None = None,
 ) -> RunResult:
     """Replay one scenario end-to-end. Returns a RunResult for logging."""
     config = get_config()
     base_settings = await _load_settings(db)
-    grounding_settings = _scenario_grounding_settings(base_settings.grounding, scenario)
+    grounding_settings = _scenario_grounding_settings(
+        base_settings.grounding, scenario, grounding_base_url
+    )
     settings_for_run = base_settings.model_copy(update={"grounding": grounding_settings})
 
     grounding_client = create_grounding_client(settings_for_run)

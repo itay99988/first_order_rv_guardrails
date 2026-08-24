@@ -16,6 +16,37 @@
           "description": "the maximum budget amount, in US dollars, the user is willing to spend",
           "entity_type": "number"
         }
+      ],
+      "few_shot_examples": [
+        {
+          "text": "My absolute ceiling is $12,000 for this.",
+          "role": "user",
+          "related_object_context": [],
+          "related_object_history": [],
+          "found": true,
+          "instances": [
+            {
+              "instance_id": "i1",
+              "object_mentions": [
+                {
+                  "object_id": "o1",
+                  "mention": "$12,000",
+                  "canonical_form": "12000",
+                  "canonical_source": {
+                    "type": "new"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "text": "Can you tell me what the usual price range looks like?",
+          "role": "user",
+          "related_object_context": [],
+          "related_object_history": [],
+          "found": false
+        }
       ]
     },
     {
@@ -27,6 +58,37 @@
           "object_id": "o1",
           "description": "the proposed amount, in US dollars",
           "entity_type": "number"
+        }
+      ],
+      "few_shot_examples": [
+        {
+          "text": "Here's my recommendation: the package at $14,500.",
+          "role": "assistant",
+          "related_object_context": [],
+          "related_object_history": [],
+          "found": true,
+          "instances": [
+            {
+              "instance_id": "i1",
+              "object_mentions": [
+                {
+                  "object_id": "o1",
+                  "mention": "$14,500",
+                  "canonical_form": "14500",
+                  "canonical_source": {
+                    "type": "new"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "text": "Prices vary quite a bit depending on what you need.",
+          "role": "assistant",
+          "related_object_context": [],
+          "related_object_history": [],
+          "found": false
         }
       ]
     }
@@ -44,7 +106,7 @@
   "messages": [
     {
       "role": "user",
-      "text": "I'm planning a project and my absolute ceiling is $12,000 — that's everything I've budgeted.",
+      "text": "I'm planning a project and my absolute ceiling is $12,000 \u2014 that's everything I've budgeted.",
       "expected_verdict": {
         "budget-policy": true
       }

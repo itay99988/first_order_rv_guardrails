@@ -88,6 +88,13 @@ def _make_parser() -> argparse.ArgumentParser:
         help="override every scenario's grounding_provider (e.g. ollama, "
              "openrouter, lm_studio, vllm, openai_compatible)"
     )
+    p.add_argument(
+        "--grounding-base-url", default=None, metavar="URL",
+        help="override the grounding server base URL, e.g. a local stub. "
+             "A scenario cannot carry this -- it is a property of the machine "
+             "-- and without it the URL comes from stored settings, which "
+             "default to Ollama's port on a fresh database."
+    )
     return p
 
 
@@ -98,6 +105,7 @@ async def _run_one(
     keep_session: bool,
     grounding_override: str | None = None,
     grounding_provider_override: str | None = None,
+    grounding_base_url: str | None = None,
 ) -> RunResult:
     try:
         scenario: Scenario = load_scenario(path)
@@ -143,6 +151,7 @@ async def _run_one(
         policies_status=statuses["policies"],
         related_objects_status=statuses.get("related_objects", {}),
         keep_session=keep_session,
+        grounding_base_url=grounding_base_url,
     )
 
 
@@ -210,6 +219,7 @@ async def _main_async(args: argparse.Namespace) -> int:
                 keep_session=args.keep_session,
                 grounding_override=args.grounding,
                 grounding_provider_override=args.grounding_provider,
+                grounding_base_url=args.grounding_base_url,
             )
             results.append(result)
             paths_map = write_logs(result, batch_dir, timestamp=timestamp)

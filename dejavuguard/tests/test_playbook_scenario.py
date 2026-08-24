@@ -79,3 +79,45 @@ def test_a_blocked_mismatch_fails_the_scenario():
     result = _result(_outcome(["A."], ["A."], blocked=False, expected_blocked=True))
     assert result.total_blocked_mismatches == 1
     assert result.passed is False
+
+
+def test_grounding_base_url_override_points_at_a_stub():
+    """A run must be able to redirect grounding without editing scenarios.
+
+    The base URL is a property of the machine, not of the conversation, so it
+    cannot live in the scenario JSON. Without an override it comes from stored
+    settings, which default to Ollama's port on a fresh database -- and the
+    offline harness then silently grounds nothing.
+    """
+    from backend.models.settings import GroundingSettings
+    from scenario_runner.runner import _scenario_grounding_settings
+    from scenario_runner.schema import Scenario, ScenarioModel
+
+    scenario = Scenario(
+        scenario_id="s",
+        model=ScenarioModel(grounding_provider="vllm", grounding_model="stub"),
+        messages=[],
+    )
+    base = GroundingSettings(base_url="http://localhost:11434")
+
+    overridden = _scenario_grounding_settings(base, scenario, "http://localhost:9099")
+    assert overridden.base_url == "http://localhost:9099"
+    assert overridden.provider == "vllm"
+    assert overridden.model == "stub"
+
+
+def test_grounding_base_url_is_kept_when_no_override_is_given():
+    from backend.models.settings import GroundingSettings
+    from scenario_runner.runner import _scenario_grounding_settings
+    from scenario_runner.schema import Scenario, ScenarioModel
+
+    scenario = Scenario(
+        scenario_id="s",
+        model=ScenarioModel(grounding_provider="vllm", grounding_model="stub"),
+        messages=[],
+    )
+    base = GroundingSettings(base_url="http://localhost:11434")
+
+    assert _scenario_grounding_settings(base, scenario).base_url == (
+        "http://localhost:11434"
+    )

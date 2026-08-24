@@ -190,6 +190,97 @@ In the policy above:
 
 The related-object database is updated when policies are added, updated, removed, or when referenced predicates are removed.
 
+## Playbooks
+
+A **playbook** groups several policies and reads their verdicts together. The
+combination of verdicts selects a *state*, and each state carries guidance for
+the assistant plus an optional violation flag. This turns policies from a
+binary gate into a behaviour selector, without changing how policies are
+written or evaluated.
+
+### One mode per session
+
+A conversation runs in exactly one of two modes, never both:
+
+| Mode | Behaviour |
+|---|---|
+| Policies | Every enabled policy is monitored and blocks on its own `False` verdict. The default, and unchanged. |
+| Playbook | Only the selected playbook's members are monitored, and only its flagged states block. |
+
+The mode is chosen per session, in the chat view. Switching restarts that
+session's monitoring, because the DejaVu specification itself changes: in
+playbook mode the spec contains only the playbook's member policies, so the
+state vector is exactly the truth table's axes.
+
+Because at most one playbook is ever active, a policy may belong to any number
+of playbooks with no ambiguity about which one governs it.
+
+### Members and polarity
+
+Each member declares whether its guidance applies when its policy is `True` or
+`False`. The default is `False`, preserving the existing meaning that a false
+verdict is the interesting one:
+
+- a *safety property* — "stay within budget" — wants guidance when violated
+- a *detector* — "the user disclosed an allergy" — wants guidance when satisfied
+
+One global convention would have forced one of these to be written inside-out.
+
+### States, defaults, and behaviours
+
+With *n* members there are 2^*n* states. An unedited state derives its guidance
+from its members: every member whose verdict matches its polarity contributes
+its text, followed by any global rules marked *apply to all*. Only edits are
+stored, so a five-member playbook with two customised states holds two rows,
+not thirty-two.
+
+States that produce **identical guidance and identical flagged status** are the
+same *behaviour* and display as one group. Merging is derived, never stored, so
+deliberately giving two states the same guidance visibly merges them. The
+flagged bit is part of the identity: same words with different consequences are
+not the same behaviour.
+
+### Blocking
+
+In playbook mode **only flagged states block**. A member returning `False` does
+not block on its own — otherwise every state containing an `F` would be
+unreachable and the truth table pointless.
+
+The consequence is worth stating plainly: **a playbook with no flagged state
+blocks nothing at all**, for the whole session. The editor warns when a member
+can no longer cause a block, and the playbook list shows the flagged-state
+count.
+
+### Guidance delivery
+
+Guidance is sent as a `system` message immediately before the current user
+turn, and is never stored. Appending it to the user's text would make the model
+treat guidance as something the user said, inviting it to reply to the
+instructions or weigh them against the user's own wording.
+
+It is never shown in the conversation. To see what was applied, expand a
+message's details panel, beside the grounding details.
+
+### Testing playbooks offline
+
+`scenario_runner/scenarios/playbook_scenario/` contains scenarios that exercise
+playbooks with no API key and no model, using the checked-in stub grounder:
+
+```bash
+java -jar backend/libs/dejavu.jar --server --port 8080 --storage /tmp/pb-sessions &
+uv run python -m scenario_runner.support.stub_grounding --port 9099 \
+    --rules scenario_runner/support/playbook_grounding.json &
+
+DATABASE_PATH=/tmp/pb.db DEJAVU_URL=http://localhost:8080 \
+  uv run python -m scenario_runner --dir scenario_runner/scenarios/playbook_scenario/ \
+  --grounding-provider vllm --grounding stub-grounder \
+  --grounding-base-url http://localhost:9099
+```
+
+`--grounding-base-url` is required here: the base URL is a property of the
+machine rather than of the scenario, and without it the runner uses the stored
+setting, which defaults to Ollama's port.
+
 ## Grounding Output
 
 For every relevant predicate and message, the grounding LLM receives:
