@@ -62,6 +62,21 @@ class TestDatabaseInitialization:
         assert len(tables) >= 7
 
     @pytest.mark.asyncio
+    async def test_initialize_twice_keeps_the_data(self, db):
+        """A second initialize() must not silently discard the store.
+
+        initialize() reassigned self._db unconditionally, and for ":memory:"
+        a fresh connect() is a brand-new empty database -- so a second call
+        threw away every row while the docstring promised idempotence. The
+        old test only counted tables, which the recreated schema satisfies.
+        """
+        await db.create_session("s-keepme", name="keep me")
+
+        await db.initialize()  # second call
+
+        assert await db.get_session("s-keepme") is not None
+
+    @pytest.mark.asyncio
     async def test_foreign_keys_enabled(self, db):
         """Foreign keys are enabled."""
         rows = await db._fetch_all("PRAGMA foreign_keys")

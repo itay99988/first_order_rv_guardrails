@@ -25,7 +25,16 @@ class DatabaseStore:
         self._db: aiosqlite.Connection | None = None
 
     async def initialize(self) -> None:
-        """Create tables if they don't exist. Idempotent."""
+        """Create tables if they don't exist. Idempotent.
+
+        Returns early when already connected. Reconnecting unconditionally
+        dropped the previous connection without closing it -- leaking its
+        non-daemon aiosqlite worker thread -- and for ":memory:" a fresh
+        connect() is a brand-new empty database, so the second call silently
+        discarded every row. Call close() first to genuinely reconnect.
+        """
+        if self._db is not None:
+            return
         self._db = await aiosqlite.connect(self._db_path)
         self._db.row_factory = aiosqlite.Row
 
