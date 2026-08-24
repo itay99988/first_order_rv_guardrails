@@ -142,3 +142,77 @@ def test_a_guidance_mismatch_gets_a_nonzero_exit_code():
     from scenario_runner.cli import _exit_code
 
     assert _exit_code([_result(_outcome(["A."], ["B."]))]) != 0
+
+
+# A scenario that names playbook mode but cannot resolve a playbook used to
+# fall back to plain policy monitoring, so a typo in playbook_id turned a
+# playbook scenario into a policy scenario that still passed -- the harness
+# reported a green run for a feature it never exercised.
+
+def _playbook_mode_scenario_dict(playbook_id: str | None) -> dict:
+    monitoring: dict = {"mode": "playbook"}
+    if playbook_id is not None:
+        monitoring["playbook_id"] = playbook_id
+    return {
+        "scenario_id": "pb-typo",
+        "description": "playbook mode that cannot resolve a playbook",
+        "model": {"grounding_provider": "vllm", "grounding_model": "stub"},
+        "predicates": [
+            {
+                "prop_id": "p_x",
+                "description": "user says X",
+                "role": "user",
+                "objects": [
+                    {"object_id": "o1", "description": "thing",
+                     "entity_type": "Object"}
+                ],
+                "few_shot_examples": [{"text": "hi", "instances": []}],
+            }
+        ],
+        "policies": [{"policy_id": "pol1", "name": "n", "formula_str": "H p_x"}],
+        "monitoring": monitoring,
+        "messages": [{"role": "user", "text": "ping",
+                      "expected_verdict": {"pol1": True}}],
+    }
+
+
+async def _run_playbook_mode_scenario(tmp_path, playbook_id: str | None):
+    import json
+    from unittest.mock import AsyncMock, patch
+
+    from backend.store.db import DatabaseStore
+    from scenario_runner.cli import _run_one
+
+    path = tmp_path / "pb-typo.json"
+    path.write_text(json.dumps(_playbook_mode_scenario_dict(playbook_id)))
+
+    db = DatabaseStore(":memory:")
+    await db.initialize()
+    try:
+        with patch("scenario_runner.setup._validate_formula",
+                   AsyncMock(return_value=(["p_x"], None))):
+            return await _run_one(db, path, overwrite=False, keep_session=False)
+    finally:
+        await db.close()
+
+
+async def test_playbook_mode_without_a_playbook_id_is_a_setup_error(tmp_path):
+    from scenario_runner.cli import _exit_code
+
+    result = await _run_playbook_mode_scenario(tmp_path, None)
+
+    assert result.setup_error is not None
+    assert "playbook_id" in result.setup_error
+    assert _exit_code([result]) != 0
+
+
+async def test_playbook_mode_with_an_unresolvable_playbook_id_is_a_setup_error(
+    tmp_path,
+):
+    from scenario_runner.cli import _exit_code
+
+    result = await _run_playbook_mode_scenario(tmp_path, "pb-does-not-exist")
+
+    assert result.setup_error is not None
+    assert "pb-does-not-exist" in result.setup_error
+    assert _exit_code([result]) != 0

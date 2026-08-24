@@ -13,6 +13,7 @@ from typing import Any
 from backend.config import get_config
 from backend.engine.dejavu_client import DejaVuClient, DejaVuError
 from backend.engine.grounding import ConversationSummaryUpdater, LLMGrounding
+from backend.engine.playbook import Playbook
 from backend.models.builtins import BUILTIN_USER_TURN
 from backend.models.policy import Policy, Proposition
 from backend.models.settings import GroundingSettings
@@ -232,6 +233,35 @@ def _diff_blocked(expected: bool | None, actual: bool) -> tuple[bool, bool] | No
     return (expected, actual) if actual != expected else None
 
 
+class ScenarioConfigError(RuntimeError):
+    """A scenario's monitoring section cannot be satisfied as written."""
+
+
+async def _resolve_playbook(db: DatabaseStore, scenario: Scenario) -> Playbook | None:
+    """The scenario's playbook, or None in policy mode.
+
+    Playbook mode that cannot name or find a playbook is a configuration
+    error, never a quiet fall back to policy monitoring: a typo in
+    playbook_id would otherwise turn a playbook scenario into a policy
+    scenario that still passes, and the harness would report a green run for
+    a feature it never exercised.
+    """
+    if scenario.monitoring.mode != "playbook":
+        return None
+    if not scenario.monitoring.playbook_id:
+        raise ScenarioConfigError(
+            f"Scenario '{scenario.scenario_id}' runs in playbook mode but "
+            f"supplies no playbook_id."
+        )
+    playbook = await _load_playbook(db, scenario.monitoring.playbook_id)
+    if playbook is None:
+        raise ScenarioConfigError(
+            f"Scenario '{scenario.scenario_id}' references playbook "
+            f"'{scenario.monitoring.playbook_id}', which is not in the database."
+        )
+    return playbook
+
+
 async def run_scenario(
     db: DatabaseStore,
     scenario: Scenario,
@@ -242,6 +272,10 @@ async def run_scenario(
     grounding_base_url: str | None = None,
 ) -> RunResult:
     """Replay one scenario end-to-end. Returns a RunResult for logging."""
+    # Before anything is built: a monitoring section that cannot be honoured
+    # must stop the run, not quietly change what is being tested.
+    playbook = await _resolve_playbook(db, scenario)
+
     config = get_config()
     base_settings = await _load_settings(db)
     grounding_settings = _scenario_grounding_settings(
@@ -290,10 +324,6 @@ async def run_scenario(
 
     # Local import to avoid a circular import at module load time.
     from backend.engine.monitor import ConversationMonitor
-
-    playbook = None
-    if scenario.monitoring.mode == "playbook" and scenario.monitoring.playbook_id:
-        playbook = await _load_playbook(db, scenario.monitoring.playbook_id)
 
     monitor = ConversationMonitor(
         policies=policies,

@@ -7,8 +7,9 @@ Usage:
 
 Exit codes:
     0 = all scenarios passed (or no expected_verdicts to compare)
-    1 = one or more scenarios had verdict mismatches
-    2 = setup conflict (existing predicate/policy disagrees, --overwrite not set)
+    1 = one or more scenarios failed a comparison (verdict, blocked,
+        guidance or playbook state)
+    2 = setup conflict, or a monitoring section that cannot be honoured
     3 = malformed scenario JSON / schema error
     4 = runtime error during pipeline execution
 """
@@ -29,7 +30,7 @@ from backend.store.db import DatabaseStore
 
 from .logger import write_logs
 from .report import write_batch_report
-from .runner import RunResult, run_scenario
+from .runner import RunResult, ScenarioConfigError, run_scenario
 from .schema import Scenario, load_scenario
 from .setup import SetupConflict, ensure_scenario_setup
 
@@ -132,7 +133,15 @@ async def _run_one(
 
     try:
         statuses = await ensure_scenario_setup(db, scenario, overwrite=overwrite)
-    except SetupConflict as e:
+        return await run_scenario(
+            db, scenario,
+            predicates_status=statuses["predicates"],
+            policies_status=statuses["policies"],
+            related_objects_status=statuses.get("related_objects", {}),
+            keep_session=keep_session,
+            grounding_base_url=grounding_base_url,
+        )
+    except (SetupConflict, ScenarioConfigError) as e:
         return RunResult(
             scenario_id=scenario.scenario_id,
             description=scenario.description,
@@ -144,15 +153,6 @@ async def _run_one(
             outcomes=[],
             setup_error=str(e),
         )
-
-    return await run_scenario(
-        db, scenario,
-        predicates_status=statuses["predicates"],
-        policies_status=statuses["policies"],
-        related_objects_status=statuses.get("related_objects", {}),
-        keep_session=keep_session,
-        grounding_base_url=grounding_base_url,
-    )
 
 
 def _exit_code(results: Iterable[RunResult]) -> int:
