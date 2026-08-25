@@ -317,6 +317,21 @@ after a save.
 
 - [ ] **Step 3: Implement.** Accept `guidance` as a deprecated alias for one release: when `guidance` is sent without `rule_id`, resolve-or-create a rule exactly as the migration does. This keeps wave D/E's existing e2e fixtures working instead of breaking 15+ tests as collateral.
 
+- [ ] **Step 3a: Make every READ path resolve through the rule (ruling R-17)**
+
+Task 4 left the inline `guidance` columns as a **stale display copy**. Resolution for the
+assistant is correct and consistent, but `GET /playbooks/{id}/globals` still returns the
+text as it was saved — so a rule edited via `PUT /api/rules/{id}` changes what the model
+receives and **not** what the editor shows. A user would edit a rule, see the old text, and
+reasonably conclude the edit failed.
+
+Fix it on the READ side, not by writing the text back: resolve through `rule_id` /
+`rule_ref_id` wherever an endpoint returns guidance, exactly as `_load_playbook` does.
+Writing through would denormalise the very columns Task 12 removes.
+
+Test: edit a rule through the rules API, then assert the *globals* endpoint returns the new
+text — this fails today.
+
 - [ ] **Step 3b: Expose `rule_names` on `/states` and `/trace` (ruling R-2)**
 
 Task 9 labels graph nodes by the applied **rule names**, and the API cannot supply them
