@@ -8,7 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from backend.main import create_app
-from backend.routers.playbooks import _is_irrevocable
+from backend.routers.playbooks import _is_irrevocable, _named
 from backend.store.db import DatabaseStore
 
 
@@ -1019,6 +1019,29 @@ def test_a_rejected_state_key_cannot_reappear_as_a_flag_later(client):
     behaviours = client.get(f"/api/playbooks/{pb}/states").json()["behaviours"]
     assert not any(b["flagged"] for b in behaviours)
     assert not any(s["label"] for b in behaviours for s in b["states"])
+
+
+def test_named_labels_text_no_rule_holds_with_the_text_itself():
+    """`_named`'s documented fallback, which nothing could reach through the API.
+
+    Every string in a behaviour was resolved out of the library, so the
+    lookup is complete on any single request and the fallback is unreachable
+    end to end -- except across the two `list_rules()` reads `/states` makes,
+    where a rule deleted in between leaves text in the playbook that the name
+    map no longer holds. The docstring promises the entry labels itself
+    rather than dropping out, because a shorter list would silently misalign
+    every name after it against the wrong rule. Asserted here directly: no
+    API-level test can fail on it, so without this one the promise is a
+    comment.
+    """
+    names = {"Known text.": "Rule_Known"}
+
+    assert _named(names, ("Known text.",)) == ["Rule_Known"]
+    assert _named(names, ("Orphan text.",)) == ["Orphan text."]
+    # Index-for-index is the part that matters: the orphan holds its place.
+    assert _named(names, ("Orphan text.", "Known text.")) == [
+        "Orphan text.", "Rule_Known"]
+    assert _named({}, ("A.", "B.", "C.")) == ["A.", "B.", "C."]
 
 
 def test_deleting_a_playbook_returns_its_sessions_to_policy_mode(client):

@@ -618,6 +618,29 @@ describe("PlaybookEditor", () => {
       expect(label).toHaveTextContent("(rule unavailable)");
     });
 
+    /**
+     * `ruleLabel` reaches "unknown" two ways -- the library never answered,
+     * and the library answered without the id -- and every test above drives
+     * only the first. Collapsing just the second arm to `NO_RULE` left the
+     * whole frontend suite green, which is the same defect as the one this
+     * block exists for, on the branch nothing reads. A rule deleted from the
+     * library screen while an editor is open is exactly how a member ends up
+     * naming an id a loaded library does not hold.
+     */
+    it("does not call a member ruleless when the loaded library has lost its rule",
+      async () => {
+        mockListRules.mockResolvedValue([
+          { rule_id: "r_other", name: "Something else", guidance: "x",
+            usage_count: 1 },
+        ]);
+
+        render(<PlaybookEditor playbook={playbook} onBack={vi.fn()} />);
+
+        const label = await screen.findByTestId("member-rule-p1");
+        expect(label).not.toHaveTextContent("(no rule)");
+        expect(label).toHaveTextContent("(rule unavailable)");
+      });
+
     it("names something in a detach warning rather than leaving a hole", async () => {
       render(<PlaybookEditor playbook={playbook} onBack={vi.fn()} />);
       await screen.findByTestId("member-guidance-p1");

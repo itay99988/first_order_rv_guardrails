@@ -458,6 +458,61 @@ describe("PlaybookGraph", () => {
     expect(tooltip(escalations)).toContain("Escalate to human");
   });
 
+  it("keeps two nodes apart when even their rule names are identical", async () => {
+    // The case the two above cannot reach, and the one the collision argument
+    // actually rests on. `group_behaviours` splits on the flag as well as the
+    // rules, so one playbook can hold two behaviours whose `rule_names` are
+    // byte-identical; `_disambiguate` then guarantees their `name`s differ,
+    // and `tooltipOf` leading with `node.name` is the only thing that turns
+    // that guarantee into two distinguishable tooltips.
+    //
+    // Both tests above stay green with `node.name` removed from the tooltip,
+    // because their rule names differ and carry the inequality on their own.
+    // Removing that line left the whole frontend suite green -- so the proof
+    // that no two nodes can render the same tooltip had nothing holding it
+    // up. It does now.
+    const same = ["Budget cap", "Tone guard"];
+    mockGet.mockResolvedValue({
+      current: null,
+      members,
+      nodes: [
+        {
+          name: "Budget cap + Tone guard", rules: [], rule_names: same,
+          flagged: true, visited: false, state_count: 1, reachable: true,
+          first_visit: null,
+        },
+        {
+          name: "Budget cap + Tone guard (2)", rules: [], rule_names: same,
+          flagged: false, visited: false, state_count: 1, reachable: true,
+          first_visit: null,
+        },
+      ],
+      edges: [],
+    });
+    mockStates.mockRejectedValue(new Error("nope"));
+
+    render(<PlaybookGraph playbookId="pb1" sessionId="s1" />);
+    await waitFor(() =>
+      expect(screen.getByTestId("node-Budget cap + Tone guard")).toBeInTheDocument(),
+    );
+
+    const flagged = screen.getByTestId("node-Budget cap + Tone guard");
+    const open = screen.getByTestId("node-Budget cap + Tone guard (2)");
+    const ruleLinesOf = (node: HTMLElement) =>
+      Array.from(node.querySelectorAll("text"))
+        .map((t) => t.textContent ?? "")
+        .filter((t) => t.startsWith("· "));
+
+    // The rule lines really are identical -- there is nothing in the names
+    // for an inequality to catch, which is what makes this the case worth
+    // pinning rather than a restatement of the two above.
+    expect(ruleLinesOf(flagged)).toEqual(["· Budget cap", "· Tone guard"]);
+    expect(ruleLinesOf(open)).toEqual(ruleLinesOf(flagged));
+    expect(tooltip(flagged)).not.toEqual(tooltip(open));
+    expect(tooltip(flagged).split("\n")[0]).toBe("Budget cap + Tone guard");
+    expect(tooltip(open).split("\n")[0]).toBe("Budget cap + Tone guard (2)");
+  });
+
   // --- M2: a stale truth table drops the subtitle, never fakes it --------
 
   it("drops the verdict subtitle of a node whose state count has moved", async () => {
