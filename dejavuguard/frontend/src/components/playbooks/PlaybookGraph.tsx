@@ -218,6 +218,20 @@ function GraphNode({
       aria-label={describe(node, status, verdictRows.flat())}
       transform={`translate(${x}, ${y})`}
     >
+      {/* "You are here", outside the box so it survives the flagged node's
+          own red border -- a green ring around a red box reads as both at
+          once, which is exactly the state it is. */}
+      {isCurrent && (
+        <rect
+          x={-NODE_W / 2 - 6}
+          y={top - 6}
+          width={NODE_W + 12}
+          height={height + 12}
+          fill="none"
+          className="stroke-accent"
+          strokeWidth={2}
+        />
+      )}
       <rect
         x={-NODE_W / 2}
         y={top}
