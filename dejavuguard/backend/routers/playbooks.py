@@ -97,6 +97,28 @@ class OverrideRequest(BaseModel):
     label: str | None = None
 
 
+async def _linked_members(db: DatabaseStore, members: list[MemberSpec]) -> list[dict]:
+    """Attach each member to the rule its guidance names.
+
+    Guidance is stored once, in the shared library, and a member only names
+    the rule it uses -- so a save that wrote the text without the link would
+    leave the member contributing nothing at all until the next startup
+    re-derived it. Members still arrive carrying text rather than a rule id;
+    resolving it here, exactly as the backfill does, is what keeps a save
+    through the current UI from silently dropping its own guidance.
+    """
+    out: list[dict] = []
+    for member in members:
+        policy = await db.get_policy(member.policy_id)
+        out.append({
+            **member.model_dump(),
+            "rule_id": await db.resolve_or_create_rule(
+                member.guidance, policy["name"] if policy else None
+            ),
+        })
+    return out
+
+
 async def _require(db: DatabaseStore, playbook_id: str) -> dict:
     row = await db.get_playbook(playbook_id)
     if not row:
@@ -205,9 +227,7 @@ async def set_members(request: Request, playbook_id: str, body: MembersRequest):
             for c in found
         ]
 
-    await db.set_playbook_members(
-        playbook_id, [m.model_dump() for m in body.members]
-    )
+    await db.set_playbook_members(playbook_id, await _linked_members(db, body.members))
     await db.replace_playbook_overrides(playbook_id, [
         {"state_key": o.state_key, "rule_refs": o.rule_refs,
          "flagged": o.flagged, "label": o.label}
@@ -242,7 +262,8 @@ async def set_globals(request: Request, playbook_id: str, body: GlobalsRequest):
     db = _get_db(request)
     await _require(db, playbook_id)
     await db.set_playbook_globals(playbook_id, [
-        {**g.model_dump(), "rule_id": g.rule_id or str(uuid.uuid4())}
+        {**g.model_dump(), "rule_id": g.rule_id or str(uuid.uuid4()),
+         "rule_ref_id": await db.resolve_or_create_rule(g.guidance, g.name)}
         for g in body.globals
     ])
     invalidate_monitors()

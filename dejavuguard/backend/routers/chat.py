@@ -45,7 +45,13 @@ async def _load_playbook(db: DatabaseStore, playbook_id: str) -> Playbook | None
     rule and the text is resolved here, at the boundary. The engine keeps
     receiving a plain resolved string and stays unaware that rules exist.
 
-    A member with no rule -- and one naming a rule that is gone -- resolves
+    Playbook-wide rules resolve the same way, through `rule_ref_id` -- the
+    same link under a different name, because that table's own primary key
+    is already called `rule_id`. Resolving one half through the library and
+    the other through its inline column would make an edit to a shared rule
+    reach members and silently miss the playbook-wide rules holding it.
+
+    A row with no rule -- and one naming a rule that is gone -- resolves
     to "", which the engine already reads as contributing nothing.
     """
     row = await db.get_playbook(playbook_id)
@@ -63,7 +69,8 @@ async def _load_playbook(db: DatabaseStore, playbook_id: str) -> Playbook | None
     )
     globals_ = tuple(
         GlobalRule(
-            rule_id=g["rule_id"], name=g["name"], guidance=g["guidance"],
+            rule_id=g["rule_id"], name=g["name"],
+            guidance=rule_text.get(g["rule_ref_id"], ""),
             position=int(g["position"]), apply_to_all=bool(g["apply_to_all"]),
         )
         for g in await db.list_playbook_globals(playbook_id)

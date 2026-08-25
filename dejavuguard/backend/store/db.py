@@ -118,7 +118,7 @@ class DatabaseStore:
                 position    INTEGER NOT NULL DEFAULT 0,
                 fires_on    INTEGER NOT NULL DEFAULT 0,
                 guidance    TEXT NOT NULL DEFAULT '',
-                rule_id     TEXT,
+                rule_id     TEXT REFERENCES rules(rule_id),
                 PRIMARY KEY (playbook_id, policy_id)
             )
             """
@@ -132,7 +132,7 @@ class DatabaseStore:
                 guidance     TEXT NOT NULL,
                 position     INTEGER DEFAULT 0,
                 apply_to_all INTEGER DEFAULT 0,
-                rule_ref_id  TEXT
+                rule_ref_id  TEXT REFERENCES rules(rule_id)
             )
             """
         )
@@ -163,13 +163,21 @@ class DatabaseStore:
         cursor = await self._db.execute("PRAGMA table_info(playbook_members)")
         member_columns = {row["name"] for row in await cursor.fetchall()}
         if "rule_id" not in member_columns:
-            await self._db.execute("ALTER TABLE playbook_members ADD COLUMN rule_id TEXT")
+            # SQLite accepts a REFERENCES clause on ADD COLUMN while the
+            # default is NULL, which is what keeps a deleted rule from
+            # leaving a dangling id here -- the backfill would never heal
+            # one, since it only visits rows whose link is NULL.
+            await self._db.execute(
+                "ALTER TABLE playbook_members ADD COLUMN rule_id TEXT "
+                "REFERENCES rules(rule_id)"
+            )
 
         cursor = await self._db.execute("PRAGMA table_info(playbook_global_rules)")
         global_columns = {row["name"] for row in await cursor.fetchall()}
         if "rule_ref_id" not in global_columns:
             await self._db.execute(
-                "ALTER TABLE playbook_global_rules ADD COLUMN rule_ref_id TEXT"
+                "ALTER TABLE playbook_global_rules ADD COLUMN rule_ref_id TEXT "
+                "REFERENCES rules(rule_id)"
             )
 
         cursor = await self._db.execute("PRAGMA table_info(sessions)")
@@ -621,21 +629,29 @@ class DatabaseStore:
         await self._db.commit()
 
     async def set_playbook_members(self, playbook_id: str, members: list[dict]) -> None:
-        """Replace the whole member set."""
+        """Replace the whole member set.
+
+        `rule_id` names the shared rule this member's guidance comes from.
+        It has to be written here: the loader resolves guidance through it,
+        so a save that dropped it would leave the member contributing
+        nothing until the next startup re-derived the link from the inline
+        text.
+        """
         await self._db.execute(
             "DELETE FROM playbook_members WHERE playbook_id = ?", (playbook_id,)
         )
         for member in members:
             await self._db.execute(
                 "INSERT INTO playbook_members "
-                "(playbook_id, policy_id, position, fires_on, guidance) "
-                "VALUES (?, ?, ?, ?, ?)",
+                "(playbook_id, policy_id, position, fires_on, guidance, rule_id) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
                 (
                     playbook_id,
                     member["policy_id"],
                     int(member.get("position", 0)),
                     1 if member.get("fires_on") else 0,
                     member.get("guidance", ""),
+                    member.get("rule_id"),
                 ),
             )
         await self._db.commit()
@@ -655,14 +671,22 @@ class DatabaseStore:
         )
 
     async def set_playbook_globals(self, playbook_id: str, rules: list[dict]) -> None:
+        """Replace the whole playbook-wide rule set.
+
+        `rule_ref_id` is the same link as a member's `rule_id`, under a
+        different name because this table's own primary key is already
+        called `rule_id`. Both halves of a playbook resolve through it, so
+        both have to persist it.
+        """
         await self._db.execute(
             "DELETE FROM playbook_global_rules WHERE playbook_id = ?", (playbook_id,)
         )
         for rule in rules:
             await self._db.execute(
                 "INSERT INTO playbook_global_rules "
-                "(rule_id, playbook_id, name, guidance, position, apply_to_all) "
-                "VALUES (?, ?, ?, ?, ?, ?)",
+                "(rule_id, playbook_id, name, guidance, position, apply_to_all, "
+                "rule_ref_id) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
                 (
                     rule["rule_id"],
                     playbook_id,
@@ -670,6 +694,7 @@ class DatabaseStore:
                     rule.get("guidance", ""),
                     int(rule.get("position", 0)),
                     1 if rule.get("apply_to_all") else 0,
+                    rule.get("rule_ref_id"),
                 ),
             )
         await self._db.commit()
@@ -935,6 +960,34 @@ class DatabaseStore:
         """Get a rule by ID."""
         return await self._fetch_one("SELECT * FROM rules WHERE rule_id = ?", (rule_id,))
 
+    async def resolve_or_create_rule(
+        self, guidance: str, source_name: str | None = None
+    ) -> str | None:
+        """Return the rule carrying this guidance, creating it if needed.
+
+        The write path's half of the backfill. A save that carries guidance
+        text but no rule id has to end up linked to a real rule, or the row
+        resolves to nothing until the next startup re-derives the link.
+        Reuses the migration's own naming and dedup, so text saved through
+        the API converges on the same rule as text the backfill lifted.
+
+        Empty guidance stays unlinked: a NULL link keeps meaning "this row
+        contributes no guidance".
+        """
+        if not guidance:
+            return None
+        cursor = await self._db.execute("SELECT rule_id, name, guidance FROM rules")
+        rows = await cursor.fetchall()
+        by_guidance: dict[str, str] = {}
+        for row in rows:
+            by_guidance.setdefault(row["guidance"], row["rule_id"])
+        taken = {row["name"] for row in rows}
+        rule_id = await self._rule_for_guidance(
+            guidance, source_name, by_guidance, taken
+        )
+        await self._db.commit()
+        return rule_id
+
     async def get_rule_by_name(self, name: str) -> dict | None:
         """Get a rule by its unique name."""
         return await self._fetch_one("SELECT * FROM rules WHERE name = ?", (name,))
@@ -1068,7 +1121,7 @@ CREATE TABLE IF NOT EXISTS playbook_members (
     position    INTEGER NOT NULL DEFAULT 0,
     fires_on    INTEGER NOT NULL DEFAULT 0,
     guidance    TEXT NOT NULL DEFAULT '',
-    rule_id     TEXT,
+    rule_id     TEXT REFERENCES rules(rule_id),
     PRIMARY KEY (playbook_id, policy_id)
 );
 
@@ -1079,7 +1132,7 @@ CREATE TABLE IF NOT EXISTS playbook_global_rules (
     guidance     TEXT NOT NULL,
     position     INTEGER DEFAULT 0,
     apply_to_all INTEGER DEFAULT 0,
-    rule_ref_id  TEXT
+    rule_ref_id  TEXT REFERENCES rules(rule_id)
 );
 
 CREATE TABLE IF NOT EXISTS playbook_state_overrides (
