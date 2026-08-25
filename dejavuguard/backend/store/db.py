@@ -130,6 +130,17 @@ class DatabaseStore:
             )
             """
         )
+        await self._db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS rules (
+                rule_id    TEXT PRIMARY KEY,
+                name       TEXT NOT NULL UNIQUE,
+                guidance   TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+            )
+            """
+        )
 
         cursor = await self._db.execute("PRAGMA table_info(sessions)")
         session_columns = {row["name"] for row in await cursor.fetchall()}
@@ -799,6 +810,64 @@ class DatabaseStore:
         )
         await self._db.commit()
 
+    # Rules CRUD
+
+    async def create_rule(self, rule_id: str, name: str, guidance: str) -> None:
+        """Create a new reusable rule. `name` must be unique."""
+        await self._db.execute(
+            "INSERT INTO rules (rule_id, name, guidance) VALUES (?, ?, ?)",
+            (rule_id, name, guidance),
+        )
+        await self._db.commit()
+
+    async def get_rule(self, rule_id: str) -> dict | None:
+        """Get a rule by ID."""
+        return await self._fetch_one("SELECT * FROM rules WHERE rule_id = ?", (rule_id,))
+
+    async def get_rule_by_name(self, name: str) -> dict | None:
+        """Get a rule by its unique name."""
+        return await self._fetch_one("SELECT * FROM rules WHERE name = ?", (name,))
+
+    async def list_rules(self) -> list[dict]:
+        """List all rules, ordered by name."""
+        return await self._fetch_all("SELECT * FROM rules ORDER BY name")
+
+    async def update_rule(
+        self, rule_id: str, *, name: str | None = None, guidance: str | None = None
+    ) -> None:
+        """Update a rule's fields. Only updates non-None fields."""
+        updates: list[str] = []
+        params: list = []
+        if name is not None:
+            updates.append("name = ?")
+            params.append(name)
+        if guidance is not None:
+            updates.append("guidance = ?")
+            params.append(guidance)
+        if not updates:
+            return
+        updates.append("updated_at = datetime('now')")
+        params.append(rule_id)
+        sql = f"UPDATE rules SET {', '.join(updates)} WHERE rule_id = ?"  # noqa: S608
+        await self._db.execute(sql, tuple(params))
+        await self._db.commit()
+
+    async def delete_rule(self, rule_id: str) -> None:
+        """Delete a rule by ID."""
+        await self._db.execute("DELETE FROM rules WHERE rule_id = ?", (rule_id,))
+        await self._db.commit()
+
+    async def count_rule_usage(self, rule_id: str) -> int:
+        """Count distinct playbooks referencing this rule.
+
+        Intended to count references from `playbook_members.rule_id` and
+        `playbook_global_rules.rule_ref_id`, but those columns do not exist
+        yet -- they are added in Task 2, which migrates existing guidance
+        onto shared rules and makes this count real. Until then this always
+        returns 0.
+        """
+        return 0
+
 
 # Schema DDL
 
@@ -900,6 +969,14 @@ CREATE TABLE IF NOT EXISTS playbook_state_overrides (
     flagged     INTEGER,
     label       TEXT,
     PRIMARY KEY (playbook_id, state_key)
+);
+
+CREATE TABLE IF NOT EXISTS rules (
+    rule_id    TEXT PRIMARY KEY,
+    name       TEXT NOT NULL UNIQUE,
+    guidance   TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE TABLE IF NOT EXISTS messages (
