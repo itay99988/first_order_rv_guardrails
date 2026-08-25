@@ -638,3 +638,34 @@ def test_trace_nodes_report_rule_names(tmp_path, monkeypatch):
     by_name = {n["name"]: n for n in nodes}
     assert by_name["R."]["rule_names"] == ["R"]
     assert by_name["(no guidance)"]["rule_names"] == []
+
+
+def test_saving_the_globals_editor_after_a_library_edit_keeps_the_edit(client):
+    """The editor round-trip must not revert the edit it was meant to show.
+
+    The editor loads `guidance` from GET /globals and PUTs the whole set
+    back on Save. If the GET hands back the pre-edit text, Save writes that
+    text again: the library edit is silently reverted for this playbook,
+    and text no rule carries any more mints a duplicate -- leaving the rule
+    the user actually edited at usage zero, where the delete guard lets it
+    be removed. Asserting the resolved text alone would pass on a fix to
+    the GET that still re-mints, so the rule count is pinned too.
+    """
+    pb = client.post("/api/playbooks", json={"name": "Budget"}).json()["playbook_id"]
+    client.put(f"/api/playbooks/{pb}/globals", json={"globals": [
+        {"name": "House style", "guidance": "Be brief.", "position": 0,
+         "apply_to_all": True}]})
+    rule_id = client.get(f"/api/playbooks/{pb}/globals").json()[0]["rule_ref_id"]
+    client.put(f"/api/rules/{rule_id}", json={"guidance": "Be concise and warm."})
+    rule_count = len(client.get("/api/rules").json())
+
+    reopened = client.get(f"/api/playbooks/{pb}/globals").json()
+    assert client.put(f"/api/playbooks/{pb}/globals",
+                      json={"globals": reopened}).status_code == 200
+
+    states = client.get(f"/api/playbooks/{pb}/states").json()
+    assert states["behaviours"][0]["rules"] == ["Be concise and warm."]
+
+    rules = client.get("/api/rules").json()
+    assert len(rules) == rule_count
+    assert [r["usage_count"] for r in rules if r["rule_id"] == rule_id] == [1]
