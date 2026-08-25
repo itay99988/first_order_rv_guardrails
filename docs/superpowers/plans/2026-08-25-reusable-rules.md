@@ -257,7 +257,31 @@ Run: `git diff --stat backend/engine/playbook.py` — expected: **no output**. I
 **Interfaces:**
 - Produces: `GET /api/rules` (each row carrying `usage_count`), `POST /api/rules`, `GET /api/rules/{rule_id}`, `PUT /api/rules/{rule_id}`, `DELETE /api/rules/{rule_id}`.
 
-- [ ] **Step 1: Write the failing tests** — create/list/update round-trip; duplicate name returns **409**; deleting a rule that is in use returns **409** with the usage count in the detail (never silently orphan a member); `usage_count` is present on list.
+- [ ] **Step 0: Persist `rule_id` / `rule_ref_id` FIRST (rulings R-6, R-8, R-9)**
+
+**Everything else in this task depends on this step, and the delete guard is unsafe
+without it.** Task 2's review proved: after any member save through the API,
+`count_rule_usage` returns **0 for a rule that is genuinely in use**, because the link was
+dropped. The "refuse to delete a rule in use" guard below would read that 0 and permit the
+delete — a guard reporting safety it has not earned, which is this codebase's signature
+failure. Do this step first and confirm the count is right before building the guard.
+
+- `set_playbook_members` (`db.py:623`) reinserts members with column list
+  `(playbook_id, policy_id, position, fires_on, guidance)` — **no `rule_id`**. Add it, and
+  add it to `list_playbook_members`' projection.
+- **`set_playbook_globals` (`db.py:657`) has the identical hole** for `rule_ref_id`, reached
+  by `PUT /playbooks/{id}/globals`. Fix both, or whoever fixes members will watch the tests
+  pass and leave the globals side broken (ruling R-8).
+- Add `REFERENCES rules(rule_id)` to both new columns — they are currently the only columns
+  in these tables without an FK, so a deleted rule leaves a dangling id that the backfill
+  never heals because it skips `rule_id IS NOT NULL`. SQLite accepts this on `ADD COLUMN`
+  when the default is NULL (ruling R-9).
+
+Tests: save members carrying a `rule_id`, read them back **without** re-running the
+migration, assert it survived; the same for globals; and `count_rule_usage` still correct
+after a save.
+
+- [ ] **Step 1: Write the failing tests** — create/list/update round-trip; duplicate name returns **409**; deleting a rule that is in use returns **409** with the usage count in the detail (never silently orphan a member); and — ruling R-10 — a rule whose `usage_count` is 0 CAN be deleted, because guidance edits mint orphans until Task 12 removes the compatibility alias, and the library must not accumulate them with no way to clear them; `usage_count` is present on list.
 
 - [ ] **Step 2: Watch them fail**
 
@@ -280,19 +304,6 @@ Run: `git diff --stat backend/engine/playbook.py` — expected: **no output**. I
 - [ ] **Step 2: Watch it fail**
 
 - [ ] **Step 3: Implement.** Accept `guidance` as a deprecated alias for one release: when `guidance` is sent without `rule_id`, resolve-or-create a rule exactly as the migration does. This keeps wave D/E's existing e2e fixtures working instead of breaking 15+ tests as collateral.
-
-- [ ] **Step 3a: Make `set_playbook_members` persist `rule_id` (ruling R-6)**
-
-Found by Task 2: `set_playbook_members` (`db.py:630`) deletes and reinserts the whole
-member set and its INSERT column list is
-`(playbook_id, policy_id, position, fires_on, guidance)` — **no `rule_id`**. So every save
-through the existing API silently drops the link to NULL, and it is only re-derived at the
-next startup by matching guidance text. Two members that legitimately share a rule would be
-re-linked by text and appear correct, which is what makes this hard to notice.
-
-Add `rule_id` to the INSERT and to `list_playbook_members`' projection. Test: save members
-carrying a `rule_id`, read them back **without** re-running the migration, and assert the
-`rule_id` survived.
 
 - [ ] **Step 3b: Expose `rule_names` on `/states` and `/trace` (ruling R-2)**
 
@@ -477,6 +488,32 @@ Once Tasks 7-11 have landed and every caller sends `rule_id`, **delete the alias
 update any remaining fixture. Shipping both paths permanently means two ways to express
 one thing, in exactly the area where the three-way `rule_refs` semantics already demand
 care.
+
+- [ ] **Step 1b: Close the three test gaps Task 2's review proved (rulings R-11..R-13)**
+
+Each is a place where a test names a property it cannot fail on — the pattern that let
+`test_initialize_idempotent` pass for months while `initialize()` silently discarded every
+row, because it only counted tables.
+
+- **R-11**: `test_migration_is_idempotent` still passes with the `rule_id IS NULL` guard
+  REMOVED — the reviewer proved it by subclassing the store. What actually makes the
+  migration idempotent is seeding `by_guidance` from the `rules` table, and both the brief
+  and the report credit the wrong mechanism. Add: pre-set a member's `rule_id` to a rule
+  whose guidance differs from the member's text, run `initialize()`, assert the link was
+  **not** rewritten.
+- **R-12**: `count_rule_usage`'s `DISTINCT` is untested — the existing test puts the two
+  references in different playbooks, so `COUNT(*)` passes too. Add: both references in ONE
+  playbook, expect 1.
+- **R-13**: nothing would catch a normalising `.strip()`, the classic losslessness bug.
+  Every seeded string is short, single-line, ASCII, untrimmed. Add one seed like
+  `"  Keep the\n\ttrailing space. "` asserted byte-identical on both the member column and
+  `rules.guidance`.
+
+- [ ] **Step 1c: Sweep orphaned rules (ruling R-10)**
+
+Removing the `guidance` alias in Step 1 stops new orphans. Any already minted by earlier
+edits stay. Confirm the library has no rule with `usage_count == 0` that the user did not
+deliberately create, and that the Task 8 UI can delete the ones that exist.
 
 - [ ] **Step 2: Hunt dead code, and prove each finding before deleting**
 
