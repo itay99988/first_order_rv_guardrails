@@ -377,4 +377,134 @@ describe("PlaybookEditor", () => {
       expect(screen.queryByTestId("member-detached-p1")).toBeNull();
     });
   });
+
+  // Playbook-wide rules are the last half of a playbook that still carried
+  // its own text. They draw from the same library the members do, so these
+  // drive the pane from the editor rather than asserting on the payload
+  // shape alone.
+  describe("playbook-wide rules", () => {
+    const oneGlobal = [
+      {
+        rule_id: "g1",
+        playbook_id: "pb1",
+        name: "Escalate",
+        guidance: "Be warm.",
+        position: 0,
+        apply_to_all: 1,
+        rule_ref_id: "r_warm",
+      },
+    ];
+
+    beforeEach(() => {
+      mockGetPolicies.mockResolvedValue([]);
+      mockGetPlaybookStates.mockResolvedValue({
+        playbook_id: "pb1", state_count: 1, members: [], behaviours: [],
+        warnings: [],
+      });
+      mockGetPlaybookGlobals.mockResolvedValue(oneGlobal);
+      mockSetPlaybookGlobals.mockResolvedValue(oneGlobal);
+    });
+
+    it("names the library rule each playbook-wide rule draws from", async () => {
+      render(<PlaybookEditor playbook={playbook} onBack={vi.fn()} />);
+
+      await screen.findByTestId("global-row-0");
+      expect(screen.getByTestId("global-rule-0")).toHaveTextContent(
+        "Rule_Be_warm",
+      );
+    });
+
+    // R-18: `playbook_global_rules.rule_id` is what a state's
+    // `{type: "global"}` pin points at, and the PUT replaces the whole set.
+    // A save that omits the id mints a fresh one, so every pin naming the old
+    // one silently resolves to nothing -- an unrelated edit in this pane
+    // would drop guidance the user pinned to one specific state.
+    it("sends each row's own id back, so state pins are not orphaned", async () => {
+      render(<PlaybookEditor playbook={playbook} onBack={vi.fn()} />);
+      await screen.findByTestId("global-row-0");
+
+      await userEvent.click(screen.getByTestId("save-globals"));
+
+      await waitFor(() =>
+        expect(mockSetPlaybookGlobals).toHaveBeenCalledWith("pb1", [
+          {
+            rule_id: "g1",
+            name: "Escalate",
+            guidance: "Be warm.",
+            position: 0,
+            apply_to_all: true,
+            rule_ref_id: "r_warm",
+          },
+        ]),
+      );
+    });
+
+    // R-19: without the id the save is text-addressed, and matches its
+    // library rule only while the resolved text happens to agree. Edit the
+    // rule elsewhere and the next save mints a duplicate instead.
+    it("keeps the library link on a row whose text was not touched", async () => {
+      render(<PlaybookEditor playbook={playbook} onBack={vi.fn()} />);
+      await screen.findByTestId("global-row-0");
+
+      await userEvent.clear(screen.getByTestId("global-name-0"));
+      await userEvent.type(screen.getByTestId("global-name-0"), "Escalate hard");
+      await userEvent.click(screen.getByTestId("save-globals"));
+
+      await waitFor(() =>
+        expect(mockSetPlaybookGlobals).toHaveBeenCalledWith("pb1", [
+          expect.objectContaining({ rule_id: "g1", rule_ref_id: "r_warm" }),
+        ]),
+      );
+    });
+
+    // The mirror of the members pane: edited text is the instruction, so the
+    // link is dropped and the server resolves the text onto a rule of its
+    // own rather than rewriting one other playbooks share.
+    it("detaches a row from its library rule when its text is edited in place", async () => {
+      render(<PlaybookEditor playbook={playbook} onBack={vi.fn()} />);
+      await screen.findByTestId("global-guidance-0");
+
+      await userEvent.clear(screen.getByTestId("global-guidance-0"));
+      await userEvent.type(screen.getByTestId("global-guidance-0"), "Be brief.");
+      expect(screen.getByTestId("global-detached-0")).toHaveTextContent(
+        /Rule_Be_warm unchanged/,
+      );
+
+      await userEvent.click(screen.getByTestId("save-globals"));
+
+      await waitFor(() =>
+        expect(mockSetPlaybookGlobals).toHaveBeenCalledWith("pb1", [
+          {
+            rule_id: "g1",
+            name: "Escalate",
+            guidance: "Be brief.",
+            position: 0,
+            apply_to_all: true,
+          },
+        ]),
+      );
+    });
+
+    // A row added in this pane has no id of its own yet: the server mints
+    // one. Sending `rule_id: undefined` would be indistinguishable from a
+    // row that lost its id, so the key is left off entirely.
+    it("leaves the id off a row this pane has just added", async () => {
+      render(<PlaybookEditor playbook={playbook} onBack={vi.fn()} />);
+      await screen.findByTestId("global-row-0");
+
+      await userEvent.click(screen.getByTestId("add-global-rule"));
+      await userEvent.type(screen.getByTestId("global-name-1"), "House style");
+      await userEvent.type(screen.getByTestId("global-guidance-1"), "Be brief.");
+      await userEvent.click(screen.getByTestId("save-globals"));
+
+      await waitFor(() => expect(mockSetPlaybookGlobals).toHaveBeenCalled());
+      const [, sent] = mockSetPlaybookGlobals.mock.calls[0];
+      expect(sent[1]).toEqual({
+        name: "House style",
+        guidance: "Be brief.",
+        position: 1,
+        apply_to_all: false,
+      });
+    });
+  });
 });

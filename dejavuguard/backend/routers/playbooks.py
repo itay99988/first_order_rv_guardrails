@@ -84,7 +84,16 @@ class MembersRequest(BaseModel):
 
 
 class GlobalSpec(BaseModel):
+    #: This row's own identity within the playbook, and what a state's
+    #: `{type: "global"}` pin points at. The PUT replaces the whole set, so
+    #: a client that drops it here mints a fresh id and orphans every pin
+    #: naming the old one (R-18).
     rule_id: str | None = None
+    #: The shared rule this row's guidance comes from -- a member's
+    #: `rule_id` under a different name, because `rule_id` above is already
+    #: taken by this table's own key. `guidance` below is the deprecated
+    #: alias kept for one release, resolved to a rule on the way in.
+    rule_ref_id: str | None = None
     name: str
     guidance: str
     position: int = 0
@@ -133,6 +142,44 @@ async def _linked_members(db: DatabaseStore, members: list[MemberSpec]) -> list[
             "rule_id": await db.resolve_or_create_rule(
                 member.guidance, policy["name"] if policy else None
             ),
+        })
+    return out
+
+
+async def _linked_globals(db: DatabaseStore, specs: list[GlobalSpec]) -> list[dict]:
+    """Attach each playbook-wide rule to the rule it names, or to its text.
+
+    The members' `_linked_members` under a different field name, and for the
+    same reasons -- with one addition. Matching a row to its library rule by
+    the text it carries works only while the two still agree: edit the rule
+    and re-save this pane in the same sitting and the save no longer
+    recognises its own rule, minting a duplicate and stranding the edited
+    one at zero usage. A named `rule_ref_id` is a statement of intent, so it
+    wins over any text sent beside it (R-19).
+
+    `rule_id` is echoed rather than regenerated: it is this row's identity
+    inside the playbook, and a state pinned with `{type: "global"}` names
+    it. Minting a new one on every save would leave those pins pointing at
+    an id that no longer exists, and `_resolve_refs` drops such a ref
+    silently (R-18). A row the client has just added carries none, so one is
+    minted for it here.
+
+    A named rule that does not exist is refused rather than saved unlinked:
+    an unlinked row contributes no guidance, and nothing downstream would
+    report that the id had been dropped. Every id is checked before the
+    first rule is minted, so a request that fails leaves no rule behind.
+    """
+    for spec in specs:
+        if spec.rule_ref_id and not await db.get_rule(spec.rule_ref_id):
+            raise HTTPException(422, f"Rule '{spec.rule_ref_id}' not found.")
+
+    out: list[dict] = []
+    for spec in specs:
+        out.append({
+            **spec.model_dump(),
+            "rule_id": spec.rule_id or str(uuid.uuid4()),
+            "rule_ref_id": spec.rule_ref_id
+            or await db.resolve_or_create_rule(spec.guidance, spec.name),
         })
     return out
 
@@ -345,11 +392,9 @@ async def get_globals(request: Request, playbook_id: str):
 async def set_globals(request: Request, playbook_id: str, body: GlobalsRequest):
     db = _get_db(request)
     await _require(db, playbook_id)
-    await db.set_playbook_globals(playbook_id, [
-        {**g.model_dump(), "rule_id": g.rule_id or str(uuid.uuid4()),
-         "rule_ref_id": await db.resolve_or_create_rule(g.guidance, g.name)}
-        for g in body.globals
-    ])
+    await db.set_playbook_globals(
+        playbook_id, await _linked_globals(db, body.globals)
+    )
     invalidate_monitors()
     return await _resolved_globals(db, playbook_id)
 

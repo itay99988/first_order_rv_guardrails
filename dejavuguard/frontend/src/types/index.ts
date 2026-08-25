@@ -325,14 +325,19 @@ export interface PlaybookStateInfo {
 }
 
 /**
- * A playbook-wide guidance rule. `rule_id` is optional on write (the server
- * generates one when absent) but always present on read. `playbook_id` is
- * only present on read (raw `SELECT *` off `playbook_global_rules`).
+ * A playbook-wide rule. `rule_id` is optional on write (the server generates
+ * one when absent) but always present on read -- and it is what a state's
+ * `{type: "global"}` ref points at, so a save that drops it orphans every
+ * pin naming that row. `rule_ref_id` names the shared library rule the
+ * guidance comes from: a member's `rule_id` under another name, because
+ * this table's own key already claimed that one. `playbook_id` is only
+ * present on read (raw `SELECT *` off `playbook_global_rules`).
  * `apply_to_all` round-trips as a SQLite 0/1 integer on read, not a JSON
  * boolean -- type it as it actually arrives, not as written.
  */
 export interface PlaybookGlobalRule {
   rule_id?: string;
+  rule_ref_id?: string | null;
   playbook_id?: string;
   name: string;
   guidance: string;

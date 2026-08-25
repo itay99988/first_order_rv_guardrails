@@ -690,3 +690,109 @@ def test_saving_the_globals_editor_after_a_library_edit_keeps_the_edit(client):
     rules = client.get("/api/rules").json()
     assert len(rules) == rule_count
     assert [r["usage_count"] for r in rules if r["rule_id"] == rule_id] == [1]
+
+
+def test_a_playbook_wide_rule_can_name_a_library_rule(client):
+    """Playbook-wide rules draw from the library, by id rather than by text.
+
+    Matching a rule on its resolved text works only while the two agree: a
+    rule edited between the editor's load and its save no longer matches the
+    text the editor holds, and the save mints a duplicate instead of keeping
+    the link. Naming the rule outright turns that coincidence into a
+    guarantee -- and it is the only way to say which rule a row uses once
+    the inline column is gone.
+    """
+    pb = client.post("/api/playbooks", json={"name": "Budget"}).json()["playbook_id"]
+    rule_id = _rule(client, "Escalate", "Escalate to a human.")
+    rule_count = len(client.get("/api/rules").json())
+
+    body = client.put(f"/api/playbooks/{pb}/globals", json={"globals": [
+        {"name": "Escalate", "guidance": "", "position": 0,
+         "apply_to_all": True, "rule_ref_id": rule_id}]}).json()
+
+    assert body[0]["rule_ref_id"] == rule_id
+    assert body[0]["guidance"] == "Escalate to a human."
+    # Named, not re-derived: nothing new was minted from the empty text.
+    assert len(client.get("/api/rules").json()) == rule_count
+
+    assert client.put(f"/api/rules/{rule_id}",
+                      json={"guidance": "Escalate now."}).status_code == 200
+    got = client.get(f"/api/playbooks/{pb}/globals").json()
+    assert got[0]["guidance"] == "Escalate now."
+
+
+def test_a_global_rule_ref_id_wins_over_inline_guidance(client):
+    """The explicit link is the statement of intent; the text is legacy.
+
+    Same rule as a member's `rule_id`: text sent beside a named rule is
+    ignored rather than rewriting the rule or minting a second one.
+    """
+    pb = client.post("/api/playbooks", json={"name": "Budget"}).json()["playbook_id"]
+    rule_id = _rule(client, "Escalate", "Escalate to a human.")
+    rule_count = len(client.get("/api/rules").json())
+
+    body = client.put(f"/api/playbooks/{pb}/globals", json={"globals": [
+        {"name": "Escalate", "guidance": "Something else entirely.", "position": 0,
+         "apply_to_all": True, "rule_ref_id": rule_id}]}).json()
+
+    assert body[0]["rule_ref_id"] == rule_id
+    assert body[0]["guidance"] == "Escalate to a human."
+    assert len(client.get("/api/rules").json()) == rule_count
+    assert client.get(f"/api/rules/{rule_id}").json()["guidance"] == (
+        "Escalate to a human.")
+
+
+def test_naming_a_missing_rule_in_the_globals_is_refused(client):
+    """An unlinked playbook-wide rule contributes nothing, silently.
+
+    Saving it unlinked would look like success and remove the guidance, so
+    the id is checked instead -- the same refusal a member's rule_id gets.
+    """
+    pb = client.post("/api/playbooks", json={"name": "Budget"}).json()["playbook_id"]
+
+    resp = client.put(f"/api/playbooks/{pb}/globals", json={"globals": [
+        {"name": "Escalate", "guidance": "Escalate to a human.", "position": 0,
+         "apply_to_all": True, "rule_ref_id": "no-such-rule"}]})
+
+    assert resp.status_code == 422
+    assert client.get(f"/api/playbooks/{pb}/globals").json() == []
+
+
+def test_resaving_the_globals_keeps_a_state_pinned_to_a_playbook_wide_rule(client):
+    """A globals save must not orphan the pins that name its rows (R-18).
+
+    `playbook_global_rules.rule_id` is what a `{type: "global"}` ref points
+    at, and the PUT replaces the whole set -- so a save that omits the id
+    mints a fresh one and every pin naming the old id resolves to nothing.
+    An unrelated edit in the globals pane would quietly drop guidance the
+    user pinned to one specific state, with nothing reporting it.
+    """
+    policy_id = _policy(client, "p_a", "A")
+    pb = client.post("/api/playbooks", json={"name": "Budget"}).json()["playbook_id"]
+    client.put(f"/api/playbooks/{pb}/members", json={"members": [
+        {"policy_id": policy_id, "position": 0, "fires_on": False, "guidance": "R."}]})
+    client.put(f"/api/playbooks/{pb}/globals", json={"globals": [
+        {"name": "Escalate", "guidance": "Escalate to a human.", "position": 0,
+         "apply_to_all": False}]})
+
+    reopened = client.get(f"/api/playbooks/{pb}/globals").json()
+    pinned_id = reopened[0]["rule_id"]
+    client.put(f"/api/playbooks/{pb}/states/{policy_id}=F", json={
+        "rule_refs": [{"type": "global", "rule_id": pinned_id}],
+        "flagged": True, "label": "Stop"})
+
+    # The editor reopens the pane, changes something unrelated, and saves.
+    reopened[0]["name"] = "Escalate to a human"
+    assert client.put(f"/api/playbooks/{pb}/globals",
+                      json={"globals": reopened}).status_code == 200
+
+    assert client.get(f"/api/playbooks/{pb}/globals").json()[0]["rule_id"] == pinned_id
+    states = client.get(f"/api/playbooks/{pb}/states").json()
+    pinned = [
+        s for b in states["behaviours"] for s in b["states"]
+        if s["state_key"] == f"{policy_id}=F"
+    ]
+    assert [b["rules"] for b in states["behaviours"]
+            if any(s["state_key"] == f"{policy_id}=F" for s in b["states"])] == [
+        ["Escalate to a human."]]
+    assert pinned[0]["rule_refs"] == [{"type": "global", "rule_id": pinned_id}]

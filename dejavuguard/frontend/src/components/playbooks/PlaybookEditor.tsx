@@ -54,9 +54,36 @@ interface GlobalRow {
   name: string;
   guidance: string;
   apply_to_all: boolean;
+  /**
+   * This row's identity inside the playbook, and what a state's
+   * `{type: "global"}` pin names. Null only for a row this pane has just
+   * added, which the server has yet to mint one for. Sending it back on
+   * every save is what keeps those pins pointing at a row that still
+   * exists.
+   */
+  rule_id: string | null;
+  /** The shared rule this row draws from; null when it has no guidance. */
+  rule_ref_id: string | null;
+  rule_name: string | null;
+  /**
+   * The rule's text as loaded. The server takes a named rule at its word
+   * and ignores any text sent beside it, so a row whose text has been
+   * edited has to be saved WITHOUT the link -- otherwise the edit reports
+   * success and changes nothing. Comparing against this is how the save
+   * knows which of the two it is looking at.
+   */
+  rule_guidance: string;
 }
 
-const emptyGlobalRow: GlobalRow = { name: "", guidance: "", apply_to_all: false };
+const emptyGlobalRow: GlobalRow = {
+  name: "",
+  guidance: "",
+  apply_to_all: false,
+  rule_id: null,
+  rule_ref_id: null,
+  rule_name: null,
+  rule_guidance: "",
+};
 
 /** Member rows in display order, each labelled with the rule it draws from. */
 function rowsFrom(members: PlaybookMember[], rules: Rule[]): MemberRow[] {
@@ -71,6 +98,22 @@ function rowsFrom(members: PlaybookMember[], rules: Rule[]): MemberRow[] {
       rule_id: m.rule_id ?? null,
       rule_name: m.rule_id ? (ruleNames.get(m.rule_id) ?? null) : null,
       rule_guidance: m.guidance,
+    }));
+}
+
+/** Playbook-wide rows in display order, each labelled with its library rule. */
+function globalRowsFrom(globals: PlaybookGlobalRule[], rules: Rule[]): GlobalRow[] {
+  const ruleNames = new Map(rules.map((r) => [r.rule_id, r.name]));
+  return [...globals]
+    .sort((a, b) => a.position - b.position)
+    .map((g) => ({
+      name: g.name,
+      guidance: g.guidance,
+      apply_to_all: !!g.apply_to_all,
+      rule_id: g.rule_id ?? null,
+      rule_ref_id: g.rule_ref_id ?? null,
+      rule_name: g.rule_ref_id ? (ruleNames.get(g.rule_ref_id) ?? null) : null,
+      rule_guidance: g.guidance,
     }));
 }
 
@@ -116,15 +159,7 @@ export default function PlaybookEditor({ playbook, onBack }: Props) {
 
       setMemberRows(rowsFrom(states.members, rules));
 
-      setGlobalRows(
-        globals
-          .sort((a, b) => a.position - b.position)
-          .map((g) => ({
-            name: g.name,
-            guidance: g.guidance,
-            apply_to_all: !!g.apply_to_all,
-          })),
-      );
+      setGlobalRows(globalRowsFrom(globals, rules));
     } catch (err) {
       setLoadError(
         err instanceof Error ? err.message : "Failed to load playbook editor",
@@ -229,18 +264,43 @@ export default function PlaybookEditor({ playbook, onBack }: Props) {
     try {
       const globals: PlaybookGlobalRule[] = globalRows
         .filter((r) => r.name.trim())
-        .map((r, index) => ({
-          name: r.name.trim(),
-          guidance: r.guidance,
-          position: index,
-          apply_to_all: r.apply_to_all,
-        }));
+        .map((r, index) => {
+          const spec: PlaybookGlobalRule = {
+            name: r.name.trim(),
+            guidance: r.guidance,
+            position: index,
+            apply_to_all: r.apply_to_all,
+          };
+          // The PUT replaces the whole set, so a row that arrives without
+          // its id is a new row and gets a fresh one -- orphaning every
+          // state pinned to the id it used to have.
+          if (r.rule_id) {
+            spec.rule_id = r.rule_id;
+          }
+          // Send the link only while the text still belongs to that rule.
+          // Once it has been edited in place the text is the instruction,
+          // and the server resolves it onto a rule of its own rather than
+          // silently rewriting one this playbook shares with others.
+          if (r.rule_ref_id && r.guidance === r.rule_guidance) {
+            spec.rule_ref_id = r.rule_ref_id;
+          }
+          return spec;
+        });
       await setPlaybookGlobals(playbook.playbook_id, globals);
       setGlobalsSaved(true);
       setStatesToken((n) => n + 1);
+      // Re-read rather than trust the draft: the server resolves each row
+      // onto a rule and mints an id for each new one, and the draft knows
+      // neither. Keeping it would leave a row warning about a detach that
+      // has already happened, and a new row with no id to pin against.
+      const [saved, rules] = await Promise.all([
+        getPlaybookGlobals(playbook.playbook_id),
+        listRules().catch(() => []),
+      ]);
+      setGlobalRows(globalRowsFrom(saved, rules));
     } catch (err) {
       setGlobalsError(
-        err instanceof Error ? err.message : "Failed to save global guidance",
+        err instanceof Error ? err.message : "Failed to save playbook-wide rules",
       );
     } finally {
       setSavingGlobals(false);
@@ -476,11 +536,11 @@ export default function PlaybookEditor({ playbook, onBack }: Props) {
         )}
       </section>
 
-      {/* Global guidance pane */}
+      {/* Playbook-wide rules pane */}
       <section>
         <div className="mb-3 flex items-center justify-between">
           <h3 className="text-sm font-mono font-bold text-terminal-text uppercase tracking-wider">
-            Global guidance
+            Playbook-wide rules
           </h3>
           <button
             onClick={addGlobalRow}
@@ -492,9 +552,10 @@ export default function PlaybookEditor({ playbook, onBack }: Props) {
           </button>
         </div>
         <p className="mb-3 text-xs text-terminal-dim">
-          Named guidance rules that apply across the playbook. Check "apply to
-          all states" for guidance that should be shown regardless of which
-          state the session is in.
+          Rules that apply across the playbook rather than to one member. Each
+          one draws its guidance from the shared library, so editing the rule
+          there updates it here too. Check "apply to all states" for guidance
+          that should be shown regardless of which state the session is in.
         </p>
 
         <div className="space-y-2" data-testid="global-rows">
@@ -515,10 +576,16 @@ export default function PlaybookEditor({ playbook, onBack }: Props) {
                   className="w-full rounded-none border border-border bg-dark-primary px-3 py-2 font-mono text-sm text-terminal-bright placeholder-terminal-dim focus:border-accent/50 focus:outline-none focus:ring-1 focus:ring-accent/20"
                   data-testid={`global-name-${index}`}
                 />
+                <span
+                  className="shrink-0 font-mono text-xs text-accent"
+                  data-testid={`global-rule-${index}`}
+                >
+                  {row.rule_name ?? "(no rule)"}
+                </span>
                 <button
                   onClick={() => removeGlobalRow(index)}
                   className="shrink-0 p-1.5 text-terminal-dim hover:bg-terminal-red/10 hover:text-terminal-red"
-                  aria-label={`Remove global rule ${index + 1}`}
+                  aria-label={`Remove playbook-wide rule ${index + 1}`}
                   data-testid={`remove-global-${index}`}
                 >
                   <Trash2 size={14} />
@@ -535,6 +602,16 @@ export default function PlaybookEditor({ playbook, onBack }: Props) {
                 className="mt-2 w-full rounded-none border border-border bg-dark-primary px-3 py-2 text-sm text-terminal-bright placeholder-terminal-dim focus:border-accent/50 focus:outline-none focus:ring-1 focus:ring-accent/20"
                 data-testid={`global-guidance-${index}`}
               />
+
+              {row.rule_ref_id && row.guidance !== row.rule_guidance && (
+                <p
+                  className="mt-1 text-xs text-terminal-amber"
+                  data-testid={`global-detached-${index}`}
+                >
+                  Saving moves this rule onto one of its own, leaving{" "}
+                  {row.rule_name} unchanged.
+                </p>
+              )}
 
               <label className="mt-2 flex items-center gap-2 text-xs text-terminal-dim">
                 <input
@@ -553,7 +630,7 @@ export default function PlaybookEditor({ playbook, onBack }: Props) {
 
           {globalRows.length === 0 && (
             <p className="text-sm text-terminal-dim" data-testid="no-global-rules">
-              No global guidance rules yet.
+              No playbook-wide rules yet.
             </p>
           )}
         </div>
@@ -565,7 +642,7 @@ export default function PlaybookEditor({ playbook, onBack }: Props) {
             className="btn-primary rounded-none px-4 py-2 text-sm font-medium"
             data-testid="save-globals"
           >
-            {savingGlobals ? "Saving..." : "Save global guidance"}
+            {savingGlobals ? "Saving..." : "Save playbook-wide rules"}
           </button>
         </div>
 
@@ -576,7 +653,7 @@ export default function PlaybookEditor({ playbook, onBack }: Props) {
         )}
         {globalsSaved && !globalsError && (
           <p className="mt-2 text-sm text-terminal-green" data-testid="globals-saved">
-            Global guidance saved.
+            Playbook-wide rules saved.
           </p>
         )}
       </section>
