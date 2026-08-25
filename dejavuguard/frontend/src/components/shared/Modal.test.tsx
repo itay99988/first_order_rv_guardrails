@@ -79,6 +79,32 @@ describe("Modal", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it("keeps a tall body inside the viewport instead of pushing the actions off it", () => {
+    // jsdom computes no layout, so this asserts the mechanism rather than the
+    // pixels: the panel is capped and a separate region scrolls. Without both,
+    // a long body -- the add-policy rule list, say -- grew the panel past the
+    // screen and the confirm button ended up somewhere unreachable, which is
+    // how the flow shipped unusable despite a green suite.
+    render(
+      <Modal open onClose={vi.fn()} title="Add policy">
+        {Array.from({ length: 60 }, (_, i) => (
+          <p key={i}>rule {i}</p>
+        ))}
+        <button>Add to playbook</button>
+      </Modal>,
+    );
+
+    const panel = screen.getByTestId("modal");
+    expect(panel.className).toMatch(/max-h-\[90vh\]/);
+    expect(panel.className).toMatch(/\bflex-col\b/);
+
+    const body = screen.getByTestId("modal-body");
+    expect(body.className).toMatch(/overflow-y-auto/);
+    expect(body.className).toMatch(/min-h-0/);
+    // the actions must live inside the scrolling region, not outside it
+    expect(body).toContainElement(screen.getByRole("button", { name: "Add to playbook" }));
+  });
+
   it("calls onClose when clicking the overlay background", async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
