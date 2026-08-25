@@ -139,14 +139,38 @@ def test_deleting_a_playbook(client):
     assert client.get("/api/playbooks").json() == []
 
 
-def test_trace_returns_nodes_and_observed_edges(client):
-    """Edges come from the messages a session actually produced."""
-    a = _policy(client, "p_a", "A")
-    pb = client.post("/api/playbooks", json={"name": "Budget"}).json()["playbook_id"]
-    client.put(f"/api/playbooks/{pb}/members", json={"members": [
-        {"policy_id": a, "position": 0, "fires_on": False, "guidance": "R."}]})
+async def _seed_traced_member(db_path: str) -> None:
+    """One member, attached to a rule, and a session that never ran.
 
-    body = client.get(f"/api/playbooks/{pb}/trace?session_id=none").json()
+    Seeded through the store rather than over HTTP because the members
+    endpoint cannot carry a rule yet (Task 5). The member's own guidance
+    column is left empty on purpose, so the node below can only be named
+    from the rule.
+    """
+    db = DatabaseStore(db_path)
+    await db.initialize()
+    await db.create_proposition("p_a", "a", "user")
+    await db.create_policy("pol-a", "A", "p_a", True)
+    await db.set_policy_propositions("pol-a", ["p_a"])
+    await db.create_playbook("pb1", "Budget")
+    await db.set_playbook_members("pb1", [
+        {"policy_id": "pol-a", "position": 0, "fires_on": False, "guidance": ""}])
+    await db.create_rule("r1", "R", "R.")
+    await db._db.execute(
+        "UPDATE playbook_members SET rule_id = 'r1' WHERE playbook_id = 'pb1'"
+    )
+    await db._db.commit()
+    await db.close()
+
+
+def test_trace_returns_nodes_and_observed_edges(tmp_path, monkeypatch):
+    """Edges come from the messages a session actually produced."""
+    db_path = str(tmp_path / "trace.db")
+    monkeypatch.setenv("DATABASE_PATH", db_path)
+    asyncio.run(_seed_traced_member(db_path))
+
+    with TestClient(create_app()) as client:
+        body = client.get("/api/playbooks/pb1/trace?session_id=none").json()
 
     assert {n["name"] for n in body["nodes"]} == {"(no guidance)", "R."}
     assert body["edges"] == []
@@ -475,3 +499,21 @@ def test_two_states_in_one_behaviour_report_their_own_rule_refs(client):
         {"type": "member", "policy_id": first},
         {"type": "member", "policy_id": second},
     ]
+
+
+def test_states_reports_the_members_resolved_rule_guidance(tmp_path, monkeypatch):
+    """The truth table names behaviours from the rule library.
+
+    /states is assembled from the same loader as /trace, but through a
+    different payload, so it is worth pinning separately -- a member whose
+    only guidance is its rule must still read as guidance here.
+    """
+    db_path = str(tmp_path / "states.db")
+    monkeypatch.setenv("DATABASE_PATH", db_path)
+    asyncio.run(_seed_traced_member(db_path))
+
+    with TestClient(create_app()) as client:
+        body = client.get("/api/playbooks/pb1/states").json()
+
+    assert [m["guidance"] for m in body["members"]] == ["R."]
+    assert {b["name"] for b in body["behaviours"]} == {"(no guidance)", "R."}

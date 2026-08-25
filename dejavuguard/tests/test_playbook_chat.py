@@ -14,7 +14,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from backend.main import create_app
-from backend.routers.chat import render_guidance
+from backend.routers.chat import _load_playbook, render_guidance
 from backend.store.db import DatabaseStore
 
 
@@ -317,3 +317,58 @@ async def test_deleting_a_session_mid_construction_does_not_cache_its_monitor(
     assert "s1" not in chat_mod._monitors
     assert await db.get_session("s1") is None
     await db.close()
+
+
+@pytest.fixture
+async def rule_linked(tmp_path):
+    """A playbook whose first member is attached to a shared rule.
+
+    The member's inline `guidance` column is left holding different text on
+    purpose. A loader that still read the column would pass every assertion
+    below by accident, so the two texts have to disagree for the test to say
+    anything.
+    """
+    store = DatabaseStore(str(tmp_path / "linked.db"))
+    await store.initialize()
+    await store.create_policy("p_a", "A", "true")
+    await store.create_policy("p_b", "B", "true")
+    await store.create_playbook("pb", "PB", None)
+    await store.set_playbook_members("pb", [
+        {"policy_id": "p_a", "position": 0, "fires_on": True, "guidance": "Stale copy."},
+        {"policy_id": "p_b", "position": 1, "fires_on": True,
+         "guidance": "Orphaned text."},
+    ])
+    await store.create_rule("r1", "Budget", "Stay within budget.")
+    await store._db.execute(
+        "UPDATE playbook_members SET rule_id = ? WHERE playbook_id = ? AND policy_id = ?",
+        ("r1", "pb", "p_a"),
+    )
+    await store._db.commit()
+    yield store
+    await store.close()  # never `return` -- leaks aiosqlite's worker thread
+
+
+async def test_member_guidance_comes_from_the_linked_rule(rule_linked):
+    """The rule library is the text's home; the inline column is not read."""
+    playbook = await _load_playbook(rule_linked, "pb")
+
+    by_policy = {m.policy_id: m for m in playbook.members}
+    assert by_policy["p_a"].guidance == "Stay within budget."
+
+
+async def test_a_member_with_no_rule_contributes_no_guidance(rule_linked):
+    """rule_id NULL means this member says nothing -- the engine's own '' case."""
+    playbook = await _load_playbook(rule_linked, "pb")
+
+    by_policy = {m.policy_id: m for m in playbook.members}
+    assert by_policy["p_b"].guidance == ""
+
+
+async def test_editing_a_rule_changes_what_the_member_resolves(rule_linked):
+    """The point of sharing: one edit reaches every member holding the rule."""
+    await rule_linked.update_rule("r1", guidance="Ask before overspending.")
+
+    playbook = await _load_playbook(rule_linked, "pb")
+
+    by_policy = {m.policy_id: m for m in playbook.members}
+    assert by_policy["p_a"].guidance == "Ask before overspending."

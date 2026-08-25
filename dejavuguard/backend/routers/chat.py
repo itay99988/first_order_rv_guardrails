@@ -39,16 +39,25 @@ def render_guidance(rules: list[str]) -> str:
 
 
 async def _load_playbook(db: DatabaseStore, playbook_id: str) -> Playbook | None:
-    """Assemble a Playbook from its stored rows."""
+    """Assemble a Playbook from its stored rows.
+
+    Guidance text lives in the shared `rules` library, so a member names a
+    rule and the text is resolved here, at the boundary. The engine keeps
+    receiving a plain resolved string and stays unaware that rules exist.
+
+    A member with no rule -- and one naming a rule that is gone -- resolves
+    to "", which the engine already reads as contributing nothing.
+    """
     row = await db.get_playbook(playbook_id)
     if not row:
         return None
+    rule_text = {r["rule_id"]: r["guidance"] for r in await db.list_rules()}
     members = tuple(
         PlaybookMember(
             policy_id=m["policy_id"],
             position=int(m["position"]),
             fires_on=bool(m["fires_on"]),
-            guidance=m["guidance"],
+            guidance=rule_text.get(m["rule_id"], ""),
         )
         for m in await db.list_playbook_members(playbook_id)
     )
