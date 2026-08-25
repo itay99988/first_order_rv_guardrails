@@ -460,6 +460,19 @@ The user's verdict on the current graph was "nothing is clear". The fix is that 
 
 - [ ] **Step 2: Watch it fail**
 
+- [ ] **Step 2b: Stop a globals save orphaning every `type:"global"` pin (ruling R-18)**
+
+Pre-existing, found by Task 4's review, and it lands squarely on the `rule_refs` contract
+this plan is protecting. `PlaybookEditor.handleSaveGlobals` (`:162-170`) omits `rule_id`, so
+`set_globals`' `g.rule_id or str(uuid.uuid4())` mints a **fresh local
+`playbook_global_rules.rule_id` on every save**. Any state override pinned with
+`{type: "global", rule_id: ...}` then points at an id that no longer exists, and
+`_resolve_refs` silently drops it — so an unrelated edit to the globals pane quietly removes
+guidance the user pinned to a specific state.
+
+Send the existing `rule_id` back on save. Test: pin a state to a playbook-wide rule, re-save
+the globals pane unchanged, assert the pin still resolves.
+
 - [ ] **Step 3: Implement**, relabelling the UI section to **"Playbook-wide rules"**. `rule_refs` keeps its `{type:"global",rule_id}` shape — do **not** unify it; that path runs through `collapse_overrides`.
 
 - [ ] **Step 4: Full backend suite + vitest + build**
