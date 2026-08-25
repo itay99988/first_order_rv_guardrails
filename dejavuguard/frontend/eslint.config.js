@@ -42,6 +42,20 @@ export default defineConfig([
                 'Use loadRuleLibrary() from components/playbooks/sharedRules: listRules alone cannot say whether the library is empty or unreachable.',
             },
           ],
+          // `paths` matches the specifier string, not the module, so it only
+          // covers the one spelling the codebase happens to use today; the
+          // same file reached through `../../api/client` was not restricted
+          // at all. A gate a rename of the import can walk around is the
+          // shape of guard this branch keeps finding, so both spellings are
+          // named.
+          patterns: [
+            {
+              group: ['**/api/client'],
+              importNames: ['listRules'],
+              message:
+                'Use loadRuleLibrary() from components/playbooks/sharedRules: listRules alone cannot say whether the library is empty or unreachable.',
+            },
+          ],
         },
       ],
     },
