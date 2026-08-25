@@ -13,6 +13,22 @@ interface MonitoringSelectorProps {
 }
 
 /**
+ * The playbook list, in the three states it can actually be in.
+ *
+ * The same shape `components/playbooks/sharedRules` exists for, and here for
+ * the same reason: this pane held a plain `Playbook[]` seeded empty and
+ * `.catch(() => setPlaybooks([]))`, so "no playbooks exist", "not asked yet"
+ * and "the request failed" were one value. A session already monitoring a
+ * playbook then renders a `<select>` whose value matches no option, and the
+ * browser falls back to the disabled placeholder -- the control tells the
+ * user no playbook is selected while the session is being monitored by one.
+ */
+type PlaybookList =
+  | { status: "loading" }
+  | { status: "ready"; playbooks: Playbook[] }
+  | { status: "failed" };
+
+/**
  * Per-session monitoring mode switch: a session runs either every enabled
  * policy, or a single playbook's members, never both. Switching restarts
  * that session's monitoring because the DejaVu specification changes with
@@ -27,7 +43,7 @@ export default function MonitoringSelector({
 }: MonitoringSelectorProps) {
   const [localMode, setLocalMode] = useState(mode);
   const [localPlaybookId, setLocalPlaybookId] = useState(playbookId);
-  const [playbooks, setPlaybooks] = useState<Playbook[]>([]);
+  const [list, setList] = useState<PlaybookList>({ status: "loading" });
 
   // Follow the session's actual mode when the parent hands us a new one
   // (e.g. switching to a different session).
@@ -38,8 +54,8 @@ export default function MonitoringSelector({
 
   useEffect(() => {
     getPlaybooks()
-      .then(setPlaybooks)
-      .catch(() => setPlaybooks([]));
+      .then((playbooks) => setList({ status: "ready", playbooks }))
+      .catch(() => setList({ status: "failed" }));
   }, []);
 
   const choosePolicies = () => {
@@ -63,6 +79,12 @@ export default function MonitoringSelector({
       setSessionMonitoring(sessionId, { mode: "playbook", playbook_id: id }),
     ).then(() => onChanged?.());
   };
+
+  /** The listed playbook this session is on, when the list can name it. */
+  const chosen =
+    list.status === "ready"
+      ? (list.playbooks.find((pb) => pb.playbook_id === localPlaybookId) ?? null)
+      : null;
 
   return (
     <div
@@ -98,14 +120,41 @@ export default function MonitoringSelector({
             <option value="" disabled>
               Select a playbook…
             </option>
-            {playbooks.map((pb) => (
-              <option key={pb.playbook_id} value={pb.playbook_id}>
-                {pb.name}
+            {/* The session's own playbook, when the list cannot name it. A
+                `<select>` whose value matches no option shows the
+                placeholder, which for a session that IS being monitored by a
+                playbook is the one thing this control must never say. The
+                three cases are kept apart because they mean different
+                things: still asking, asked and told nothing about it, and a
+                playbook that has been deleted out from under the session. */}
+            {localPlaybookId && !chosen && (
+              <option value={localPlaybookId} disabled>
+                {list.status === "ready"
+                  ? "(playbook unavailable)"
+                  : list.status === "failed"
+                    ? "(playbook list unavailable)"
+                    : "(loading…)"}
               </option>
-            ))}
+            )}
+            {list.status === "ready" &&
+              list.playbooks.map((pb) => (
+                <option key={pb.playbook_id} value={pb.playbook_id}>
+                  {pb.name}
+                </option>
+              ))}
           </select>
         )}
       </div>
+      {localMode === "playbook" && list.status === "failed" && (
+        <p
+          data-testid="playbook-list-error"
+          role="alert"
+          className="text-[11px] text-terminal-red"
+        >
+          The playbook list could not be loaded, so no other playbook can be
+          chosen here right now.
+        </p>
+      )}
       <p
         data-testid="monitoring-restart-note"
         className="text-[11px] text-terminal-dim"
