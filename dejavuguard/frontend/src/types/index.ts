@@ -255,6 +255,13 @@ export interface PlaybookStateRow {
 export interface PlaybookBehaviour {
   name: string;
   rules: string[];
+  /**
+   * The name of the library rule carrying each string in `rules`, index for
+   * index. Resolved by the server, which owns the text -> name mapping;
+   * recovering names from the guidance text on the client would make the UI
+   * a second source of truth for them.
+   */
+  rule_names: string[];
   flagged: boolean;
   states: PlaybookStateRow[];
 }
@@ -271,6 +278,8 @@ export interface PlaybookStates {
 export interface PlaybookTraceNode {
   name: string;
   rules: string[];
+  /** Rule names for `rules`, index for index -- see `PlaybookBehaviour`. */
+  rule_names: string[];
   flagged: boolean;
   visited: boolean;
   state_count: number;

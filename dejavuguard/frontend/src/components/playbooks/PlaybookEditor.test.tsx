@@ -49,7 +49,8 @@ describe("PlaybookEditor", () => {
       current: null,
       members: [],
       nodes: [
-        { name: "watch", rules: ["watch"], flagged: false, visited: false,
+        { name: "watch", rules: ["watch"], rule_names: ["Rule_watch"],
+          flagged: false, visited: false,
           state_count: 1, reachable: true, first_visit: null },
       ],
       edges: [],
@@ -206,7 +207,12 @@ describe("PlaybookEditor", () => {
     await userEvent.click(screen.getByTestId("states-view-graph"));
 
     expect(await screen.findByTestId("playbook-graph")).toBeInTheDocument();
+    // The node says which rules apply in it -- the point of the graph. Named
+    // here, not in PlaybookGraph.test.tsx alone, so this fails if the graph is
+    // ever unmounted from the editor.
+    expect(screen.getByTestId("node-watch")).toHaveTextContent("Rule_watch");
     // No session is being replayed here, so every behaviour is unvisited.
+    expect(screen.getByTestId("node-watch")).toHaveTextContent("Not visited");
     expect(mockGetPlaybookTrace).toHaveBeenCalledWith("pb1", "");
     expect(screen.queryByTestId("playbook-states")).toBeNull();
   });

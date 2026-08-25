@@ -63,18 +63,29 @@ vi.mock("@/hooks/useChat", () => ({
 // The graph the header badge opens is the real PlaybookGraph, not a stub, so
 // this file fails if it is ever unmounted from the header again.
 const mockGetPlaybookTrace = vi.fn();
+const mockGetPlaybookStates = vi.fn();
 vi.mock("@/api/client", () => ({
   getPlaybookTrace: (...a: unknown[]) => mockGetPlaybookTrace(...a),
+  getPlaybookStates: (...a: unknown[]) => mockGetPlaybookStates(...a),
 }));
 
 const trace = {
   current: "Over budget",
   members: [],
   nodes: [
-    { name: "Over budget", rules: ["Stay within budget."], flagged: true,
+    { name: "Over budget", rules: ["Stay within budget."],
+      rule_names: ["Budget cap"], flagged: true,
       visited: true, state_count: 1, reachable: true, first_visit: 0 },
   ],
   edges: [],
+};
+
+const graphStates = {
+  playbook_id: "pb1",
+  state_count: 1,
+  members: [],
+  behaviours: [],
+  warnings: [],
 };
 
 describe("ChatView", () => {
@@ -87,6 +98,7 @@ describe("ChatView", () => {
     mockUseChat.lastResponse = null;
     mockUseChat.clearLastResponse.mockReset();
     mockGetPlaybookTrace.mockReset().mockResolvedValue(trace);
+    mockGetPlaybookStates.mockReset().mockResolvedValue(graphStates);
   });
 
   function playbookSession() {
@@ -364,6 +376,12 @@ describe("ChatView", () => {
 
     expect(await screen.findByTestId("playbook-graph")).toBeInTheDocument();
     expect(mockGetPlaybookTrace).toHaveBeenCalledWith("pb1", "sess-1");
+    // The node names the rules that apply in it, and says it blocks -- the
+    // header badge gets the same legible graph the editor does.
+    const node = screen.getByTestId("node-Over budget");
+    expect(node).toHaveTextContent("Budget cap");
+    expect(node).toHaveTextContent(/blocks/i);
+    expect(node).toHaveTextContent("Current");
   });
 
   it("closes the state graph again", async () => {
