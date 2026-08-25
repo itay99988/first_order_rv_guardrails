@@ -85,6 +85,29 @@ const emptyGlobalRow: GlobalRow = {
   rule_guidance: "",
 };
 
+/**
+ * The link to send for a row, or undefined to let its text address the rule.
+ *
+ * Both panes decide this the same way and for the same reason, so they ask
+ * one function rather than each carrying a copy of the condition: the server
+ * takes a named rule at its word and ignores any text beside it, so a row
+ * whose text has been edited in place has to be saved WITHOUT its link --
+ * otherwise the edit reports success and changes nothing. Sending the link
+ * while the two still agree is what keeps an untouched row from minting a
+ * duplicate rule on every save.
+ *
+ * The members pane calls this `rule_id` and the playbook-wide pane calls it
+ * `rule_ref_id`, because that table's own primary key already took the first
+ * name. Nothing else about the decision differs.
+ */
+function linkWhileUnedited(
+  ruleId: string | null,
+  guidance: string,
+  ruleGuidance: string,
+): string | undefined {
+  return ruleId && guidance === ruleGuidance ? ruleId : undefined;
+}
+
 /** Member rows in display order, each labelled with the rule it draws from. */
 function rowsFrom(members: PlaybookMember[], rules: Rule[]): MemberRow[] {
   const ruleNames = new Map(rules.map((r) => [r.rule_id, r.name]));
@@ -209,12 +232,9 @@ export default function PlaybookEditor({ playbook, onBack }: Props) {
             fires_on: r.fires_on,
             guidance: r.guidance,
           };
-          // Send the link only while the text still belongs to that rule.
-          // Once it has been edited in place the text is the instruction,
-          // and the server resolves it onto a rule of its own rather than
-          // silently rewriting one this playbook shares with others.
-          if (r.rule_id && r.guidance === r.rule_guidance) {
-            spec.rule_id = r.rule_id;
+          const link = linkWhileUnedited(r.rule_id, r.guidance, r.rule_guidance);
+          if (link) {
+            spec.rule_id = link;
           }
           return spec;
         });
@@ -277,12 +297,13 @@ export default function PlaybookEditor({ playbook, onBack }: Props) {
           if (r.rule_id) {
             spec.rule_id = r.rule_id;
           }
-          // Send the link only while the text still belongs to that rule.
-          // Once it has been edited in place the text is the instruction,
-          // and the server resolves it onto a rule of its own rather than
-          // silently rewriting one this playbook shares with others.
-          if (r.rule_ref_id && r.guidance === r.rule_guidance) {
-            spec.rule_ref_id = r.rule_ref_id;
+          const link = linkWhileUnedited(
+            r.rule_ref_id,
+            r.guidance,
+            r.rule_guidance,
+          );
+          if (link) {
+            spec.rule_ref_id = link;
           }
           return spec;
         });

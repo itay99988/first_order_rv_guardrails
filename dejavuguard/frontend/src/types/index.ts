@@ -1,15 +1,5 @@
 // --- Chat ---
 
-export interface ChatMessage {
-  role: "user" | "assistant" | "system";
-  content: string;
-}
-
-export interface ChatRequest {
-  message: string;
-  session_id: string;
-}
-
 export interface ChatResponse {
   blocked: boolean;
   response: string | null;
@@ -93,14 +83,6 @@ export interface GroundingDetail {
   method: string;
   instances?: GroundingInstance[];
   object_mentions?: ObjectMention[];
-}
-
-export interface MonitorVerdict {
-  passed: boolean;
-  per_policy: Record<string, boolean>;
-  labeling: Record<string, boolean>;
-  grounding_details: GroundingDetail[];
-  trace_index: number;
 }
 
 // --- Settings ---

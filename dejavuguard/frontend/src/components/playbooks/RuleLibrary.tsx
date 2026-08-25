@@ -18,6 +18,10 @@ interface Props {
  * would hand back `undefined`, and `undefined > 1` is false, so the
  * shared-edit warning would silently never fire. The count is therefore
  * carried forward from the row the user clicked, never re-read.
+ *
+ * The API client deliberately exposes no single-rule read, so that mistake
+ * is not merely untaken but unavailable. A test asserting the same thing
+ * could only have watched a call nobody makes.
  */
 interface Draft {
   rule: Rule;

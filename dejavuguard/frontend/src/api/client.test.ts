@@ -1,5 +1,4 @@
 import type {
-  AppSettings,
   ChatResponse,
   Policy,
   Proposition,
@@ -29,7 +28,6 @@ import {
   deletePolicy,
   listRules,
   createRule as apiCreateRule,
-  getRule,
   updateRule,
   deleteRule,
   sendMessage,
@@ -332,16 +330,6 @@ describe("Rules endpoints", () => {
     expect(fetchCallOptions().method).toBe("POST");
     expect(JSON.parse(fetchCallOptions().body as string)).toEqual(input);
     expect(result).toEqual(created);
-  });
-
-  it("getRule sends GET /api/rules/{id} with the id encoded", async () => {
-    const rule = createRule({ rule_id: "rule a/1", usage_count: undefined });
-    mockFetchOk(rule);
-
-    const result = await getRule("rule a/1");
-
-    expect(fetchCallUrl()).toBe("/api/rules/rule%20a%2F1");
-    expect(result).toEqual(rule);
   });
 
   it("updateRule sends PUT /api/rules/{id} with the id encoded and a partial body", async () => {

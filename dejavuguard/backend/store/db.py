@@ -69,97 +69,16 @@ class DatabaseStore:
             self._db = None
 
     async def _ensure_schema_migrations(self) -> None:
-        """Apply lightweight additive migrations for older DB files."""
-        await self._db.execute(
-            """
-            CREATE TABLE IF NOT EXISTS related_objects (
-                policy_id TEXT REFERENCES policies(policy_id) ON DELETE CASCADE,
-                prop_id TEXT REFERENCES propositions(prop_id) ON DELETE CASCADE,
-                object_id TEXT NOT NULL,
-                related_prop_id TEXT REFERENCES propositions(prop_id) ON DELETE CASCADE,
-                related_object_id TEXT NOT NULL,
-                PRIMARY KEY (
-                    policy_id,
-                    prop_id,
-                    object_id,
-                    related_prop_id,
-                    related_object_id
-                )
-            )
-            """
-        )
-        await self._db.execute(
-            """
-            CREATE TABLE IF NOT EXISTS conversation_summaries (
-                session_id TEXT PRIMARY KEY
-                    REFERENCES sessions(session_id) ON DELETE CASCADE,
-                summary_text TEXT NOT NULL DEFAULT '',
-                last_trace_index INTEGER DEFAULT -1,
-                updated_at TEXT DEFAULT (datetime('now'))
-            )
-            """
-        )
-        await self._db.execute(
-            """
-            CREATE TABLE IF NOT EXISTS playbooks (
-                playbook_id TEXT PRIMARY KEY,
-                name        TEXT NOT NULL,
-                description TEXT,
-                created_at  TEXT DEFAULT (datetime('now')),
-                updated_at  TEXT DEFAULT (datetime('now'))
-            )
-            """
-        )
-        await self._db.execute(
-            """
-            CREATE TABLE IF NOT EXISTS playbook_members (
-                playbook_id TEXT REFERENCES playbooks(playbook_id) ON DELETE CASCADE,
-                policy_id   TEXT REFERENCES policies(policy_id) ON DELETE CASCADE,
-                position    INTEGER NOT NULL DEFAULT 0,
-                fires_on    INTEGER NOT NULL DEFAULT 0,
-                guidance    TEXT NOT NULL DEFAULT '',
-                rule_id     TEXT REFERENCES rules(rule_id),
-                PRIMARY KEY (playbook_id, policy_id)
-            )
-            """
-        )
-        await self._db.execute(
-            """
-            CREATE TABLE IF NOT EXISTS playbook_global_rules (
-                rule_id      TEXT PRIMARY KEY,
-                playbook_id  TEXT REFERENCES playbooks(playbook_id) ON DELETE CASCADE,
-                name         TEXT NOT NULL,
-                guidance     TEXT NOT NULL,
-                position     INTEGER DEFAULT 0,
-                apply_to_all INTEGER DEFAULT 0,
-                rule_ref_id  TEXT REFERENCES rules(rule_id)
-            )
-            """
-        )
-        await self._db.execute(
-            """
-            CREATE TABLE IF NOT EXISTS playbook_state_overrides (
-                playbook_id TEXT REFERENCES playbooks(playbook_id) ON DELETE CASCADE,
-                state_key   TEXT NOT NULL,
-                rule_refs   TEXT,
-                flagged     INTEGER,
-                label       TEXT,
-                PRIMARY KEY (playbook_id, state_key)
-            )
-            """
-        )
-        await self._db.execute(
-            """
-            CREATE TABLE IF NOT EXISTS rules (
-                rule_id    TEXT PRIMARY KEY,
-                name       TEXT NOT NULL UNIQUE,
-                guidance   TEXT NOT NULL,
-                created_at TEXT NOT NULL DEFAULT (datetime('now')),
-                updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-            )
-            """
-        )
+        """Apply lightweight additive migrations for older DB files.
 
+        Additive only: `ALTER TABLE ... ADD COLUMN` for a column an older
+        file predates, guarded on `PRAGMA table_info`. Creating tables is
+        not this method's job -- `_SCHEMA` runs immediately before it and
+        every statement there is `IF NOT EXISTS`, so a `CREATE TABLE` here
+        could only ever be a no-op copy of one already executed, and a
+        second declaration of a table is a place for the two to drift
+        apart unseen. Add new tables to `_SCHEMA`.
+        """
         cursor = await self._db.execute("PRAGMA table_info(playbook_members)")
         member_columns = {row["name"] for row in await cursor.fetchall()}
         if "rule_id" not in member_columns:
@@ -1115,6 +1034,26 @@ CREATE TABLE IF NOT EXISTS playbooks (
     updated_at  TEXT DEFAULT (datetime('now'))
 );
 
+-- `playbook_members.guidance` and `playbook_global_rules.guidance` below are
+-- the pre-rules-library storage, kept on purpose. Read this before touching
+-- either, because "unused column" is the wrong description and acting on it
+-- would take the upgrade path with it.
+--
+-- Nothing at RUNTIME reads them. `_load_playbook` resolves every member and
+-- every playbook-wide row through `rule_id` / `rule_ref_id` into the `rules`
+-- table, and `_resolved_globals` overwrites the column's value on the way out
+-- so an edited rule is never shown as its stale copy.
+--
+-- `_backfill_rules_from_guidance` DOES read them, for rows whose link is
+-- still NULL -- which is exactly a database written before the library
+-- existed. That is the whole upgrade path, so the columns cannot be dropped
+-- while such a database can still be opened, SQLite 3.35+ DROP COLUMN or not.
+--
+-- They are still written on every save, and the copy therefore goes stale the
+-- moment the rule it came from is edited through `PUT /rules/{id}`. That is
+-- harmless only because the backfill skips linked rows: setting a linked row
+-- back to NULL would resurrect the stale text. So nothing new may start
+-- reading these, and nothing may rely on them agreeing with `rules.guidance`.
 CREATE TABLE IF NOT EXISTS playbook_members (
     playbook_id TEXT REFERENCES playbooks(playbook_id) ON DELETE CASCADE,
     policy_id   TEXT REFERENCES policies(policy_id) ON DELETE CASCADE,

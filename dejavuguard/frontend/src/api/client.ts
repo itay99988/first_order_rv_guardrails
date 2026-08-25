@@ -196,10 +196,6 @@ export async function createRule(data: {
   });
 }
 
-export async function getRule(ruleId: string): Promise<Rule> {
-  return request<Rule>(`/api/rules/${encodeURIComponent(ruleId)}`);
-}
-
 export async function updateRule(
   ruleId: string,
   data: { name?: string; guidance?: string },
@@ -276,16 +272,6 @@ export async function createPlaybook(data: {
 }): Promise<{ playbook_id: string; name: string }> {
   return request("/api/playbooks", {
     method: "POST",
-    body: JSON.stringify(data),
-  });
-}
-
-export async function updatePlaybook(
-  playbookId: string,
-  data: { name?: string; description?: string },
-): Promise<Playbook> {
-  return request(`/api/playbooks/${playbookId}`, {
-    method: "PUT",
     body: JSON.stringify(data),
   });
 }

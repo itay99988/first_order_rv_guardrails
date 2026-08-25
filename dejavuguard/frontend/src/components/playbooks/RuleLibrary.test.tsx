@@ -7,7 +7,6 @@ import { ApiError, type Rule } from "@/types";
 import RuleLibrary from "./RuleLibrary";
 
 const mockListRules = vi.fn();
-const mockGetRule = vi.fn();
 const mockUpdateRule = vi.fn();
 const mockDeleteRule = vi.fn();
 const mockGetPlaybooks = vi.fn();
@@ -16,7 +15,6 @@ const mockDeletePlaybook = vi.fn();
 
 vi.mock("@/api/client", () => ({
   listRules: (...args: unknown[]) => mockListRules(...args),
-  getRule: (...args: unknown[]) => mockGetRule(...args),
   updateRule: (...args: unknown[]) => mockUpdateRule(...args),
   deleteRule: (...args: unknown[]) => mockDeleteRule(...args),
   getPlaybooks: (...args: unknown[]) => mockGetPlaybooks(...args),
@@ -58,7 +56,6 @@ async function openEditor(ruleId: string) {
 describe("RuleLibrary", () => {
   beforeEach(() => {
     mockListRules.mockReset().mockResolvedValue(library);
-    mockGetRule.mockReset();
     mockUpdateRule.mockReset().mockResolvedValue(shared);
     mockDeleteRule.mockReset().mockResolvedValue(undefined);
     mockGetPlaybooks.mockReset().mockResolvedValue([]);
@@ -150,20 +147,6 @@ describe("RuleLibrary", () => {
     await openEditor("r_unused");
 
     expect(screen.queryByTestId("rule-shared-warning")).toBeNull();
-  });
-
-  it("warns from the list row's count, not from a single-rule fetch", async () => {
-    // `GET /api/rules/{id}` does not compute usage_count, by design. An
-    // editor populated from it sees `undefined`, and `undefined > 1` is
-    // false -- so the warning would silently never fire.
-    mockGetRule.mockResolvedValue({ ...shared, usage_count: undefined });
-
-    renderWithRouter(<RuleLibrary />);
-    await openEditor("r_ask");
-
-    expect(await screen.findByTestId("rule-shared-warning")).toHaveTextContent(
-      "3 playbooks",
-    );
   });
 
   it("saves the edit through updateRule and re-reads the library", async () => {
@@ -289,7 +272,6 @@ describe("RuleLibrary", () => {
 describe("RuleLibrary, reached from the playbooks screen", () => {
   beforeEach(() => {
     mockListRules.mockReset().mockResolvedValue(library);
-    mockGetRule.mockReset();
     mockUpdateRule.mockReset();
     mockDeleteRule.mockReset();
     mockGetPlaybooks.mockReset().mockResolvedValue([]);
