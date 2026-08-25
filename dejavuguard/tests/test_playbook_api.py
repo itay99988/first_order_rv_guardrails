@@ -7,8 +7,14 @@ import asyncio
 import pytest
 from fastapi.testclient import TestClient
 
+from backend.engine.playbook import Playbook, PlaybookMember
 from backend.main import create_app
-from backend.routers.playbooks import _is_irrevocable, _named
+from backend.routers.playbooks import (
+    _enforcement_warnings,
+    _is_irrevocable,
+    _member_names,
+    _named,
+)
 from backend.store.db import DatabaseStore
 
 
@@ -112,6 +118,110 @@ def test_enforcement_warning_when_no_flagged_state_can_block(client):
 
     warnings = client.get(f"/api/playbooks/{pb}/states").json()["warnings"]
     assert any("can no longer block" in w for w in warnings)
+
+
+def test_enforcement_warning_names_the_policy_rather_than_its_id(client):
+    """R1's warning is the one sentence in the feature a user has to act on.
+
+    It cannot ask them to act on a uuid4: the policy is called "Budget cap"
+    everywhere they chose it, and the warning has to be about the same thing
+    they think they added. Asserting the name *and* the consequence together
+    keeps this from passing on a warning that no longer fires -- the whole
+    string has to be produced by the R1 branch, not merely mention a policy.
+    """
+    policy_id = _policy(client, "p_a", "Budget cap")
+    pb = client.post("/api/playbooks", json={"name": "Budget"}).json()["playbook_id"]
+    client.put(f"/api/playbooks/{pb}/members", json={"members": [
+        {"policy_id": policy_id, "position": 0, "fires_on": False, "guidance": "R."}]})
+
+    warnings = client.get(f"/api/playbooks/{pb}/states").json()["warnings"]
+
+    assert any(
+        "Budget cap fires on F" in w and "can no longer block anything" in w
+        for w in warnings
+    ), warnings
+    # And the id is gone from it entirely, rather than sitting beside the name.
+    assert not any(policy_id in w for w in warnings), warnings
+
+
+def test_the_membership_save_report_warns_by_name_too(client):
+    """The same warning, on the response the editor actually shows.
+
+    `PUT /members` builds its warnings on a different code path from
+    `GET /states`, and the editor's save report is where a user first meets
+    them -- naming the policy in one and not the other is the split this
+    pins shut.
+    """
+    policy_id = _policy(client, "p_a", "Budget cap")
+    pb = client.post("/api/playbooks", json={"name": "Budget"}).json()["playbook_id"]
+
+    report = client.put(f"/api/playbooks/{pb}/members", json={"members": [
+        {"policy_id": policy_id, "position": 0, "fires_on": False,
+         "guidance": "R."}]}).json()
+
+    assert any(
+        "Budget cap fires on F" in w and "can no longer block anything" in w
+        for w in report["warnings"]
+    ), report["warnings"]
+    assert not any(policy_id in w for w in report["warnings"]), report["warnings"]
+
+
+def test_states_and_trace_report_each_member_by_name(client):
+    """Every pane that draws a member reads it from these two payloads.
+
+    The name travels with the member so no pane has to fetch the policy list
+    itself and invent its own answer for the window before that load lands.
+    """
+    policy_id = _policy(client, "p_a", "Budget cap")
+    pb = client.post("/api/playbooks", json={"name": "Budget"}).json()["playbook_id"]
+    client.put(f"/api/playbooks/{pb}/members", json={"members": [
+        {"policy_id": policy_id, "position": 0, "fires_on": False, "guidance": "R."}]})
+
+    states = client.get(f"/api/playbooks/{pb}/states").json()
+    trace = client.get(f"/api/playbooks/{pb}/trace?session_id=").json()
+
+    for payload in (states, trace):
+        assert [m["name"] for m in payload["members"]] == ["Budget cap"]
+        assert [m["policy_id"] for m in payload["members"]] == [policy_id]
+
+
+def test_member_names_omits_the_policies_it_cannot_name():
+    """"No name for this" and "the name is X" stay two different answers.
+
+    Returning the id here would look identical to a real name at every call
+    site, so nothing downstream could tell a named policy from one that has
+    been deleted -- and the API could no longer say the policy is gone.
+    """
+    names = _member_names({
+        "p_named": {"name": "Budget cap"},
+        "p_blank": {"name": "   "},
+        "p_gone": None,
+    })
+
+    assert names == {"p_named": "Budget cap"}
+
+
+def test_enforcement_warning_falls_back_to_the_id_when_nothing_names_it():
+    """A member whose policy cannot be named still gets a usable warning.
+
+    The fallback has to be the id, not a blank: " fires on F, but..." names
+    nothing at all, and the id is at least something the user can look up.
+    """
+    playbook = Playbook(
+        playbook_id="pb1",
+        name="Budget",
+        members=(PlaybookMember(
+            policy_id="8525fd4d-820c", position=0, fires_on=False, guidance="R."),),
+        globals=(),
+        overrides={},
+    )
+
+    warnings = _enforcement_warnings(playbook, {})
+
+    assert warnings == [
+        "8525fd4d-820c fires on F, but no state where it fires is flagged"
+        " - it can no longer block anything."
+    ]
 
 
 def test_setting_globals_then_reading_them_back(client):

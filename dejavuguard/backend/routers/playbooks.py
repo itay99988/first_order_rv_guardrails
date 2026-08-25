@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import re
 import uuid
+from collections.abc import Mapping
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
@@ -40,13 +41,43 @@ def _is_irrevocable(formula: str) -> bool:
     return bool(re.match(r"H\b", (formula or "").strip()))
 
 
-async def _member_irrevocability(db: DatabaseStore, playbook: Playbook) -> dict[str, bool]:
+async def _member_policies(
+    db: DatabaseStore, playbook: Playbook
+) -> dict[str, dict | None]:
+    """policy_id -> that member's policy row, or None where it no longer exists.
+
+    One lookup per member, shared by everything that needs the row: the
+    irrevocability heuristic reads its formula and the member payload reads
+    its name. Asking separately would double the queries on every read of the
+    truth table, and let the two answers come from different instants.
+    """
+    return {m.policy_id: await db.get_policy(m.policy_id) for m in playbook.members}
+
+
+def _member_irrevocability(policies: Mapping[str, dict | None]) -> dict[str, bool]:
     """policy_id -> whether that member's formula is irrevocable."""
-    out: dict[str, bool] = {}
-    for member in playbook.members:
-        policy = await db.get_policy(member.policy_id)
-        out[member.policy_id] = _is_irrevocable(policy["formula_str"] if policy else "")
-    return out
+    return {
+        policy_id: _is_irrevocable(row["formula_str"] if row else "")
+        for policy_id, row in policies.items()
+    }
+
+
+def _member_names(policies: Mapping[str, dict | None]) -> dict[str, str]:
+    """policy_id -> the name a person knows that policy by.
+
+    A member whose policy has been deleted, or whose name is blank, is simply
+    absent -- not blank, and not the id wearing a name's clothes. "There is no
+    name for this" and "the name is X" are different answers, and folding the
+    id into the second here would take the first away from every caller at
+    once: the API could no longer say a policy is gone, and a client could no
+    longer tell a name from an id it was handed instead. Callers that want the
+    id as a fallback ask for it where they draw it.
+    """
+    return {
+        policy_id: str(row["name"]).strip()
+        for policy_id, row in policies.items()
+        if row and str(row.get("name") or "").strip()
+    }
 
 
 def _state_reachable(state: ResolvedState, blocked_policy_ids: set[str]) -> bool:
@@ -271,13 +302,24 @@ def _named(names: dict[str, str], rules: tuple[str, ...]) -> list[str]:
 
 
 async def _member_payload(
-    db: DatabaseStore, playbook: Playbook, irrevocable: dict[str, bool]
+    db: DatabaseStore,
+    playbook: Playbook,
+    irrevocable: dict[str, bool],
+    names: Mapping[str, str],
 ) -> list[dict]:
     """Members as the API reports them, in display order.
 
     `rule_id` comes from the stored row rather than the engine's member,
     which carries only the resolved text: a client that wants to re-attach
     a member to a different rule needs to know which one it holds now.
+
+    `name` travels with the member for the same reason it is resolved here
+    rather than fetched alongside: every pane that draws a member -- the
+    editor's rows, the pin list, the graph's legend, the truth table's
+    verdict badges -- would otherwise have to load the policy list itself and
+    decide, separately and differently, what to show while that load is in
+    flight. It is null, never the id, where nothing can name the policy; see
+    `_member_names`.
     """
     rule_ids = {
         row["policy_id"]: row["rule_id"]
@@ -285,7 +327,8 @@ async def _member_payload(
     }
     return [
         {"policy_id": m.policy_id, "position": m.position,
-         "fires_on": m.fires_on, "guidance": m.guidance,
+         "name": names.get(m.policy_id), "fires_on": m.fires_on,
+         "guidance": m.guidance,
          "rule_id": rule_ids.get(m.policy_id),
          "irrevocable": irrevocable.get(m.policy_id, False)}
         for m in sorted(playbook.members, key=lambda m: m.position)
@@ -299,11 +342,19 @@ async def _require(db: DatabaseStore, playbook_id: str) -> dict:
     return row
 
 
-def _enforcement_warnings(playbook: Playbook) -> list[str]:
+def _enforcement_warnings(
+    playbook: Playbook, names: Mapping[str, str]
+) -> list[str]:
     """Warn when a member can no longer cause a block.
 
     In playbook mode only state flags block, so a member whose firing states
     are never flagged has silently stopped enforcing anything.
+
+    The warning names the member the way its owner does. This is the one
+    sentence in the feature a user is meant to act on, and a uuid4 is not
+    something anybody can act on: it names the policy by the name it was
+    given, falling back to the id only when `names` has none -- a policy
+    deleted out from under the playbook, or one saved with a blank name.
     """
     warnings: list[str] = []
     flagged_keys = {
@@ -319,7 +370,7 @@ def _enforcement_warnings(playbook: Playbook) -> list[str]:
         }
         if not (fires_in & flagged_keys):
             warnings.append(
-                f"{member.policy_id} fires on "
+                f"{names.get(member.policy_id, member.policy_id)} fires on "
                 f"{'T' if member.fires_on else 'F'}, but no state where it fires "
                 "is flagged - it can no longer block anything."
             )
@@ -421,12 +472,13 @@ async def set_members(request: Request, playbook_id: str, body: MembersRequest):
     invalidate_monitors()
 
     playbook = await _load_playbook(db, playbook_id)
+    names = _member_names(await _member_policies(db, playbook))
     return {
         "state_count": len(all_state_keys(playbook.members)),
         "behaviour_count": len(group_behaviours(playbook)),
         "overrides_expanded": expanded,
         "conflicts": conflicts,
-        "warnings": _enforcement_warnings(playbook),
+        "warnings": _enforcement_warnings(playbook, names),
     }
 
 
@@ -460,12 +512,14 @@ async def get_states(request: Request, playbook_id: str):
     await _require(db, playbook_id)
     playbook = await _load_playbook(db, playbook_id)
     behaviours = group_behaviours(playbook)
-    irrevocable = await _member_irrevocability(db, playbook)
+    policies = await _member_policies(db, playbook)
+    irrevocable = _member_irrevocability(policies)
+    names = _member_names(policies)
     rule_names = await _rule_names_by_text(db)
     return {
         "playbook_id": playbook_id,
         "state_count": len(all_state_keys(playbook.members)),
-        "members": await _member_payload(db, playbook, irrevocable),
+        "members": await _member_payload(db, playbook, irrevocable, names),
         "behaviours": [
             {
                 "name": b.name,
@@ -487,7 +541,7 @@ async def get_states(request: Request, playbook_id: str):
             }
             for b in behaviours
         ],
-        "warnings": _enforcement_warnings(playbook),
+        "warnings": _enforcement_warnings(playbook, names),
     }
 
 
@@ -554,7 +608,9 @@ async def get_trace(request: Request, playbook_id: str, session_id: str = ""):
     await _require(db, playbook_id)
     playbook = await _load_playbook(db, playbook_id)
     behaviours = group_behaviours(playbook)
-    irrevocable = await _member_irrevocability(db, playbook)
+    policies = await _member_policies(db, playbook)
+    irrevocable = _member_irrevocability(policies)
+    names = _member_names(policies)
     rule_names = await _rule_names_by_text(db)
 
     key_to_name = {
@@ -612,5 +668,5 @@ async def get_trace(request: Request, playbook_id: str, session_id: str = ""):
             for (src, dst), count in edges.items()
         ],
         "current": visited[-1] if visited else None,
-        "members": await _member_payload(db, playbook, irrevocable),
+        "members": await _member_payload(db, playbook, irrevocable, names),
     }
