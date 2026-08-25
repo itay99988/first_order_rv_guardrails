@@ -946,3 +946,76 @@ def test_a_four_member_playbook_blocks_only_on_the_flagged_combination(client):
             f"{pid} failing on its own blocks -- the flag has leaked from the "
             "combination onto a single member"
         )
+
+
+def test_flagging_a_state_the_playbook_does_not_have_is_rejected(client):
+    """A key the state space cannot reach was accepted with 200 and lost.
+
+    `set_playbook_override` stores whatever key it is handed, and
+    `resolve_state` only ever looks up the canonical one, so a misspelled,
+    non-canonical, or non-member key reported success and flagged nothing.
+    The caller is told a state is flagged; no state is. That is the exact
+    failure mode `delete_policy` already had to fix from the other end --
+    stored overrides the current state space cannot reach.
+    """
+    first = _policy(client, "p_a", "A")
+    second = _policy(client, "p_b", "B")
+    pb = client.post("/api/playbooks", json={"name": "Budget"}).json()["playbook_id"]
+    client.put(f"/api/playbooks/{pb}/members", json={"members": [
+        {"policy_id": first, "position": 0, "fires_on": False, "guidance": "R."},
+        {"policy_id": second, "position": 1, "fires_on": False, "guidance": "S."}]})
+    a, b = sorted((first, second))
+
+    rejected = [
+        "garbage",                     # names nothing at all
+        f"{a}=F",                      # only one of the two members
+        f"{a}=F,{b}=F",                # comma where the separator is ";"
+        f"{a}=X;{b}=F",                # a verdict that is neither T nor F
+        f"{b}=F;{a}=F",                # right members, wrong order
+        f"{a}=F;{b}=F;{first}=T",      # a member named twice
+    ]
+    for key in rejected:
+        resp = client.put(f"/api/playbooks/{pb}/states/{key}",
+                          json={"rule_refs": None, "flagged": True, "label": "ghost"})
+        assert resp.status_code == 422, f"{key!r} was accepted"
+
+    assert not any(
+        s["customised"] or b_["flagged"]
+        for b_ in client.get(f"/api/playbooks/{pb}/states").json()["behaviours"]
+        for s in b_["states"]
+    )
+
+    # The canonical key for the same state is still accepted -- the guard
+    # rejects unreachable keys, not overrides.
+    assert client.put(f"/api/playbooks/{pb}/states/{a}=F;{b}=F",
+                      json={"rule_refs": None, "flagged": True,
+                            "label": "real"}).status_code == 200
+
+
+def test_a_rejected_state_key_cannot_reappear_as_a_flag_later(client):
+    """The second half: an unreachable override is not inert, it is deferred.
+
+    `expand_overrides` re-keys every stored override when a member is added,
+    and `parse_state_key` reads any verdict that is not "T" as False -- so
+    `<policy>=X`, silently stored, came back after the next membership change
+    as a genuinely flagged state, with the label the caller gave it. Flagging
+    is what blocks a turn, so this is a guardrail appearing on a state nobody
+    chose. Refusing the key at the door is what stops that.
+    """
+    first = _policy(client, "p_a", "A")
+    pb = client.post("/api/playbooks", json={"name": "Budget"}).json()["playbook_id"]
+    client.put(f"/api/playbooks/{pb}/members", json={"members": [
+        {"policy_id": first, "position": 0, "fires_on": False, "guidance": "R."}]})
+
+    assert client.put(f"/api/playbooks/{pb}/states/{first}=X",
+                      json={"rule_refs": None, "flagged": True,
+                            "label": "ghost"}).status_code == 422
+
+    second = _policy(client, "p_b", "B")
+    client.put(f"/api/playbooks/{pb}/members", json={"members": [
+        {"policy_id": first, "position": 0, "fires_on": False, "guidance": "R."},
+        {"policy_id": second, "position": 1, "fires_on": False, "guidance": "S."}]})
+
+    behaviours = client.get(f"/api/playbooks/{pb}/states").json()["behaviours"]
+    assert not any(b["flagged"] for b in behaviours)
+    assert not any(s["label"] for b in behaviours for s in b["states"])

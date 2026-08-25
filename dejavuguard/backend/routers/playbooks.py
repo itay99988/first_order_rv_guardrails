@@ -479,12 +479,36 @@ async def get_states(request: Request, playbook_id: str):
     }
 
 
+def _require_state_of(playbook: Playbook, state_key: str) -> None:
+    """Refuse a key that names no state of this playbook.
+
+    The table stores whatever key it is handed and `resolve_state` looks up
+    the canonical one, so a key that is misspelled, non-canonical, or names a
+    policy that is not a member was accepted with 200 and then matched
+    nothing: the caller was told its flag was saved and no state was flagged.
+    The row survived too, and `expand_overrides` re-keys it on the next
+    membership change -- `<policy>=X` parses as `<policy>=F` and came back as
+    a real flagged state nobody asked for. Both halves are the shape
+    `delete_policy` already had to fix once: an override the state space
+    cannot reach is not inert, it is a flag waiting to reappear elsewhere.
+
+    Compared against the engine's own enumeration rather than a second
+    canonicalisation written here, so the set this accepts is by construction
+    the set `/states` reports and `resolve_state` can find.
+    """
+    if state_key not in set(all_state_keys(playbook.members)):
+        raise HTTPException(
+            422, f"State '{state_key}' is not a state of this playbook."
+        )
+
+
 @router.put("/playbooks/{playbook_id}/states/{state_key:path}")
 async def set_override(request: Request, playbook_id: str, state_key: str,
                        body: OverrideRequest):
     """Customise one state, or revert it by sending rule_refs null and flagged false."""
     db = _get_db(request)
     await _require(db, playbook_id)
+    _require_state_of(await _load_playbook(db, playbook_id), state_key)
     if body.rule_refs is None and not body.flagged and body.label is None:
         await db.delete_playbook_override(playbook_id, state_key)
     else:
