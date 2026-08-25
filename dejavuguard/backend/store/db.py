@@ -825,6 +825,28 @@ class DatabaseStore:
         )
 
     # Monitor State
+    #
+    # Nothing calls the four methods below, and that is deliberate rather than
+    # an oversight waiting to be tidied up. Read this before wiring them up or
+    # deleting them, because both are worse than leaving them alone.
+    #
+    # A session's monitor is held in memory by `backend/routers/chat.py` and
+    # built by `_get_or_create_monitor` from the current specification --
+    # enabled policies, their propositions, the playbook if there is one, and
+    # the object/canonical history rehydrated from the `messages` table. It
+    # never reads `monitor_states`.
+    #
+    # `invalidate_monitors()` depends on exactly that. It is called whenever a
+    # policy, predicate, playbook or rule changes, and its whole purpose is to
+    # make the next turn use the new specification. If these methods were wired
+    # into the rebuild, invalidation would restore a snapshot taken under the
+    # OLD specification -- the stale state it exists to discard. So the absence
+    # of callers is load-bearing for a correctness property elsewhere.
+    #
+    # Deleting them is a separate decision from deleting the `monitor_states`
+    # table, and removing the methods alone would leave a table on a live
+    # database that no code can read. Ruled on during Task 12 (finding D7):
+    # keep both, document the dependency, do not wire up.
 
     async def save_monitor_state(
         self,
