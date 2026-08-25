@@ -1,16 +1,18 @@
 import { useState } from "react";
-import { Loader2, Plus } from "lucide-react";
+import { BookMarked, Loader2, Plus } from "lucide-react";
 
 import { usePlaybooks } from "@/hooks/usePlaybooks";
 import type { Playbook } from "@/types";
 import PlaybookCard from "./PlaybookCard";
 import PlaybookEditor from "./PlaybookEditor";
+import RuleLibrary from "./RuleLibrary";
 
 export default function PlaybooksView() {
   const { playbooks, fetchPlaybooks, createPlaybook, deletePlaybook } =
     usePlaybooks();
 
   const [openPlaybook, setOpenPlaybook] = useState<Playbook | null>(null);
+  const [showLibrary, setShowLibrary] = useState(false);
   const [showNewForm, setShowNewForm] = useState(false);
   const [newName, setNewName] = useState("");
   const [newDescription, setNewDescription] = useState("");
@@ -52,6 +54,10 @@ export default function PlaybooksView() {
     setOpenPlaybook(found);
   };
 
+  if (showLibrary) {
+    return <RuleLibrary onBack={() => setShowLibrary(false)} />;
+  }
+
   if (openPlaybook) {
     return (
       <PlaybookEditor
@@ -82,15 +88,25 @@ export default function PlaybooksView() {
           <h2 className="text-lg font-mono font-bold text-accent uppercase tracking-wider">
             Playbooks
           </h2>
-          <button
-            onClick={() => setShowNewForm((v) => !v)}
-            className="btn-primary flex items-center gap-1.5 rounded-none px-3 py-2 text-sm font-medium"
-            aria-label="Add playbook"
-            data-testid="add-playbook"
-          >
-            <Plus size={16} />
-            New playbook
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowLibrary(true)}
+              className="flex items-center gap-1.5 rounded-none border border-border px-3 py-2 text-sm font-medium text-terminal-dim hover:bg-dark-hover hover:text-terminal-text"
+              data-testid="open-rule-library"
+            >
+              <BookMarked size={16} aria-hidden="true" />
+              Rule library
+            </button>
+            <button
+              onClick={() => setShowNewForm((v) => !v)}
+              className="btn-primary flex items-center gap-1.5 rounded-none px-3 py-2 text-sm font-medium"
+              aria-label="Add playbook"
+              data-testid="add-playbook"
+            >
+              <Plus size={16} />
+              New playbook
+            </button>
+          </div>
         </div>
 
         {showNewForm && (
