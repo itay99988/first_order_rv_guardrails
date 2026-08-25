@@ -55,7 +55,19 @@ const states = {
   warnings: [],
 };
 
-/** A node's drawn caption -- every <text> in it, tooltip excluded. */
+/**
+ * A node's drawn caption -- every <text> in it, tooltip excluded.
+ *
+ * The only instrument this file uses to ask what a node displays. A node's
+ * `textContent` also swallows its `<title>`, whose first line is the server's
+ * `_disambiguate`d behaviour name and so is unique per node by construction:
+ * every assertion made through `textContent` therefore passes on the tooltip
+ * whatever the caption does. Four tests here -- including the one standing in
+ * for the spec's "legible at 4 members / 16 states" -- were green with
+ * `ruleLines` reverted to the very 14-character join they exist to forbid.
+ * Ask the tooltip a tooltip question with `tooltip()`; ask everything else
+ * here.
+ */
 function drawn(node: HTMLElement): string {
   return Array.from(node.querySelectorAll("text"))
     .map((t) => t.textContent)
@@ -181,7 +193,7 @@ describe("PlaybookGraph", () => {
     mockGet.mockResolvedValue(trace);
     render(<PlaybookGraph playbookId="pb1" sessionId="s1" />);
     await waitFor(() =>
-      expect(screen.getByTestId("node-Over budget")).toHaveTextContent("Budget cap"),
+      expect(drawn(screen.getByTestId("node-Over budget"))).toContain("Budget cap"),
     );
     // The server resolves text -> name, and the node draws whatever it is
     // handed: re-deriving names from the guidance on the client would make
@@ -197,8 +209,11 @@ describe("PlaybookGraph", () => {
     mockGet.mockResolvedValue(trace);
     render(<PlaybookGraph playbookId="pb1" sessionId="s1" />);
     await waitFor(() =>
-      expect(screen.getByTestId("node-Clear")).toHaveTextContent("No guidance"),
+      expect(drawn(screen.getByTestId("node-Clear"))).toContain("No guidance"),
     );
+    // And says so in the header count too, so the empty caption is not the
+    // only thing standing between the reader and a mis-read node.
+    expect(drawn(screen.getByTestId("node-Clear"))).toContain("no rules");
   });
 
   it("keeps a two-rule node readable apart from a three-rule node", async () => {
@@ -253,9 +268,9 @@ describe("PlaybookGraph", () => {
     mockGet.mockResolvedValue(trace);
     render(<PlaybookGraph playbookId="pb1" sessionId="s1" />);
     await waitFor(() =>
-      expect(screen.getByTestId("node-Over budget")).toHaveTextContent("M1=T"),
+      expect(drawn(screen.getByTestId("node-Over budget"))).toContain("M1=T"),
     );
-    expect(screen.getByTestId("node-Clear")).toHaveTextContent("M1=F");
+    expect(drawn(screen.getByTestId("node-Clear"))).toContain("M1=F");
     // The legend is what turns M1 back into a policy.
     expect(screen.getByTestId("graph-member-legend")).toHaveTextContent("p_a");
   });
@@ -269,23 +284,23 @@ describe("PlaybookGraph", () => {
         "true",
       ),
     );
-    expect(screen.getByTestId("node-Over budget")).toHaveTextContent(/blocks/i);
+    expect(drawn(screen.getByTestId("node-Over budget"))).toMatch(/blocks/i);
     expect(
       screen.getByTestId("node-Over budget").getAttribute("aria-label"),
     ).toMatch(/blocks/i);
     expect(screen.getByTestId("node-Clear")).toHaveAttribute("data-flagged", "false");
-    expect(screen.getByTestId("node-Clear")).not.toHaveTextContent(/blocks/i);
+    expect(drawn(screen.getByTestId("node-Clear"))).not.toMatch(/blocks/i);
   });
 
   it("distinguishes current, visited and unvisited without relying on colour", async () => {
     mockGet.mockResolvedValue(trace);
     render(<PlaybookGraph playbookId="pb1" sessionId="s1" />);
     await waitFor(() =>
-      expect(screen.getByTestId("node-Over budget")).toHaveTextContent("Current"),
+      expect(drawn(screen.getByTestId("node-Over budget"))).toContain("Current"),
     );
-    expect(screen.getByTestId("node-Clear")).toHaveTextContent("Visited");
-    expect(screen.getByTestId("node-Clear")).not.toHaveTextContent("Current");
-    expect(screen.getByTestId("node-Blocked")).toHaveTextContent("Not visited");
+    expect(drawn(screen.getByTestId("node-Clear"))).toContain("Visited");
+    expect(drawn(screen.getByTestId("node-Clear"))).not.toContain("Current");
+    expect(drawn(screen.getByTestId("node-Blocked"))).toContain("Not visited");
   });
 
   it("stays legible at four members and sixteen states", async () => {
@@ -315,12 +330,21 @@ describe("PlaybookGraph", () => {
     expect(rendered).toHaveLength(16);
     // One caption per behaviour, and no two captions alike: the whole point
     // of the task is that a reader can tell adjacent nodes apart.
-    const captions = rendered.map((el) => el.textContent);
+    //
+    // `drawn`, not `textContent`. Read through `textContent` this set was 16
+    // unconditionally -- the tooltip's first line is the behaviour name, which
+    // the server has already made unique -- so the spec's only numbered
+    // acceptance criterion was measuring the tooltip, not the caption. It was
+    // green with `ruleLines` reverted to a 14-character join, and green with
+    // it returning a constant.
+    const captions = rendered.map((el) => drawn(el));
     expect(new Set(captions).size).toBe(16);
     // Every rule a node applies is named on the node, not elided.
     expect(
-      screen.getByTestId("node-Budget cap + Allergen check + Tone guard + Escalation"),
-    ).toHaveTextContent("Escalation");
+      drawn(
+        screen.getByTestId("node-Budget cap + Allergen check + Tone guard + Escalation"),
+      ),
+    ).toContain("Escalation");
   });
 
   it("still renders the graph when the truth table cannot be loaded", async () => {
@@ -328,7 +352,10 @@ describe("PlaybookGraph", () => {
     mockStates.mockRejectedValue(new Error("nope"));
     render(<PlaybookGraph playbookId="pb1" sessionId="s1" />);
     await waitFor(() => expect(screen.getByTestId("node-Clear")).toBeInTheDocument());
-    expect(screen.getByTestId("node-Clear")).toHaveTextContent("No guidance");
+    expect(drawn(screen.getByTestId("node-Clear"))).toContain("No guidance");
+    // No truth table means no verdict subtitle -- the node degrades, it does
+    // not invent one.
+    expect(drawn(screen.getByTestId("node-Clear"))).not.toContain("M1=");
   });
 
   // --- M1: no two nodes may render the same caption ----------------------
@@ -403,7 +430,13 @@ describe("PlaybookGraph", () => {
 
     const refuse = screen.getByTestId("node-Refuse");
     const escalate = screen.getByTestId("node-Escalate");
-    expect(refuse.textContent).not.toEqual(escalate.textContent);
+    // Pinned, not assumed: the drawn captions really do collapse here, so
+    // there is nothing for a `drawn` inequality to catch and the tooltip
+    // carries the whole claim. The `textContent` inequality this replaces
+    // only re-proved that `<title>` leads with a behaviour name the server
+    // has already disambiguated -- true for any two nodes, always.
+    expect(drawn(refuse)).toEqual(drawn(escalate));
+    expect(tooltip(refuse)).not.toEqual(tooltip(escalate));
     expect(tooltip(refuse)).toContain(REFUSE);
     expect(tooltip(escalate)).toContain(ESCALATE);
   });
@@ -439,7 +472,11 @@ describe("PlaybookGraph", () => {
 
     const refunds = screen.getByTestId("node-Refunds");
     const escalations = screen.getByTestId("node-Escalations");
-    expect(refunds.textContent).not.toEqual(escalations.textContent);
+    // Same shape as the pair above: both nodes hide the three rules that
+    // differ behind an identical "+3 more", so the caption cannot separate
+    // them and the tooltip is the whole of the claim.
+    expect(drawn(refunds)).toEqual(drawn(escalations));
+    expect(tooltip(refunds)).not.toEqual(tooltip(escalations));
     expect(tooltip(refunds)).toContain("Refund window");
     expect(tooltip(escalations)).toContain("Escalate to human");
   });
@@ -483,8 +520,10 @@ describe("PlaybookGraph", () => {
     });
 
     render(<PlaybookGraph playbookId="pb1" sessionId="s1" />);
-    await waitFor(() => expect(screen.getByTestId("node-Fresh")).toHaveTextContent("M1=F"));
-    expect(screen.getByTestId("node-Skewed")).not.toHaveTextContent("M1=");
+    await waitFor(() =>
+      expect(drawn(screen.getByTestId("node-Fresh"))).toContain("M1=F"),
+    );
+    expect(drawn(screen.getByTestId("node-Skewed"))).not.toContain("M1=");
   });
 
   it("drops the verdict subtitle rather than render an unexplained ?", async () => {
@@ -522,8 +561,8 @@ describe("PlaybookGraph", () => {
       expect(screen.getByTestId("node-Half known")).toBeInTheDocument(),
     );
     const node = screen.getByTestId("node-Half known");
-    expect(node).not.toHaveTextContent("=?");
-    expect(node).not.toHaveTextContent("M1=");
+    expect(drawn(node)).not.toContain("=?");
+    expect(drawn(node)).not.toContain("M1=");
   });
 
   // --- Minor 3: the accessible name leads with something actionable ------
