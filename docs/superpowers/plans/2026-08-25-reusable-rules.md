@@ -185,6 +185,28 @@ to `[A-Za-z0-9_]`, appending `_2`, `_3`… on name collision. Empty guidance lea
 `rule_id` NULL, which keeps meaning "contributes no guidance". The `rule_id IS NULL`
 guard is what makes it idempotent.
 
+- [ ] **Step 4b: Make `count_rule_usage` real (ruling R-1)**
+
+Task 1 defined it against columns this task creates, so until now it returns 0 and its
+test asserts exactly that. Implement it for real here and add a test asserting a NON-zero
+count for a rule attached to two playbooks. Left stubbed, Task 4's "refuse to delete a
+rule in use" would pass while protecting nothing and Task 8's edit warning would never
+fire — a guard reporting safety it has not earned.
+
+```python
+async def count_rule_usage(self, rule_id: str) -> int:
+    cursor = await self._db.execute(
+        "SELECT COUNT(DISTINCT playbook_id) AS n FROM ("
+        "  SELECT playbook_id FROM playbook_members WHERE rule_id = ?"
+        "  UNION ALL"
+        "  SELECT playbook_id FROM playbook_global_rules WHERE rule_ref_id = ?"
+        ")",
+        (rule_id, rule_id),
+    )
+    row = await cursor.fetchone()
+    return int(row["n"] or 0)
+```
+
 - [ ] **Step 5: Run the migration tests, then the FULL backend suite with coverage**
 
 Run: `uv run python -m pytest tests/ --ignore=tests/e2e -q > /tmp/t2.log 2>&1; tail -4 /tmp/t2.log`
@@ -252,6 +274,17 @@ Run: `git diff --stat backend/engine/playbook.py` — expected: **no output**. I
 - [ ] **Step 2: Watch it fail**
 
 - [ ] **Step 3: Implement.** Accept `guidance` as a deprecated alias for one release: when `guidance` is sent without `rule_id`, resolve-or-create a rule exactly as the migration does. This keeps wave D/E's existing e2e fixtures working instead of breaking 15+ tests as collateral.
+
+- [ ] **Step 3b: Expose `rule_names` on `/states` and `/trace` (ruling R-2)**
+
+Task 9 labels graph nodes by the applied **rule names**, and the API cannot supply them
+today: both payloads emit `"rules": list(b.rules)`, which is resolved guidance *text*
+(`playbooks.py:272` and `:373`). Add `"rule_names"` alongside — do NOT replace `rules`,
+which existing consumers and the `rule_refs` resolution rely on.
+
+Test: a behaviour whose members carry rules `Rule_A` and `Rule_B` reports
+`rule_names == ["Rule_A", "Rule_B"]` in the same order as `rules`, and a behaviour with
+no guidance reports `[]`.
 
 - [ ] **Step 4: Full suite; ruff**
 
@@ -343,7 +376,8 @@ The user's verdict on the current graph was "nothing is clear". The fix is that 
 
 - [ ] **Step 1: Write the failing tests**
 
-- a node renders the applied **rule names**, and "No guidance" when the set is empty
+- a node renders the applied **rule names** (from `rule_names`, added in Task 5 per ruling R-2), and "No guidance" when the set is empty
+- captions must distinguish `"A + B"` from `"A + B + C"`; wave E found the current 14-char truncation renders both as `A-rule + B-r…`, so truncation alone is not acceptable
 - a node shows its verdict combination(s) as a subtitle so it maps back to policies
 - a **flagged** node is visually distinct and carries an accessible label saying it blocks
 - current vs visited vs unvisited are distinguishable **without relying on colour alone** (the branch already fixed two colour-only-state defects, `2177096`)
