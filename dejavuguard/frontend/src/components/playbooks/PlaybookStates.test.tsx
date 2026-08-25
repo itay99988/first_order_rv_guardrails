@@ -110,6 +110,54 @@ describe("PlaybookStates", () => {
     );
   });
 
+  // `/states` has resolved a name for every guidance string since the rules
+  // library landed, and only the graph read it -- so the two views of one
+  // behaviour named its rules differently: the graph said "Budget cap", this
+  // table said "Stay within budget." The name is what the rest of the product
+  // calls the rule, so the table leads with it.
+  it("labels each rule with the library rule that carries it", async () => {
+    mockGet.mockResolvedValue({
+      ...twoStatesOneBehaviour,
+      behaviours: [
+        {
+          ...twoStatesOneBehaviour.behaviours[0],
+          rules: ["Stay within budget.", "Keep it polite."],
+          rule_names: ["Budget cap", "Tone guard"],
+        },
+      ],
+    });
+    render(<PlaybookStates playbookId="pb1" />);
+
+    const line = await screen.findByTestId("behaviour-rule-Over budget-0");
+    expect(line).toHaveTextContent("Budget cap");
+    // Beside the text, never instead of it -- the guidance is what actually
+    // reaches the model.
+    expect(line).toHaveTextContent("Stay within budget.");
+    expect(
+      screen.getByTestId("behaviour-rule-Over budget-1"),
+    ).toHaveTextContent("Tone guard");
+  });
+
+  // `_named` falls back to the guidance text itself where no rule holds it,
+  // so a name equal to its text is not a name -- printing it would render the
+  // same sentence twice.
+  it("does not repeat the guidance when no rule names it", async () => {
+    mockGet.mockResolvedValue({
+      ...twoStatesOneBehaviour,
+      behaviours: [
+        {
+          ...twoStatesOneBehaviour.behaviours[0],
+          rules: ["Stay within budget."],
+          rule_names: ["Stay within budget."],
+        },
+      ],
+    });
+    render(<PlaybookStates playbookId="pb1" />);
+
+    const line = await screen.findByTestId("behaviour-rule-Over budget-0");
+    expect(line.textContent?.trim()).toBe("Stay within budget.");
+  });
+
   it("renders warnings returned by the API", async () => {
     mockGet.mockResolvedValue({
       ...twoStatesOneBehaviour,

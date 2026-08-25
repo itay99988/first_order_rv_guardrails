@@ -31,6 +31,8 @@ policy is violated, so a marker present makes that member's verdict False.
 
 from __future__ import annotations
 
+import re
+
 import httpx
 import pytest
 from playwright.sync_api import Page, expect
@@ -511,10 +513,15 @@ class TestBehaviourMerging:
         expect(twin).to_contain_text("3 states")
 
         # The split is the flag and nothing else: same rules, same order.
+        # Each line now leads with the library rule's name, so the guidance is
+        # matched at the end of it -- an exact-list match still pins the count
+        # and the order, which is what this is asserting.
         expect(escalate.get_by_role("listitem")).to_have_text(
-            ["A-rule", "B-rule"]
+            [re.compile(r"A-rule$"), re.compile(r"B-rule$")]
         )
-        expect(twin.get_by_role("listitem")).to_have_text(["A-rule", "B-rule"])
+        expect(twin.get_by_role("listitem")).to_have_text(
+            [re.compile(r"A-rule$"), re.compile(r"B-rule$")]
+        )
         expect(
             escalate.get_by_test_id(f"state-row-{multi_env['split_key']}")
         ).to_be_visible()
@@ -538,8 +545,15 @@ class TestGuidanceComposition:
             "behaviour-P0 rule. + P1 rule. + P2 rule."
         )
         expect(behaviour).to_be_visible()
+        # Matched at the end of each line: the table leads with the library
+        # rule's name. Order is the whole point here, and an exact-list match
+        # still enforces it.
         expect(behaviour.get_by_role("listitem")).to_have_text(
-            ["P0 rule.", "P1 rule.", "P2 rule."]
+            [
+                re.compile(r"P0 rule\.$"),
+                re.compile(r"P1 rule\.$"),
+                re.compile(r"P2 rule\.$"),
+            ]
         )
         expect(
             behaviour.get_by_test_id(f"state-row-{multi_env['three_all_false']}")

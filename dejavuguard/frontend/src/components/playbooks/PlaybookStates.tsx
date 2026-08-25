@@ -238,9 +238,34 @@ export default function PlaybookStates({ playbookId, reloadToken = 0 }: Props) {
                 <div className="space-y-2 border-t border-border p-3">
                   {behaviour.rules.length > 0 && (
                     <ul className="space-y-1 text-xs text-terminal-dim">
-                      {behaviour.rules.map((rule, i) => (
-                        <li key={i}>{rule}</li>
-                      ))}
+                      {behaviour.rules.map((rule, i) => {
+                        // The server resolves text -> name, index for index,
+                        // and the graph already draws the name. Naming the
+                        // rule here too is what stops the table and the graph
+                        // describing one behaviour in two vocabularies.
+                        //
+                        // Beside the text, not instead of it: the guidance is
+                        // what actually reaches the model, and a name equal
+                        // to its own text is `_named`'s fallback for guidance
+                        // no rule holds -- printing that would say the same
+                        // sentence twice.
+                        const name = behaviour.rule_names?.[i];
+                        return (
+                          <li key={i} data-testid={`behaviour-rule-${behaviour.name}-${i}`}>
+                            {name && name !== rule && (
+                              <>
+                                <span className="font-mono text-accent">{name}</span>
+                                {/* A real character, not a margin: a margin
+                                    separates this for the eye and leaves the
+                                    two strings glued for anything reading the
+                                    text. */}
+                                {" — "}
+                              </>
+                            )}
+                            {rule}
+                          </li>
+                        );
+                      })}
                     </ul>
                   )}
 
