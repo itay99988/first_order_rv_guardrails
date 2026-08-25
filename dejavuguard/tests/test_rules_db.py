@@ -24,6 +24,11 @@ async def test_rule_name_is_unique(db):
         await db.create_rule("r2", "Rule_Budget", "B")
 
 
-async def test_count_rule_usage_counts_members_and_playbook_wide(db):
+async def test_count_rule_usage_is_zero_for_an_unused_rule(db):
+    """A rule nothing references is safe to delete.
+
+    The non-zero side of this count -- a rule attached to two playbooks --
+    needs the migration to link it, so it lives in test_rules_migration.py.
+    """
     await db.create_rule("r1", "Rule_Budget", "A")
     assert await db.count_rule_usage("r1") == 0

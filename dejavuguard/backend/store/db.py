@@ -9,8 +9,24 @@ Uses aiosqlite for async access.
 from __future__ import annotations
 
 import json
+import re
+import uuid
 
 import aiosqlite
+
+#: Everything outside the rule-name charset collapses to a single underscore.
+_UNSAFE_NAME_CHARS = re.compile(r"[^A-Za-z0-9_]+")
+
+
+def _rule_name_from(source: str) -> str:
+    """Derive a rule name from a policy or global-rule name.
+
+    Slugged to [A-Za-z0-9_] so the name is safe to use as an identifier
+    wherever rules are referenced. A source that slugs away to nothing still
+    gets a usable name; collisions are resolved by the caller.
+    """
+    slug = _UNSAFE_NAME_CHARS.sub("_", source or "").strip("_")
+    return f"Rule_{slug}" if slug else "Rule"
 
 
 class DatabaseStore:
@@ -102,6 +118,7 @@ class DatabaseStore:
                 position    INTEGER NOT NULL DEFAULT 0,
                 fires_on    INTEGER NOT NULL DEFAULT 0,
                 guidance    TEXT NOT NULL DEFAULT '',
+                rule_id     TEXT,
                 PRIMARY KEY (playbook_id, policy_id)
             )
             """
@@ -114,7 +131,8 @@ class DatabaseStore:
                 name         TEXT NOT NULL,
                 guidance     TEXT NOT NULL,
                 position     INTEGER DEFAULT 0,
-                apply_to_all INTEGER DEFAULT 0
+                apply_to_all INTEGER DEFAULT 0,
+                rule_ref_id  TEXT
             )
             """
         )
@@ -141,6 +159,18 @@ class DatabaseStore:
             )
             """
         )
+
+        cursor = await self._db.execute("PRAGMA table_info(playbook_members)")
+        member_columns = {row["name"] for row in await cursor.fetchall()}
+        if "rule_id" not in member_columns:
+            await self._db.execute("ALTER TABLE playbook_members ADD COLUMN rule_id TEXT")
+
+        cursor = await self._db.execute("PRAGMA table_info(playbook_global_rules)")
+        global_columns = {row["name"] for row in await cursor.fetchall()}
+        if "rule_ref_id" not in global_columns:
+            await self._db.execute(
+                "ALTER TABLE playbook_global_rules ADD COLUMN rule_ref_id TEXT"
+            )
 
         cursor = await self._db.execute("PRAGMA table_info(sessions)")
         session_columns = {row["name"] for row in await cursor.fetchall()}
@@ -184,6 +214,87 @@ class DatabaseStore:
                 "ALTER TABLE propositions ADD COLUMN grounding_scope TEXT "
                 "DEFAULT 'single_message'"
             )
+
+        await self._backfill_rules_from_guidance()
+
+    async def _backfill_rules_from_guidance(self) -> None:
+        """Lift inline guidance onto the shared rules library.
+
+        This runs on every startup, so it has to be idempotent: the
+        `rule_id IS NULL` guard skips rows already migrated, and identical
+        guidance text resolves to the rule that already carries it rather
+        than to a second copy -- otherwise the library would fill with
+        duplicates the moment it was created. Empty guidance is left
+        unlinked, because a NULL reference keeps meaning "this row
+        contributes no guidance".
+
+        Nothing is rewritten: the `guidance` columns still hold the text
+        that resolution reads, so a playbook resolves byte-identically
+        either side of the migration.
+        """
+        cursor = await self._db.execute("SELECT rule_id, name, guidance FROM rules")
+        rules = await cursor.fetchall()
+        by_guidance = {}
+        for row in rules:
+            by_guidance.setdefault(row["guidance"], row["rule_id"])
+        taken = {row["name"] for row in rules}
+
+        cursor = await self._db.execute(
+            "SELECT m.playbook_id, m.policy_id, m.guidance, p.name AS policy_name "
+            "FROM playbook_members m "
+            "LEFT JOIN policies p ON p.policy_id = m.policy_id "
+            "WHERE m.rule_id IS NULL AND m.guidance != ''"
+        )
+        for row in await cursor.fetchall():
+            rule_id = await self._rule_for_guidance(
+                row["guidance"], row["policy_name"], by_guidance, taken
+            )
+            await self._db.execute(
+                "UPDATE playbook_members SET rule_id = ? "
+                "WHERE playbook_id = ? AND policy_id = ?",
+                (rule_id, row["playbook_id"], row["policy_id"]),
+            )
+
+        cursor = await self._db.execute(
+            "SELECT rule_id, name, guidance FROM playbook_global_rules "
+            "WHERE rule_ref_id IS NULL AND guidance != ''"
+        )
+        for row in await cursor.fetchall():
+            rule_id = await self._rule_for_guidance(
+                row["guidance"], row["name"], by_guidance, taken
+            )
+            await self._db.execute(
+                "UPDATE playbook_global_rules SET rule_ref_id = ? WHERE rule_id = ?",
+                (rule_id, row["rule_id"]),
+            )
+
+    async def _rule_for_guidance(
+        self, guidance: str, source_name: str | None, by_guidance: dict, taken: set
+    ) -> str:
+        """Return the rule carrying this guidance, creating it if needed.
+
+        `by_guidance` and `taken` are the migration's running view of the
+        rules table; they keep byte-identical guidance converging on one
+        rule within a single pass as well as across restarts.
+        """
+        existing = by_guidance.get(guidance)
+        if existing is not None:
+            return existing
+
+        base = _rule_name_from(source_name or "")
+        name, suffix = base, 1
+        while name in taken:
+            suffix += 1
+            name = f"{base}_{suffix}"
+
+        rule_id = str(uuid.uuid4())
+        await self._db.execute(
+            "INSERT INTO rules (rule_id, name, guidance) VALUES (?, ?, ?)",
+            (rule_id, name, guidance),
+        )
+        by_guidance[guidance] = rule_id
+        taken.add(name)
+        return rule_id
 
     # Internal helpers
 
@@ -860,13 +971,20 @@ class DatabaseStore:
     async def count_rule_usage(self, rule_id: str) -> int:
         """Count distinct playbooks referencing this rule.
 
-        Intended to count references from `playbook_members.rule_id` and
-        `playbook_global_rules.rule_ref_id`, but those columns do not exist
-        yet -- they are added in Task 2, which migrates existing guidance
-        onto shared rules and makes this count real. Until then this always
-        returns 0.
+        A playbook that both attaches the rule to a member and applies it
+        playbook-wide counts once: this is "how many playbooks would an edit
+        or a delete affect", not "how many references exist".
         """
-        return 0
+        cursor = await self._db.execute(
+            "SELECT COUNT(DISTINCT playbook_id) AS n FROM ("
+            "  SELECT playbook_id FROM playbook_members WHERE rule_id = ?"
+            "  UNION ALL"
+            "  SELECT playbook_id FROM playbook_global_rules WHERE rule_ref_id = ?"
+            ")",
+            (rule_id, rule_id),
+        )
+        row = await cursor.fetchone()
+        return int(row["n"] or 0)
 
 
 # Schema DDL
@@ -950,6 +1068,7 @@ CREATE TABLE IF NOT EXISTS playbook_members (
     position    INTEGER NOT NULL DEFAULT 0,
     fires_on    INTEGER NOT NULL DEFAULT 0,
     guidance    TEXT NOT NULL DEFAULT '',
+    rule_id     TEXT,
     PRIMARY KEY (playbook_id, policy_id)
 );
 
@@ -959,7 +1078,8 @@ CREATE TABLE IF NOT EXISTS playbook_global_rules (
     name         TEXT NOT NULL,
     guidance     TEXT NOT NULL,
     position     INTEGER DEFAULT 0,
-    apply_to_all INTEGER DEFAULT 0
+    apply_to_all INTEGER DEFAULT 0,
+    rule_ref_id  TEXT
 );
 
 CREATE TABLE IF NOT EXISTS playbook_state_overrides (
