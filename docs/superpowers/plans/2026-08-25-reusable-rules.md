@@ -13,7 +13,10 @@
 ## Global Constraints
 
 - All commands run from `dejavuguard/`. Use `uv run` for Python; plain `python` is rejected by a hook.
-- **Do NOT pass `--no-cov`.** The old "coverage hangs the suite" constraint was a misdiagnosis of a leaked aiosqlite thread, fixed in `70c7d82`. The backend runs with coverage in ~65s and must keep passing `--cov-fail-under=80` (currently 83.68%).
+- **Coverage, precisely — the earlier blanket rule was wrong in both directions:**
+  - **Full backend suite** (`uv run python -m pytest tests/ --ignore=tests/e2e`): run it WITH coverage. It must keep passing `--cov-fail-under=80`. The old "coverage hangs the suite" claim was a misdiagnosis of a leaked aiosqlite thread, fixed in `70c7d82`.
+  - **A single file or a `-k` subset: add `--no-cov`.** Coverage of a subset is meaningless, so the 80% gate fails a run in which every test passed — `3 passed` with `exit=1`. That exit code is a phantom failure, not your bug. Do not try to "fix" it.
+  - **`tests/e2e`**: the gate is already disabled in its conftest (`63ca6e4`); e2e drives a separate uvicorn process, so coverage there is cross-process and unmeasurable.
 - **Redirect pytest output to a file, never pipe it.** A finished run piped through `tail` keeps its summary in the pipe buffer and looks identical to a hang.
 - Baselines that must not regress: backend **717**, e2e **152+** (wave E adds multi-policy tests), frontend **357**, `npm run build` clean.
 - Ruff, by scope: `backend/ tests/` = 31, `scenario_runner/` = 219, `scripts/` = 8. Zero NEW findings. Never relax the ruff config; use the per-line `# noqa` convention already in `backend/store/db.py`.
