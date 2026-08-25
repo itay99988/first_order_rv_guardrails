@@ -3,6 +3,7 @@ import type {
   AppSettings,
   Proposition,
   Policy,
+  Rule,
   GroundingSettings,
   SessionInfo,
   SessionMessage,
@@ -216,6 +217,18 @@ export function createPolicy(overrides: Partial<Policy> = {}): Policy {
     enabled: true,
     created_at: "2025-01-01T00:00:00Z",
     updated_at: "2025-01-01T00:00:00Z",
+    ...overrides,
+  };
+}
+
+// ── Rule Mocks ──
+
+export function createRule(overrides: Partial<Rule> = {}): Rule {
+  return {
+    rule_id: "rule_escalate",
+    name: "Escalate to human",
+    guidance: "Tell the user you're transferring them to a specialist.",
+    usage_count: 2,
     ...overrides,
   };
 }

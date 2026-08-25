@@ -12,6 +12,7 @@ import type {
   PlaybookTrace,
   Policy,
   Proposition,
+  Rule,
   SessionInfo,
   SessionMessage,
 } from "@/types";
@@ -176,6 +177,42 @@ export async function validateFormula(data: {
   return request<FormulaValidation>("/api/policies/validate", {
     method: "POST",
     body: JSON.stringify(data),
+  });
+}
+
+// --- Rules ---
+
+export async function listRules(): Promise<Rule[]> {
+  return request<Rule[]>("/api/rules");
+}
+
+export async function createRule(data: {
+  name: string;
+  guidance?: string;
+}): Promise<Rule> {
+  return request<Rule>("/api/rules", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function getRule(ruleId: string): Promise<Rule> {
+  return request<Rule>(`/api/rules/${encodeURIComponent(ruleId)}`);
+}
+
+export async function updateRule(
+  ruleId: string,
+  data: { name?: string; guidance?: string },
+): Promise<Rule> {
+  return request<Rule>(`/api/rules/${encodeURIComponent(ruleId)}`, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteRule(ruleId: string): Promise<void> {
+  return request<void>(`/api/rules/${encodeURIComponent(ruleId)}`, {
+    method: "DELETE",
   });
 }
 

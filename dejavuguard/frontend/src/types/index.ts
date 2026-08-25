@@ -345,3 +345,18 @@ export interface PlaybookOverridePayload {
   flagged: boolean;
   label: string | null;
 }
+
+// --- Rules (shared guidance library) ---
+
+/**
+ * A row in the shared `rules` library: guidance text written once and
+ * named by whatever playbook members reference it. `usage_count` -- how
+ * many playbooks it currently reaches -- rides on `GET /api/rules` list
+ * rows only; a single read (create/get/update) does not compute it.
+ */
+export interface Rule {
+  rule_id: string;
+  name: string;
+  guidance: string;
+  usage_count?: number;
+}

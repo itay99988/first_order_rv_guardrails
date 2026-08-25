@@ -3,6 +3,7 @@ import type {
   ChatResponse,
   Policy,
   Proposition,
+  Rule,
   SessionInfo,
 } from "@/types";
 import { ApiError } from "@/types";
@@ -10,6 +11,7 @@ import {
   createOpenRouterModel,
   createPolicy,
   createProposition,
+  createRule,
   createSettings,
 } from "@/test/mocks";
 import {
@@ -25,6 +27,11 @@ import {
   getPolicies,
   createPolicy as apiCreatePolicy,
   deletePolicy,
+  listRules,
+  createRule as apiCreateRule,
+  getRule,
+  updateRule,
+  deleteRule,
   sendMessage,
   getSessions,
   createSession,
@@ -294,6 +301,89 @@ describe("Policies endpoints", () => {
 
     expect(fetchCallUrl()).toBe("/api/policies/pol_fraud");
     expect(fetchCallOptions().method).toBe("DELETE");
+  });
+});
+
+// ── Rules ──
+
+describe("Rules endpoints", () => {
+  it("listRules fetches GET /api/rules and preserves usage_count", async () => {
+    const rules: Rule[] = [
+      createRule({ usage_count: 3 }),
+      createRule({ rule_id: "rule_other", name: "Other", usage_count: 0 }),
+    ];
+    mockFetchOk(rules);
+
+    const result = await listRules();
+
+    expect(fetchCallUrl()).toBe("/api/rules");
+    expect(result).toEqual(rules);
+    expect(result[0].usage_count).toBe(3);
+  });
+
+  it("createRule sends POST /api/rules with name and guidance", async () => {
+    const input = { name: "Escalate to human", guidance: "Hand off." };
+    const created = createRule({ usage_count: undefined });
+    mockFetchOk(created, 201);
+
+    const result = await apiCreateRule(input);
+
+    expect(fetchCallUrl()).toBe("/api/rules");
+    expect(fetchCallOptions().method).toBe("POST");
+    expect(JSON.parse(fetchCallOptions().body as string)).toEqual(input);
+    expect(result).toEqual(created);
+  });
+
+  it("getRule sends GET /api/rules/{id} with the id encoded", async () => {
+    const rule = createRule({ rule_id: "rule a/1", usage_count: undefined });
+    mockFetchOk(rule);
+
+    const result = await getRule("rule a/1");
+
+    expect(fetchCallUrl()).toBe("/api/rules/rule%20a%2F1");
+    expect(result).toEqual(rule);
+  });
+
+  it("updateRule sends PUT /api/rules/{id} with the id encoded and a partial body", async () => {
+    const updated = createRule({ guidance: "Updated guidance." });
+    mockFetchOk(updated);
+
+    const result = await updateRule("rule a/1", {
+      guidance: "Updated guidance.",
+    });
+
+    expect(fetchCallUrl()).toBe("/api/rules/rule%20a%2F1");
+    expect(fetchCallOptions().method).toBe("PUT");
+    expect(JSON.parse(fetchCallOptions().body as string)).toEqual({
+      guidance: "Updated guidance.",
+    });
+    expect(result).toEqual(updated);
+  });
+
+  it("deleteRule sends DELETE /api/rules/{id} with the id encoded", async () => {
+    mockFetch204();
+
+    await deleteRule("rule a/1");
+
+    expect(fetchCallUrl()).toBe("/api/rules/rule%20a%2F1");
+    expect(fetchCallOptions().method).toBe("DELETE");
+  });
+
+  it("deleteRule surfaces a 409 with the usage count when the rule is in use", async () => {
+    mockFetchError(409, "This rule is used by 2 playbooks. Detach it there first.");
+
+    await expect(deleteRule("rule_escalate")).rejects.toMatchObject({
+      status: 409,
+      detail: "This rule is used by 2 playbooks. Detach it there first.",
+    });
+  });
+
+  it("createRule surfaces a 409 on a duplicate name", async () => {
+    mockFetchError(409, "A rule named 'Escalate to human' already exists.");
+
+    await expect(
+      apiCreateRule({ name: "Escalate to human", guidance: "" }),
+    ).rejects.toMatchObject({ status: 409 });
   });
 });
 
