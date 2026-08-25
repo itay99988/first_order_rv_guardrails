@@ -39,6 +39,7 @@ from tests.e2e.test_playbooks import (
     CHAT_TIMEOUT_MS,
     _open_playbooks,
     _open_session,
+    _rule_prefix,
     _send,
 )
 
@@ -47,6 +48,10 @@ API = "http://localhost:8000/api"
 #: Everything this module creates is named with this prefix so a crashed run
 #: can be swept clean on the next one -- the backend uses a shared dev DB.
 PREFIX = "e2e-pbmulti"
+
+#: The library rules this module's four policies cause the server to mint --
+#: see :func:`tests.e2e.test_playbooks._rule_prefix`.
+RULE_PREFIX = _rule_prefix(PREFIX)
 
 KEYWORDS = ("alpha", "bravo", "charlie", "delta")
 
@@ -70,10 +75,18 @@ def _api() -> httpx.Client:
 
 
 def _sweep(client: httpx.Client) -> None:
-    """Delete anything a previous run of this module left behind."""
+    """Delete anything a previous run of this module left behind.
+
+    Playbooks before the rules they hold: the API refuses to delete a rule a
+    playbook still names, and that refusal is what keeps this loop from
+    reaching a rule someone else is using. Nothing here is deleted by force.
+    """
     for playbook in client.get("/playbooks").json():
         if playbook["name"].startswith(PREFIX):
             client.delete(f"/playbooks/{playbook['playbook_id']}")
+    for rule in client.get("/rules").json():
+        if rule["name"].startswith(RULE_PREFIX):
+            client.delete(f"/rules/{rule['rule_id']}")
     for policy in client.get("/policies").json():
         if policy["name"].startswith(PREFIX):
             client.delete(f"/policies/{policy['policy_id']}")

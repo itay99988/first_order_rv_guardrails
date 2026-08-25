@@ -26,6 +26,8 @@ clicks its own preconditions makes a failure ambiguous.
 
 from __future__ import annotations
 
+import re
+
 import httpx
 import pytest
 from playwright.sync_api import Page, expect
@@ -59,11 +61,38 @@ def _api() -> httpx.Client:
     return httpx.Client(base_url=API, timeout=60.0)
 
 
+def _rule_prefix(prefix: str) -> str:
+    """The names the server mints for rules derived from `prefix`'s policies.
+
+    A member saved with guidance and no rule id gets one resolved out of the
+    shared library, named `Rule_<POLICY_NAME>` and slugged to [A-Za-z0-9_] --
+    `_rule_name_from` in `backend/store/db.py`, mirrored here. Those rules
+    outlive the playbooks that caused them, so a sweep that stops at
+    playbooks and policies leaks one per run, and the pile it leaves is
+    exactly what the next `Rule_<POLICY_NAME>` collides with.
+
+    Shared with the other playbook modules so the two sweeps cannot drift
+    apart in how they spell the same derivation.
+    """
+    return f"Rule_{re.sub(r'[^A-Za-z0-9_]+', '_', prefix).strip('_')}"
+
+
+RULE_PREFIX = _rule_prefix(PREFIX)
+
+
 def _sweep(client: httpx.Client) -> None:
-    """Delete anything a previous run of this module left behind."""
+    """Delete anything a previous run of this module left behind.
+
+    Playbooks before the rules they hold: the API refuses to delete a rule a
+    playbook still names, and that refusal is what keeps this loop from
+    reaching a rule someone else is using. Nothing here is deleted by force.
+    """
     for playbook in client.get("/playbooks").json():
         if playbook["name"].startswith(PREFIX):
             client.delete(f"/playbooks/{playbook['playbook_id']}")
+    for rule in client.get("/rules").json():
+        if rule["name"].startswith(RULE_PREFIX):
+            client.delete(f"/rules/{rule['rule_id']}")
     for policy in client.get("/policies").json():
         if policy["name"].startswith(PREFIX):
             client.delete(f"/policies/{policy['policy_id']}")

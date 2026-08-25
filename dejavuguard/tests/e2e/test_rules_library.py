@@ -38,11 +38,20 @@ import httpx
 import pytest
 from playwright.sync_api import Page, expect
 
+from tests.e2e.test_playbooks import _rule_prefix
+
 API = "http://localhost:8000/api"
 
 #: Everything this module creates is named with this prefix so a crashed run
 #: can be swept clean on the next one -- the backend uses a shared dev DB.
 PREFIX = "e2e-ruleslib"
+
+#: Rules here are named by the tests themselves, so this covers only the case
+#: where a member reaches the server carrying text and no rule id and the
+#: server mints `Rule_<POLICY_NAME>` for it. No flow below does that today;
+#: the sweep watches for it anyway, because a rule left behind is invisible
+#: until it collides with the name a later run wanted.
+RULE_PREFIX = _rule_prefix(PREFIX)
 
 PREDICATE_ID = "e2e_ruleslib_u"
 
@@ -88,7 +97,7 @@ def _sweep(client: httpx.Client) -> None:
         if playbook["name"].startswith(PREFIX):
             client.delete(f"/playbooks/{playbook['playbook_id']}")
     for rule in client.get("/rules").json():
-        if rule["name"].startswith(PREFIX):
+        if rule["name"].startswith(PREFIX) or rule["name"].startswith(RULE_PREFIX):
             client.delete(f"/rules/{rule['rule_id']}")
     for policy in client.get("/policies").json():
         if policy["name"].startswith(PREFIX):
