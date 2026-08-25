@@ -473,6 +473,13 @@ guidance the user pinned to a specific state.
 Send the existing `rule_id` back on save. Test: pin a state to a playbook-wide rule, re-save
 the globals pane unchanged, assert the pin still resolves.
 
+**Send `rule_ref_id` too, for a related reason (ruling R-19).** `GlobalSpec` has no
+`rule_ref_id`, so a globals re-save is **text-addressed**: it works only because the resolved
+text now matches the rule. Edit a rule's text and the playbook's globals in the same breath
+and the link survives only as long as that text match does. Making the editor send the id
+turns a coincidence into a guarantee, and Task 12's removal of the inline columns forces it
+anyway.
+
 - [ ] **Step 3: Implement**, relabelling the UI section to **"Playbook-wide rules"**. `rule_refs` keeps its `{type:"global",rule_id}` shape — do **not** unify it; that path runs through `collapse_overrides`.
 
 - [ ] **Step 4: Full backend suite + vitest + build**
