@@ -277,8 +277,20 @@ failure. Do this step first and confirm the count is right before building the g
   never heals because it skips `rule_id IS NOT NULL`. SQLite accepts this on `ADD COLUMN`
   when the default is NULL (ruling R-9).
 
+- **Teach `_load_playbook` to resolve `rule_ref_id` for globals too (ruling R-15).** Task 3
+  resolved members only, so the two halves of a playbook now resolve by different rules:
+  members read the shared library, globals still read their own inline column. Editing a
+  shared rule would update members and silently not update globals — the worst kind of
+  half-applied change, because it looks like it worked.
+
+**This step closes a live regression, so land it before anything else in this task.** Since
+Task 3, a member saved through `PUT /members` resolves to NO guidance until a restart
+re-derives the link. The running dev server predates Task 3 and is therefore still safe;
+the moment it restarts, editing members through the UI silently drops their guidance.
+
 Tests: save members carrying a `rule_id`, read them back **without** re-running the
-migration, assert it survived; the same for globals; and `count_rule_usage` still correct
+migration, assert it survived; the same for globals; a shared rule edited once changes BOTH
+a member's and a playbook-wide rule's resolved text; and `count_rule_usage` still correct
 after a save.
 
 - [ ] **Step 1: Write the failing tests** — create/list/update round-trip; duplicate name returns **409**; deleting a rule that is in use returns **409** with the usage count in the detail (never silently orphan a member); and — ruling R-10 — a rule whose `usage_count` is 0 CAN be deleted, because guidance edits mint orphans until Task 12 removes the compatibility alias, and the library must not accumulate them with no way to clear them; `usage_count` is present on list.
