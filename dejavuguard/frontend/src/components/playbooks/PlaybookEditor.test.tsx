@@ -12,6 +12,8 @@ const mockSetPlaybookMembers = vi.fn();
 const mockSetPlaybookGlobals = vi.fn();
 const mockSetPlaybookOverride = vi.fn();
 const mockGetPlaybookTrace = vi.fn();
+const mockListRules = vi.fn();
+const mockCreateRule = vi.fn();
 
 vi.mock("@/api/client", () => ({
   getPolicies: (...args: unknown[]) => mockGetPolicies(...args),
@@ -21,6 +23,8 @@ vi.mock("@/api/client", () => ({
   setPlaybookGlobals: (...args: unknown[]) => mockSetPlaybookGlobals(...args),
   setPlaybookOverride: (...args: unknown[]) => mockSetPlaybookOverride(...args),
   getPlaybookTrace: (...args: unknown[]) => mockGetPlaybookTrace(...args),
+  listRules: (...args: unknown[]) => mockListRules(...args),
+  createRule: (...args: unknown[]) => mockCreateRule(...args),
 }));
 
 const playbook: Playbook = {
@@ -50,6 +54,11 @@ describe("PlaybookEditor", () => {
       ],
       edges: [],
     });
+    mockListRules.mockReset().mockResolvedValue([
+      { rule_id: "r_warm", name: "Rule_Be_warm", guidance: "Be warm.", usage_count: 2 },
+      { rule_id: "r_watch", name: "Rule_watch", guidance: "watch", usage_count: 1 },
+    ]);
+    mockCreateRule.mockReset();
   });
 
   it("populates member and global rows from the loaded data", async () => {
@@ -94,7 +103,7 @@ describe("PlaybookEditor", () => {
       expect(screen.getByTestId("playbook-editor-load-error")).toBeInTheDocument(),
     );
 
-    expect(screen.queryByTestId("no-policies-for-members")).toBeNull();
+    expect(screen.queryByTestId("no-members")).toBeNull();
     expect(screen.getByTestId("members-load-failed")).toBeInTheDocument();
     expect(screen.getByTestId("save-members")).toBeDisabled();
     expect(screen.getByTestId("save-globals")).toBeDisabled();
@@ -200,5 +209,131 @@ describe("PlaybookEditor", () => {
     // No session is being replayed here, so every behaviour is unvisited.
     expect(mockGetPlaybookTrace).toHaveBeenCalledWith("pb1", "");
     expect(screen.queryByTestId("playbook-states")).toBeNull();
+  });
+// The guided flow only exists if it is reachable from the editor. These
+  // drive it through PlaybookEditor rather than the modal in isolation, so
+  // a modal that is never mounted fails here rather than passing quietly in
+  // its own file.
+  describe("adding a policy", () => {
+    const twoPolicies = [
+      { policy_id: "p1", name: "P1", formula_str: "a", propositions: [], enabled: true },
+      { policy_id: "p2", name: "Tone", formula_str: "b", propositions: [], enabled: true },
+    ];
+
+    const oneMember = {
+      playbook_id: "pb1",
+      state_count: 2,
+      members: [
+        { policy_id: "p1", position: 0, fires_on: true, guidance: "watch",
+          rule_id: "r_watch" },
+      ],
+      behaviours: [],
+      warnings: [],
+    };
+
+    beforeEach(() => {
+      mockGetPolicies.mockResolvedValue(twoPolicies);
+      mockGetPlaybookStates.mockResolvedValue(oneMember);
+      mockGetPlaybookGlobals.mockResolvedValue([]);
+      mockSetPlaybookMembers.mockResolvedValue({
+        overrides_expanded: 0, conflicts: [], warnings: [],
+      });
+    });
+
+    it("lists only the playbook's own members, not every policy in the system", async () => {
+      render(<PlaybookEditor playbook={playbook} onBack={vi.fn()} />);
+
+      await screen.findByTestId("member-row-p1");
+      // The checkbox wall is gone: a policy that is not a member has no row.
+      expect(screen.queryByTestId("member-row-p2")).toBeNull();
+      expect(screen.getByTestId("add-policy")).toBeInTheDocument();
+    });
+
+    it("adds a member through the guided flow, carrying the reused rule's id", async () => {
+      render(<PlaybookEditor playbook={playbook} onBack={vi.fn()} />);
+      await screen.findByTestId("member-row-p1");
+
+      await userEvent.click(screen.getByTestId("add-policy"));
+      await userEvent.click(await screen.findByTestId("policy-option-p2"));
+      await userEvent.click(await screen.findByTestId("fires-on-next"));
+      await userEvent.click(await screen.findByTestId("rule-mode-reuse"));
+      await userEvent.click(await screen.findByTestId("rule-option-r_warm"));
+      await userEvent.click(screen.getByTestId("add-policy-confirm"));
+
+      const row = await screen.findByTestId("member-row-p2");
+      expect(row).toHaveTextContent("Rule_Be_warm");
+
+      await userEvent.click(screen.getByTestId("save-members"));
+
+      await waitFor(() =>
+        expect(mockSetPlaybookMembers).toHaveBeenCalledWith("pb1", [
+          { policy_id: "p1", position: 0, fires_on: true, guidance: "watch",
+            rule_id: "r_watch" },
+          { policy_id: "p2", position: 1, fires_on: false, guidance: "Be warm.",
+            rule_id: "r_warm" },
+        ]),
+      );
+    });
+
+    it("greys out a policy the playbook already has", async () => {
+      render(<PlaybookEditor playbook={playbook} onBack={vi.fn()} />);
+      await screen.findByTestId("member-row-p1");
+
+      await userEvent.click(screen.getByTestId("add-policy"));
+
+      const taken = await screen.findByTestId("policy-option-p1");
+      expect(taken).toHaveAttribute("aria-disabled", "true");
+      expect(taken).toHaveTextContent("already in this playbook");
+    });
+
+    // Guidance edited in a member row must not be sent alongside the rule id:
+    // the server takes a named rule at its word and drops the text beside it,
+    // so a save that sent both would report success and change nothing.
+    it("detaches a member from its rule when its guidance is edited in place", async () => {
+      render(<PlaybookEditor playbook={playbook} onBack={vi.fn()} />);
+      await screen.findByTestId("member-guidance-p1");
+
+      await userEvent.clear(screen.getByTestId("member-guidance-p1"));
+      await userEvent.type(screen.getByTestId("member-guidance-p1"), "watch harder");
+      await userEvent.click(screen.getByTestId("save-members"));
+
+      await waitFor(() =>
+        expect(mockSetPlaybookMembers).toHaveBeenCalledWith("pb1", [
+          { policy_id: "p1", position: 0, fires_on: true, guidance: "watch harder" },
+        ]),
+      );
+    });
+
+    // The server, not the draft, decides which rule an edited member lands
+    // on. A row left showing the draft keeps warning about a detach that has
+    // already happened, and names a rule the member no longer uses.
+    it("re-reads the rule a saved member landed on", async () => {
+      render(<PlaybookEditor playbook={playbook} onBack={vi.fn()} />);
+      await screen.findByTestId("member-guidance-p1");
+      expect(screen.getByTestId("member-rule-p1")).toHaveTextContent("Rule_watch");
+
+      await userEvent.clear(screen.getByTestId("member-guidance-p1"));
+      await userEvent.type(screen.getByTestId("member-guidance-p1"), "watch harder");
+      expect(screen.getByTestId("member-detached-p1")).toBeInTheDocument();
+
+      mockGetPlaybookStates.mockResolvedValue({
+        ...oneMember,
+        members: [
+          { policy_id: "p1", position: 0, fires_on: true, guidance: "watch harder",
+            rule_id: "r_minted" },
+        ],
+      });
+      mockListRules.mockResolvedValue([
+        { rule_id: "r_minted", name: "Rule_P1_2", guidance: "watch harder",
+          usage_count: 1 },
+      ]);
+
+      await userEvent.click(screen.getByTestId("save-members"));
+
+      await waitFor(() =>
+        expect(screen.getByTestId("member-rule-p1")).toHaveTextContent("Rule_P1_2"),
+      );
+      expect(screen.queryByTestId("member-detached-p1")).toBeNull();
+    });
   });
 });

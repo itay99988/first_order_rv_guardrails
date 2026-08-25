@@ -224,6 +224,14 @@ export interface PlaybookMember {
   position: number;
   fires_on: boolean;
   guidance: string;
+  /**
+   * The shared rule this member draws its guidance from. Always present on
+   * read (null when the member carries no guidance). On write it is the
+   * direct link and the server takes it at its word, ignoring any
+   * `guidance` sent beside it -- so send one or the other, never both
+   * expecting the text to win.
+   */
+  rule_id?: string | null;
   /** Only present when read back (states/trace) -- absent when writing members. */
   irrevocable?: boolean;
 }

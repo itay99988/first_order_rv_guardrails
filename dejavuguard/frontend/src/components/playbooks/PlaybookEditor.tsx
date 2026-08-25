@@ -5,10 +5,19 @@ import {
   getPlaybookGlobals,
   getPlaybookStates,
   getPolicies,
+  listRules,
   setPlaybookGlobals,
   setPlaybookMembers,
 } from "@/api/client";
-import type { Playbook, PlaybookGlobalRule, PlaybookMember } from "@/types";
+import type {
+  Playbook,
+  PlaybookGlobalRule,
+  PlaybookMember,
+  Policy,
+  Rule,
+} from "@/types";
+import type { AddedMember } from "./AddPolicyModal";
+import AddPolicyModal from "./AddPolicyModal";
 import PlaybookGraph from "./PlaybookGraph";
 import PlaybookStates from "./PlaybookStates";
 
@@ -22,6 +31,17 @@ interface MemberRow {
   included: boolean;
   fires_on: boolean;
   guidance: string;
+  /** The shared rule this member draws from; null when it has no guidance. */
+  rule_id: string | null;
+  rule_name: string | null;
+  /**
+   * The rule's text as loaded. The server takes a named `rule_id` at its
+   * word and ignores any text sent beside it, so a row whose text has been
+   * edited has to be saved WITHOUT the id -- otherwise the edit reports
+   * success and changes nothing. Comparing against this is how the save
+   * knows which of the two it is looking at.
+   */
+  rule_guidance: string;
 }
 
 interface MembersSaveReport {
@@ -38,8 +58,26 @@ interface GlobalRow {
 
 const emptyGlobalRow: GlobalRow = { name: "", guidance: "", apply_to_all: false };
 
+/** Member rows in display order, each labelled with the rule it draws from. */
+function rowsFrom(members: PlaybookMember[], rules: Rule[]): MemberRow[] {
+  const ruleNames = new Map(rules.map((r) => [r.rule_id, r.name]));
+  return [...members]
+    .sort((a, b) => a.position - b.position)
+    .map((m) => ({
+      policy_id: m.policy_id,
+      included: true,
+      fires_on: m.fires_on,
+      guidance: m.guidance,
+      rule_id: m.rule_id ?? null,
+      rule_name: m.rule_id ? (ruleNames.get(m.rule_id) ?? null) : null,
+      rule_guidance: m.guidance,
+    }));
+}
+
 export default function PlaybookEditor({ playbook, onBack }: Props) {
   const [memberRows, setMemberRows] = useState<MemberRow[]>([]);
+  const [policies, setPolicies] = useState<Policy[]>([]);
+  const [addOpen, setAddOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -65,23 +103,18 @@ export default function PlaybookEditor({ playbook, onBack }: Props) {
     setLoading(true);
     setLoadError(null);
     try {
-      const [allPolicies, states, globals] = await Promise.all([
+      const [allPolicies, states, globals, rules] = await Promise.all([
         getPolicies(),
         getPlaybookStates(playbook.playbook_id),
         getPlaybookGlobals(playbook.playbook_id),
+        // Cosmetic: rule names label the rows. A library that will not load
+        // must not take the whole editor down with it.
+        listRules().catch(() => []),
       ]);
 
-      const existing = new Map(states.members.map((m) => [m.policy_id, m]));
-      const rows: MemberRow[] = allPolicies.map((p) => {
-        const member = existing.get(p.policy_id);
-        return {
-          policy_id: p.policy_id,
-          included: !!member,
-          fires_on: member?.fires_on ?? false,
-          guidance: member?.guidance ?? "",
-        };
-      });
-      setMemberRows(rows);
+      setPolicies(allPolicies);
+
+      setMemberRows(rowsFrom(states.members, rules));
 
       setGlobalRows(
         globals
@@ -111,6 +144,22 @@ export default function PlaybookEditor({ playbook, onBack }: Props) {
     );
   };
 
+  const handleAddMember = (member: AddedMember) => {
+    setAddOpen(false);
+    setMemberRows((prev) => [
+      ...prev,
+      {
+        policy_id: member.policy_id,
+        included: true,
+        fires_on: member.fires_on,
+        guidance: member.guidance,
+        rule_id: member.rule_id,
+        rule_name: member.rule_name,
+        rule_guidance: member.guidance,
+      },
+    ]);
+  };
+
   const handleSaveMembers = async () => {
     setSavingMembers(true);
     setMembersError(null);
@@ -118,18 +167,37 @@ export default function PlaybookEditor({ playbook, onBack }: Props) {
     try {
       const members: PlaybookMember[] = memberRows
         .filter((r) => r.included)
-        .map((r, index) => ({
-          policy_id: r.policy_id,
-          position: index,
-          fires_on: r.fires_on,
-          guidance: r.guidance,
-        }));
+        .map((r, index) => {
+          const spec: PlaybookMember = {
+            policy_id: r.policy_id,
+            position: index,
+            fires_on: r.fires_on,
+            guidance: r.guidance,
+          };
+          // Send the link only while the text still belongs to that rule.
+          // Once it has been edited in place the text is the instruction,
+          // and the server resolves it onto a rule of its own rather than
+          // silently rewriting one this playbook shares with others.
+          if (r.rule_id && r.guidance === r.rule_guidance) {
+            spec.rule_id = r.rule_id;
+          }
+          return spec;
+        });
       const result = await setPlaybookMembers(playbook.playbook_id, members);
       setMembersReport({
         overrides_expanded: result.overrides_expanded,
         conflicts: result.conflicts,
         warnings: result.warnings,
       });
+      // Re-read rather than trust the draft: the server resolves each
+      // member onto a rule, and an edited row does not know which one it
+      // landed on. Keeping the draft would leave the row warning about a
+      // detach that has already happened.
+      const [saved, rules] = await Promise.all([
+        getPlaybookStates(playbook.playbook_id),
+        listRules().catch(() => []),
+      ]);
+      setMemberRows(rowsFrom(saved.members, rules));
       setStatesToken((n) => n + 1);
     } catch (err) {
       setMembersError(
@@ -217,19 +285,32 @@ export default function PlaybookEditor({ playbook, onBack }: Props) {
 
       {/* Members pane */}
       <section>
-        <h3 className="mb-3 text-sm font-mono font-bold text-terminal-text uppercase tracking-wider">
-          Members
-        </h3>
+        <div className="mb-3 flex items-center justify-between">
+          <h3 className="text-sm font-mono font-bold text-terminal-text uppercase tracking-wider">
+            Members
+          </h3>
+          <button
+            onClick={() => setAddOpen(true)}
+            disabled={!!loadError}
+            className="flex items-center gap-1.5 rounded-none border border-accent/40 px-3 py-1.5 text-xs font-medium text-accent hover:bg-accent-muted disabled:opacity-50"
+            data-testid="add-policy"
+          >
+            <Plus size={14} />
+            Add policy
+          </button>
+        </div>
         <p className="mb-3 text-xs text-terminal-dim">
-          Pick which policies belong to this playbook, whether each one fires
-          on True or False, and any per-member guidance for that behaviour.
+          The policies this playbook watches. Each one names a rule whose
+          guidance applies when that policy is violated or satisfied.
         </p>
 
         <div className="space-y-2" data-testid="member-rows">
           {memberRows.map((row) => (
             <div
               key={row.policy_id}
-              className="rounded-none border border-border bg-dark-surface p-3"
+              className={`rounded-none border border-border bg-dark-surface p-3 ${
+                row.included ? "" : "opacity-50"
+              }`}
               data-testid={`member-row-${row.policy_id}`}
             >
               <div className="flex items-center gap-3">
@@ -248,8 +329,15 @@ export default function PlaybookEditor({ playbook, onBack }: Props) {
                   </span>
                 </label>
 
+                <span
+                  className="font-mono text-xs text-accent"
+                  data-testid={`member-rule-${row.policy_id}`}
+                >
+                  {row.rule_name ?? "(no rule)"}
+                </span>
+
                 <label className="ml-auto flex items-center gap-2 text-xs text-terminal-dim">
-                  Fires on
+                  Applies
                   <select
                     value={row.fires_on ? "true" : "false"}
                     onChange={(e) =>
@@ -261,8 +349,8 @@ export default function PlaybookEditor({ playbook, onBack }: Props) {
                     className="rounded-none border border-border bg-dark-primary px-2 py-1 text-xs font-mono text-terminal-bright disabled:opacity-50"
                     data-testid={`member-fires-on-${row.policy_id}`}
                   >
-                    <option value="true">T</option>
-                    <option value="false">F</option>
+                    <option value="false">when violated</option>
+                    <option value="true">when satisfied</option>
                   </select>
                 </label>
               </div>
@@ -278,12 +366,31 @@ export default function PlaybookEditor({ playbook, onBack }: Props) {
                 className="mt-2 w-full rounded-none border border-border bg-dark-primary px-3 py-2 text-sm text-terminal-bright placeholder-terminal-dim focus:border-accent/50 focus:outline-none focus:ring-1 focus:ring-accent/20 disabled:opacity-50"
                 data-testid={`member-guidance-${row.policy_id}`}
               />
+
+              {row.rule_id && row.guidance !== row.rule_guidance && (
+                <p
+                  className="mt-1 text-xs text-terminal-amber"
+                  data-testid={`member-detached-${row.policy_id}`}
+                >
+                  Saving moves this member onto its own rule, leaving{" "}
+                  {row.rule_name} as other playbooks have it.
+                </p>
+              )}
+
+              {!row.included && (
+                <p
+                  className="mt-1 text-xs text-terminal-amber"
+                  data-testid={`member-removing-${row.policy_id}`}
+                >
+                  Removed from this playbook when you save.
+                </p>
+              )}
             </div>
           ))}
 
           {memberRows.length === 0 && !loadError && (
-            <p className="text-sm text-terminal-dim" data-testid="no-policies-for-members">
-              No policies exist yet. Create one under Rules first.
+            <p className="text-sm text-terminal-dim" data-testid="no-members">
+              No policies in this playbook yet. Use "Add policy" to add one.
             </p>
           )}
 
@@ -303,6 +410,14 @@ export default function PlaybookEditor({ playbook, onBack }: Props) {
             </div>
           )}
         </div>
+
+        <AddPolicyModal
+          open={addOpen}
+          policies={policies}
+          existingPolicyIds={memberRows.map((r) => r.policy_id)}
+          onAdd={handleAddMember}
+          onClose={() => setAddOpen(false)}
+        />
 
         <div className="mt-3 flex justify-end">
           <button
