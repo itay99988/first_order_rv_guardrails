@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { drawn, tooltip } from "@/test/graphNode";
 import PlaybookGraph from "./PlaybookGraph";
 
 const mockGet = vi.fn();
@@ -54,30 +55,6 @@ const states = {
   ],
   warnings: [],
 };
-
-/**
- * A node's drawn caption -- every <text> in it, tooltip excluded.
- *
- * The only instrument this file uses to ask what a node displays. A node's
- * `textContent` also swallows its `<title>`, whose first line is the server's
- * `_disambiguate`d behaviour name and so is unique per node by construction:
- * every assertion made through `textContent` therefore passes on the tooltip
- * whatever the caption does. Four tests here -- including the one standing in
- * for the spec's "legible at 4 members / 16 states" -- were green with
- * `ruleLines` reverted to the very 14-character join they exist to forbid.
- * Ask the tooltip a tooltip question with `tooltip()`; ask everything else
- * here.
- */
-function drawn(node: HTMLElement): string {
-  return Array.from(node.querySelectorAll("text"))
-    .map((t) => t.textContent)
-    .join("|");
-}
-
-/** A node's hover tooltip -- the <title> a pointer reveals. */
-function tooltip(node: HTMLElement): string {
-  return node.querySelector("title")?.textContent ?? "";
-}
 
 describe("PlaybookGraph", () => {
   // vi.clearAllMocks() rather than mockGet.mockReset(): resetting this

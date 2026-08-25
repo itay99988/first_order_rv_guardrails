@@ -583,7 +583,11 @@ export default function PlaybookEditor({ playbook, onBack }: Props) {
           </h3>
           <button
             onClick={addGlobalRow}
-            className="flex items-center gap-1.5 rounded-none border border-border px-3 py-1.5 text-xs font-medium text-terminal-dim hover:bg-dark-hover hover:text-terminal-text"
+            // The save that would send it replaces the whole set and is
+            // already disabled here, so a row added now is a row that can
+            // only be typed and lost.
+            disabled={!!loadError}
+            className="flex items-center gap-1.5 rounded-none border border-border px-3 py-1.5 text-xs font-medium text-terminal-dim hover:bg-dark-hover hover:text-terminal-text disabled:opacity-50"
             data-testid="add-global-rule"
           >
             <Plus size={14} />
@@ -667,10 +671,33 @@ export default function PlaybookEditor({ playbook, onBack }: Props) {
             </div>
           ))}
 
-          {globalRows.length === 0 && (
+          {/* Split exactly as the members pane splits it. An empty
+              `globalRows` means one of two things -- the playbook has no
+              playbook-wide rules, or the load that would have filled it
+              failed -- and saying the first when it is the second tells a
+              user with three of them that they have none. */}
+          {globalRows.length === 0 && !loadError && (
             <p className="text-sm text-terminal-dim" data-testid="no-global-rules">
               No playbook-wide rules yet.
             </p>
+          )}
+
+          {globalRows.length === 0 && loadError && (
+            <div
+              className="flex items-center justify-between text-sm text-terminal-red"
+              data-testid="globals-load-failed"
+            >
+              <span>
+                Playbook-wide rules could not be loaded, so none are shown.
+              </span>
+              <button
+                onClick={() => void load()}
+                className="rounded-none border border-border px-3 py-1.5 text-xs font-medium text-terminal-dim hover:bg-dark-hover hover:text-terminal-text"
+                data-testid="retry-load-globals"
+              >
+                Retry
+              </button>
+            </div>
           )}
         </div>
 

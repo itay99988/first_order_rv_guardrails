@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import ChatView from "./ChatView";
+import { drawn } from "@/test/graphNode";
 import {
   createChatResponse,
   createSessionInfo,
@@ -378,10 +379,13 @@ describe("ChatView", () => {
     expect(mockGetPlaybookTrace).toHaveBeenCalledWith("pb1", "sess-1");
     // The node names the rules that apply in it, and says it blocks -- the
     // header badge gets the same legible graph the editor does.
-    const node = screen.getByTestId("node-Over budget");
-    expect(node).toHaveTextContent("Budget cap");
-    expect(node).toHaveTextContent(/blocks/i);
-    expect(node).toHaveTextContent("Current");
+    // `drawn`, not `textContent`: the node's <title> repeats every rule name,
+    // so a textContent assertion here reported on the tooltip and would have
+    // passed with the caption blank. See `@/test/graphNode`.
+    const node = drawn(screen.getByTestId("node-Over budget"));
+    expect(node).toContain("Budget cap");
+    expect(node).toMatch(/blocks/i);
+    expect(node).toContain("Current");
   });
 
   it("closes the state graph again", async () => {

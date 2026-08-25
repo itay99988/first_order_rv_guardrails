@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Playbook } from "@/types";
+import { drawn } from "@/test/graphNode";
 import PlaybookEditor from "./PlaybookEditor";
 
 const mockGetPolicies = vi.fn();
@@ -110,6 +111,56 @@ describe("PlaybookEditor", () => {
     expect(screen.getByTestId("save-globals")).toBeDisabled();
   });
 
+  // The sibling of the assertion above, in the pane two sections down. The
+  // members pane splits an empty `[]` into "nothing here yet" and "the load
+  // failed"; the playbook-wide pane read the same empty array and said "No
+  // playbook-wide rules yet" either way -- telling a user whose playbook has
+  // three of them that it has none. Same conflation as the rule library,
+  // same file, coordinates nobody reported.
+  it("does not tell the user a playbook has no playbook-wide rules when the load failed", async () => {
+    mockGetPolicies.mockResolvedValue([]);
+    mockGetPlaybookStates.mockResolvedValue({
+      playbook_id: "pb1",
+      state_count: 1,
+      members: [],
+      behaviours: [],
+      warnings: [],
+    });
+    mockGetPlaybookGlobals.mockRejectedValue(new Error("globals down"));
+
+    render(<PlaybookEditor playbook={playbook} onBack={vi.fn()} />);
+
+    await waitFor(() =>
+      expect(screen.getByTestId("playbook-editor-load-error")).toBeInTheDocument(),
+    );
+
+    expect(screen.queryByTestId("no-global-rules")).toBeNull();
+    expect(screen.getByTestId("globals-load-failed")).toBeInTheDocument();
+    // Adding a row here would be adding it to a set the pane never read, and
+    // the save that replaces the whole set is already disabled -- so the
+    // control that fills it is too.
+    expect(screen.getByTestId("add-global-rule")).toBeDisabled();
+    expect(screen.getByTestId("save-globals")).toBeDisabled();
+  });
+
+  it("still says a playbook has no playbook-wide rules when it really has none", async () => {
+    mockGetPolicies.mockResolvedValue([]);
+    mockGetPlaybookStates.mockResolvedValue({
+      playbook_id: "pb1",
+      state_count: 1,
+      members: [],
+      behaviours: [],
+      warnings: [],
+    });
+    mockGetPlaybookGlobals.mockResolvedValue([]);
+
+    render(<PlaybookEditor playbook={playbook} onBack={vi.fn()} />);
+
+    expect(await screen.findByTestId("no-global-rules")).toBeInTheDocument();
+    expect(screen.queryByTestId("globals-load-failed")).toBeNull();
+    expect(screen.getByTestId("add-global-rule")).toBeEnabled();
+  });
+
   // The point of the states pane is that a playbook built entirely through
   // this editor can end up with a state that blocks. That is a property of
   // the editor, not of the states table on its own, so it is asserted from
@@ -210,9 +261,11 @@ describe("PlaybookEditor", () => {
     // The node says which rules apply in it -- the point of the graph. Named
     // here, not in PlaybookGraph.test.tsx alone, so this fails if the graph is
     // ever unmounted from the editor.
-    expect(screen.getByTestId("node-watch")).toHaveTextContent("Rule_watch");
+    // `drawn`, not `textContent`, which would have read the name back out of
+    // the node's <title>. See `@/test/graphNode`.
+    expect(drawn(screen.getByTestId("node-watch"))).toContain("Rule_watch");
     // No session is being replayed here, so every behaviour is unvisited.
-    expect(screen.getByTestId("node-watch")).toHaveTextContent("Not visited");
+    expect(drawn(screen.getByTestId("node-watch"))).toContain("Not visited");
     expect(mockGetPlaybookTrace).toHaveBeenCalledWith("pb1", "");
     expect(screen.queryByTestId("playbook-states")).toBeNull();
   });
