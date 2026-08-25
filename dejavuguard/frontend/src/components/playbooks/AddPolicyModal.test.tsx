@@ -216,10 +216,14 @@ describe("AddPolicyModal", () => {
     );
   });
 
-  // The library loads asynchronously. A name computed once, before it
-  // arrives, is computed against an empty library -- which is exactly the
-  // collision this avoids, reintroduced as a race.
-  it("re-suggests once the library has loaded", async () => {
+  // The library loads asynchronously, so "not yet known" is a state of its
+  // own -- neither "empty" nor "unknown". Suggesting against the still-empty
+  // initial array offers `Rule_<POLICY_NAME>`, the one name every migrated
+  // policy already owns, and a suggestion that arrives before the check is a
+  // guess wearing the check's clothes. Nothing is offered until the library
+  // answers; once it does the offer is recomputed rather than frozen at the
+  // moment "create" was picked.
+  it("suggests nothing while the library is still loading, then re-suggests", async () => {
     let release: (rules: Rule[]) => void = () => {};
     mockListRules.mockReturnValue(
       new Promise<Rule[]>((resolve) => {
@@ -230,7 +234,12 @@ describe("AddPolicyModal", () => {
     await reachRuleStep("p_budget");
     await userEvent.click(screen.getByTestId("rule-mode-create"));
 
-    expect(screen.getByTestId("new-rule-name")).toHaveValue("Rule_Budget_guard");
+    expect(screen.getByTestId("new-rule-name")).toHaveValue("");
+    // Said as what it is. "Could not be loaded" is the failed path's wording
+    // and would be a lie about a load that is still in flight.
+    const waiting = screen.getByTestId("rule-name-unverified");
+    expect(waiting).toHaveTextContent(/checking/i);
+    expect(waiting.textContent).not.toMatch(/could not/i);
 
     release([
       { rule_id: "r_a", name: "Rule_Budget_guard", guidance: "Ask first.", usage_count: 1 },
@@ -239,6 +248,52 @@ describe("AddPolicyModal", () => {
     await waitFor(() =>
       expect(screen.getByTestId("new-rule-name")).toHaveValue("Rule_Budget_guard_2"),
     );
+    expect(screen.queryByTestId("rule-name-unverified")).toBeNull();
+  });
+
+  // Suggesting nothing is only half the guard: the name box is editable, and
+  // a user quick enough to type into it mid-load can hand the create the very
+  // name the suggestion was withheld to avoid. Until the library answers there
+  // is nothing to check that name against, so there is nothing to submit on.
+  it("will not submit a name typed before the library has answered", async () => {
+    let release: (rules: Rule[]) => void = () => {};
+    mockListRules.mockReturnValue(
+      new Promise<Rule[]>((resolve) => {
+        release = resolve;
+      }),
+    );
+    renderModal();
+    await reachRuleStep("p_budget");
+    await userEvent.click(screen.getByTestId("rule-mode-create"));
+    await userEvent.type(screen.getByTestId("new-rule-name"), "Rule_Budget_guard");
+
+    expect(screen.getByTestId("add-policy-confirm")).toBeDisabled();
+    await userEvent.click(screen.getByTestId("add-policy-confirm"));
+    expect(mockCreateRule).not.toHaveBeenCalled();
+
+    // Held, not blocked: the answer arrives, the name is checked against it,
+    // and the user is told what the check found rather than being stopped.
+    release([
+      { rule_id: "r_a", name: "Rule_Budget_guard", guidance: "Ask first.", usage_count: 1 },
+    ]);
+
+    await waitFor(() =>
+      expect(screen.getByTestId("rule-name-taken")).toHaveTextContent(
+        "Rule_Budget_guard",
+      ),
+    );
+    expect(screen.getByTestId("add-policy-confirm")).toBeEnabled();
+  });
+
+  it("says the library is loading rather than that it could not be loaded", async () => {
+    mockListRules.mockReturnValue(new Promise<Rule[]>(() => {}));
+    renderModal();
+    await reachRuleStep("p_budget");
+    await userEvent.click(screen.getByTestId("rule-mode-reuse"));
+
+    const message = await screen.findByTestId("no-rules-match");
+    expect(message).toHaveTextContent(/loading/i);
+    expect(message.textContent).not.toMatch(/could not|empty/i);
   });
 
   it("keeps a name the user typed instead of re-suggesting over it", async () => {
@@ -391,6 +446,35 @@ describe("AddPolicyModal", () => {
       expect(screen.getByTestId("rule-name-unverified")).toBeInTheDocument();
       // Nothing to confirm until the user names it themselves.
       expect(screen.getByTestId("add-policy-confirm")).toBeDisabled();
+    });
+
+    // A load that failed is over: no answer is coming, and the copy above
+    // tells the user to name the rule themselves and let saving be the check.
+    // Holding confirm shut here would make that promise false and leave the
+    // create path permanently unusable -- which is why the mid-load hold is
+    // gated on "still waiting", not on "verified".
+    it("still submits a name the user typed themselves", async () => {
+      mockCreateRule.mockResolvedValue({
+        rule_id: "r_new", name: "Rule_My_own", guidance: "Ask first.",
+      });
+      const { onAdd } = renderModal();
+      await reachRuleStep("p_budget");
+      await userEvent.click(screen.getByTestId("rule-mode-create"));
+      await userEvent.type(screen.getByTestId("new-rule-name"), "Rule_My_own");
+      await userEvent.type(screen.getByTestId("new-rule-guidance"), "Ask first.");
+
+      expect(screen.getByTestId("add-policy-confirm")).toBeEnabled();
+      await userEvent.click(screen.getByTestId("add-policy-confirm"));
+
+      await waitFor(() =>
+        expect(mockCreateRule).toHaveBeenCalledWith({
+          name: "Rule_My_own",
+          guidance: "Ask first.",
+        }),
+      );
+      expect(onAdd).toHaveBeenCalledWith(
+        expect.objectContaining({ rule_id: "r_new" }),
+      );
     });
 
     it("does not call the library empty when it does not know what is in it", async () => {
