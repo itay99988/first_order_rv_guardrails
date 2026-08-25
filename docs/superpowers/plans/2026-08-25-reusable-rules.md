@@ -147,8 +147,11 @@ async def test_migration_converges_identical_guidance_on_one_rule(tmp_path):
     path = str(tmp_path / "m.db")
     db = DatabaseStore(path)
     await db.initialize()
-    await db.create_policy("p_a", "A", "true", [])
-    await db.create_policy("p_b", "B", "true", [])
+    # create_policy(policy_id, name, formula_str, enabled=True) -- the 4th
+    # parameter is `enabled`, not propositions; the store does int(enabled),
+    # so passing a list raises TypeError.
+    await db.create_policy("p_a", "A", "true")
+    await db.create_policy("p_b", "B", "true")
     await db.create_playbook("pb", "PB", None)
     await db.set_playbook_members("pb", [
         {"policy_id": "p_a", "position": 0, "fires_on": False, "guidance": "Same text."},
@@ -277,6 +280,19 @@ Run: `git diff --stat backend/engine/playbook.py` — expected: **no output**. I
 - [ ] **Step 2: Watch it fail**
 
 - [ ] **Step 3: Implement.** Accept `guidance` as a deprecated alias for one release: when `guidance` is sent without `rule_id`, resolve-or-create a rule exactly as the migration does. This keeps wave D/E's existing e2e fixtures working instead of breaking 15+ tests as collateral.
+
+- [ ] **Step 3a: Make `set_playbook_members` persist `rule_id` (ruling R-6)**
+
+Found by Task 2: `set_playbook_members` (`db.py:630`) deletes and reinserts the whole
+member set and its INSERT column list is
+`(playbook_id, policy_id, position, fires_on, guidance)` — **no `rule_id`**. So every save
+through the existing API silently drops the link to NULL, and it is only re-derived at the
+next startup by matching guidance text. Two members that legitimately share a rule would be
+re-linked by text and appear correct, which is what makes this hard to notice.
+
+Add `rule_id` to the INSERT and to `list_playbook_members`' projection. Test: save members
+carrying a `rule_id`, read them back **without** re-running the migration, and assert the
+`rule_id` survived.
 
 - [ ] **Step 3b: Expose `rule_names` on `/states` and `/trace` (ruling R-2)**
 
