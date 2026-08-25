@@ -365,8 +365,20 @@ async def update_playbook(request: Request, playbook_id: str,
 
 @router.delete("/playbooks/{playbook_id}", status_code=204)
 async def delete_playbook(request: Request, playbook_id: str):
+    """Delete a playbook, returning any session monitoring it to policy mode.
+
+    A session left naming a deleted playbook does not stop being monitored --
+    `_get_or_create_monitor` finds no playbook, skips the narrowing, and runs
+    every enabled policy under per-policy blocking instead. The session goes
+    on reporting itself as being in playbook mode, so the switch of
+    specification is invisible at exactly the moment enforcement changes.
+    Moving those sessions explicitly makes the record say what is happening,
+    which is what the mode selector reads.
+    """
     db = _get_db(request)
     await _require(db, playbook_id)
+    for row in await db.sessions_using_playbook(playbook_id):
+        await db.set_session_monitoring(row["session_id"], "policies", None)
     await db.delete_playbook(playbook_id)
     invalidate_monitors()
 

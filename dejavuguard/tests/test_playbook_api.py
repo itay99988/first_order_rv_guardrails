@@ -1019,3 +1019,48 @@ def test_a_rejected_state_key_cannot_reappear_as_a_flag_later(client):
     behaviours = client.get(f"/api/playbooks/{pb}/states").json()["behaviours"]
     assert not any(b["flagged"] for b in behaviours)
     assert not any(s["label"] for b in behaviours for s in b["states"])
+
+
+def test_deleting_a_playbook_returns_its_sessions_to_policy_mode(client):
+    """A session left naming a deleted playbook silently changes what it enforces.
+
+    `_get_or_create_monitor` narrows the enabled policies to the playbook's
+    members only when the playbook loads. Delete it and that branch is
+    skipped, so the session is monitored against EVERY enabled policy under
+    per-policy blocking instead of the playbook's flagged states -- a
+    different specification and a different blocking rule, adopted at the
+    next turn with nothing said. The session meanwhile still reports
+    `monitoring_mode: "playbook"`, so neither the API nor the mode selector
+    can tell anyone.
+
+    `set_session_monitoring` refuses an unknown playbook and clears the id on
+    a mode switch precisely so a stale reference cannot exist; deletion was
+    the one path that made one.
+    """
+    policy_id = _policy(client, "p_a", "A")
+    pb = client.post("/api/playbooks", json={"name": "Budget"}).json()["playbook_id"]
+    client.put(f"/api/playbooks/{pb}/members", json={"members": [
+        {"policy_id": policy_id, "position": 0, "fires_on": False, "guidance": "R."}]})
+    # The bystander is on a DIFFERENT playbook, not merely in policy mode: a
+    # session already in policy mode is unchanged by moving it, so it could
+    # not tell an over-broad sweep from a targeted one.
+    spare = client.post("/api/playbooks", json={"name": "Spare"}).json()["playbook_id"]
+    client.put(f"/api/playbooks/{spare}/members", json={"members": [
+        {"policy_id": policy_id, "position": 0, "fires_on": False, "guidance": "S."}]})
+    session_id = client.post("/api/chat/sessions").json()["session_id"]
+    other = client.post("/api/chat/sessions").json()["session_id"]
+
+    for session, playbook in ((session_id, pb), (other, spare)):
+        assert client.patch(f"/api/chat/sessions/{session}/monitoring",
+                            json={"mode": "playbook",
+                                  "playbook_id": playbook}).status_code == 200
+
+    assert client.delete(f"/api/playbooks/{pb}").status_code == 204
+
+    moved = client.get(f"/api/chat/sessions/{session_id}").json()
+    assert moved["monitoring_mode"] == "policies"
+    assert moved["playbook_id"] is None
+
+    untouched = client.get(f"/api/chat/sessions/{other}").json()
+    assert untouched["monitoring_mode"] == "playbook"
+    assert untouched["playbook_id"] == spare

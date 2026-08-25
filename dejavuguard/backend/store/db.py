@@ -692,6 +692,22 @@ class DatabaseStore:
             )
         await self._db.commit()
 
+    async def sessions_using_playbook(self, playbook_id: str) -> list[dict]:
+        """Every session whose monitoring names this playbook.
+
+        Deleting a playbook leaves those sessions holding an id that resolves
+        to nothing. `_get_or_create_monitor` then falls through its
+        `playbook is not None` guard and monitors EVERY enabled policy, per
+        policy -- a different specification, and a different blocking rule,
+        adopted silently while the session still reports itself as being in
+        playbook mode. `set_session_monitoring` already refuses an unknown
+        playbook and clears the id on a mode switch so "a stale reference
+        cannot survive"; this is the path that was making one.
+        """
+        return await self._fetch_all(
+            "SELECT session_id FROM sessions WHERE playbook_id = ?", (playbook_id,)
+        )
+
     async def set_session_monitoring(
         self, session_id: str, mode: str, playbook_id: str | None = None
     ) -> None:
