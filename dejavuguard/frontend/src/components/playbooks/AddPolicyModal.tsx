@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 
-import { createRule, listRules } from "@/api/client";
+import { createRule } from "@/api/client";
 import type { Policy, Rule } from "@/types";
 import Modal from "@/components/shared/Modal";
+import type { RuleLibrary } from "./sharedRules";
+import { LOADING_LIBRARY, knownRules, loadRuleLibrary } from "./sharedRules";
 
 /** One member, fully decided: which policy, when it fires, which rule. */
 export interface AddedMember {
@@ -26,23 +28,6 @@ interface Props {
 
 type Step = "policy" | "fires-on" | "rule";
 type RuleMode = "reuse" | "create" | "none";
-
-/**
- * What the modal knows about the shared library -- three answers, kept three.
- *
- * Neither `loading` nor `failed` is folded into an empty `rules` array. Every
- * safeguard here -- the suffixing, the "already held" hint, the empty-library
- * copy -- reads that array and treats what it does not find as free. A library
- * that has not answered yet, or that never will, therefore turns every one of
- * those safeguards into a confident wrong answer if it is allowed to present
- * itself as empty.
- *
- * "Empty", "not yet known" and "unknown" are three different things. Each time
- * two of them have been collapsed here, the result has been the same bug: the
- * modal offering `Rule_<POLICY_NAME>` -- the name every migrated policy
- * already owns -- as though it had checked.
- */
-type LibraryStatus = "loading" | "ready" | "failed";
 
 const RULE_MODE_LABELS: Record<RuleMode, string> = {
   reuse: "Reuse an existing rule",
@@ -108,9 +93,14 @@ export default function AddPolicyModal({
   const [firesOn, setFiresOn] = useState(false);
   const [ruleMode, setRuleMode] = useState<RuleMode | null>(null);
 
-  const [rules, setRules] = useState<Rule[]>([]);
-  const [rulesStatus, setRulesStatus] = useState<LibraryStatus>("loading");
-  const [rulesError, setRulesError] = useState<string | null>(null);
+  /**
+   * What the modal knows about the shared library -- three answers, kept
+   * three, in one value that cannot hold fewer. Every safeguard here (the
+   * suffixing, the "already held" hint, the empty-library copy) reads the
+   * rule list as "these names are taken, all others are free" -- an answer
+   * only a `ready` library can give. See `./sharedRules`.
+   */
+  const [library, setLibrary] = useState<RuleLibrary>(LOADING_LIBRARY);
   const [search, setSearch] = useState("");
   const [reusedRuleId, setReusedRuleId] = useState<string | null>(null);
 
@@ -138,22 +128,11 @@ export default function AddPolicyModal({
     setError(null);
 
     let cancelled = false;
-    setRulesError(null);
-    setRulesStatus("loading");
-    void listRules()
-      .then((loaded) => {
-        if (cancelled) return;
-        setRules(loaded);
-        setRulesStatus("ready");
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return;
-        setRules([]);
-        setRulesStatus("failed");
-        setRulesError(
-          err instanceof Error ? err.message : "Failed to load the rule library",
-        );
-      });
+    setLibrary(LOADING_LIBRARY);
+    void loadRuleLibrary().then((loaded) => {
+      if (cancelled) return;
+      setLibrary(loaded);
+    });
     return () => {
       cancelled = true;
     };
@@ -178,17 +157,15 @@ export default function AddPolicyModal({
   /**
    * The library, or `null` when there is no library to answer from.
    *
-   * `rules` alone cannot say why it is empty, and every safeguard below reads
-   * it as "these names are taken, all others are free" -- an answer only the
-   * `ready` array can give. Narrowing to `null` everywhere else makes that a
+   * Narrowing to `null` everywhere but `ready` makes an unhandled state a
    * type error rather than a judgement call: a new reader of the library has
    * to say what it does when the library has not answered, which is the step
    * each recurrence of this bug skipped.
    */
-  const knownRules: Rule[] | null = rulesStatus === "ready" ? rules : null;
+  const known: Rule[] | null = knownRules(library);
 
   const visibleRules = useMemo(() => {
-    const listed = rulesStatus === "ready" ? rules : [];
+    const listed = knownRules(library) ?? [];
     const needle = search.trim().toLowerCase();
     if (!needle) return listed;
     return listed.filter(
@@ -196,9 +173,9 @@ export default function AddPolicyModal({
         r.name.toLowerCase().includes(needle) ||
         r.guidance.toLowerCase().includes(needle),
     );
-  }, [rules, rulesStatus, search]);
+  }, [library, search]);
 
-  const reusedRule = knownRules?.find((r) => r.rule_id === reusedRuleId) ?? null;
+  const reusedRule = known?.find((r) => r.rule_id === reusedRuleId) ?? null;
 
   // Recomputed from the library rather than frozen when "create" is picked:
   // the library loads asynchronously, and a name computed before it arrives
@@ -210,15 +187,15 @@ export default function AddPolicyModal({
   // policy already owns, with the confidence of a checked answer.
   const baseName = policy ? ruleNameBase(policy.name) : "";
   const suggestedName =
-    policy && knownRules ? firstFreeRuleName(policy.name, knownRules) : "";
+    policy && known ? firstFreeRuleName(policy.name, known) : "";
   const newRuleName = typedRuleName ?? suggestedName;
   // The suggestion is checked against the library on every keystroke; a name
   // the user typed is not. Both land on the same UNIQUE constraint.
   const collidingRule =
-    knownRules?.find((r) => r.name === newRuleName.trim()) ?? null;
+    known?.find((r) => r.name === newRuleName.trim()) ?? null;
   const ownedRule =
     typedRuleName === null
-      ? (knownRules?.find((r) => r.name === baseName) ?? null)
+      ? (known?.find((r) => r.name === baseName) ?? null)
       : null;
 
   // A name cannot be submitted while the check on it is still in flight --
@@ -231,7 +208,7 @@ export default function AddPolicyModal({
   // let saving be the check. Holding confirm shut there would make that
   // promise false and leave create unusable for as long as the library is
   // down, which trades this bug for a worse one.
-  const nameCheckPending = rulesStatus === "loading";
+  const nameCheckPending = library.status === "loading";
 
   const canConfirm =
     !submitting &&
@@ -445,9 +422,9 @@ export default function AddPolicyModal({
                 the failure only inside the reuse branch left the two other
                 modes looking like they had answered from a library that had
                 simply come back empty. */}
-            {rulesError && (
+            {library.status === "failed" && (
               <p className="text-xs text-terminal-red" data-testid="rules-load-error">
-                {rulesError}
+                {library.error}
               </p>
             )}
 
@@ -527,11 +504,11 @@ export default function AddPolicyModal({
                       className="px-2 py-1.5 text-xs text-terminal-dim"
                       data-testid="no-rules-match"
                     >
-                      {rulesStatus === "failed"
+                      {library.status === "failed"
                         ? "The rule library could not be loaded, so there is nothing here to reuse."
-                        : rulesStatus === "loading"
+                        : library.status === "loading"
                           ? "Loading the rule library..."
-                          : rules.length === 0
+                          : library.rules.length === 0
                             ? "The rule library is empty. Create the first rule here."
                             : "No rule matches that search."}
                     </p>
@@ -589,7 +566,7 @@ export default function AddPolicyModal({
                     flight is a lie, and it is the wording that would send the
                     user off to name the rule by hand a moment before the
                     library was about to name it for them. */}
-                {rulesStatus === "loading" ? (
+                {library.status === "loading" ? (
                   <p
                     className="text-xs text-terminal-amber"
                     data-testid="rule-name-unverified"
@@ -597,7 +574,7 @@ export default function AddPolicyModal({
                     Checking the rule library for a free name. Nothing is
                     suggested, and nothing can be saved, until it answers.
                   </p>
-                ) : rulesStatus === "failed" ? (
+                ) : library.status === "failed" ? (
                   <p
                     className="text-xs text-terminal-amber"
                     data-testid="rule-name-unverified"

@@ -5,7 +5,6 @@ import {
   getPlaybookGlobals,
   getPlaybookStates,
   getPolicies,
-  listRules,
   setPlaybookGlobals,
   setPlaybookMembers,
 } from "@/api/client";
@@ -14,12 +13,20 @@ import type {
   PlaybookGlobalRule,
   PlaybookMember,
   Policy,
-  Rule,
 } from "@/types";
 import type { AddedMember } from "./AddPolicyModal";
 import AddPolicyModal from "./AddPolicyModal";
 import PlaybookGraph from "./PlaybookGraph";
 import PlaybookStates from "./PlaybookStates";
+import type { RuleLabel, RuleLibrary } from "./sharedRules";
+import {
+  NO_RULE,
+  leftBehindText,
+  loadRuleLibrary,
+  pickedRuleLabel,
+  ruleLabel,
+  ruleLabelText,
+} from "./sharedRules";
 
 interface Props {
   playbook: Playbook;
@@ -33,7 +40,12 @@ interface MemberRow {
   guidance: string;
   /** The shared rule this member draws from; null when it has no guidance. */
   rule_id: string | null;
-  rule_name: string | null;
+  /**
+   * What the row can say about that rule -- named, none, or "the library did
+   * not answer". Not a `string | null`: that shape has exactly two seats for
+   * three answers, and the one it evicts is the one that matters.
+   */
+  rule_name: RuleLabel;
   /**
    * The rule's text as loaded. The server takes a named `rule_id` at its
    * word and ignores any text sent beside it, so a row whose text has been
@@ -64,7 +76,8 @@ interface GlobalRow {
   rule_id: string | null;
   /** The shared rule this row draws from; null when it has no guidance. */
   rule_ref_id: string | null;
-  rule_name: string | null;
+  /** As on `MemberRow`, and for the same reason. */
+  rule_name: RuleLabel;
   /**
    * The rule's text as loaded. The server takes a named rule at its word
    * and ignores any text sent beside it, so a row whose text has been
@@ -81,7 +94,7 @@ const emptyGlobalRow: GlobalRow = {
   apply_to_all: false,
   rule_id: null,
   rule_ref_id: null,
-  rule_name: null,
+  rule_name: NO_RULE,
   rule_guidance: "",
 };
 
@@ -109,8 +122,7 @@ function linkWhileUnedited(
 }
 
 /** Member rows in display order, each labelled with the rule it draws from. */
-function rowsFrom(members: PlaybookMember[], rules: Rule[]): MemberRow[] {
-  const ruleNames = new Map(rules.map((r) => [r.rule_id, r.name]));
+function rowsFrom(members: PlaybookMember[], library: RuleLibrary): MemberRow[] {
   return [...members]
     .sort((a, b) => a.position - b.position)
     .map((m) => ({
@@ -119,14 +131,16 @@ function rowsFrom(members: PlaybookMember[], rules: Rule[]): MemberRow[] {
       fires_on: m.fires_on,
       guidance: m.guidance,
       rule_id: m.rule_id ?? null,
-      rule_name: m.rule_id ? (ruleNames.get(m.rule_id) ?? null) : null,
+      rule_name: ruleLabel(m.rule_id, library),
       rule_guidance: m.guidance,
     }));
 }
 
 /** Playbook-wide rows in display order, each labelled with its library rule. */
-function globalRowsFrom(globals: PlaybookGlobalRule[], rules: Rule[]): GlobalRow[] {
-  const ruleNames = new Map(rules.map((r) => [r.rule_id, r.name]));
+function globalRowsFrom(
+  globals: PlaybookGlobalRule[],
+  library: RuleLibrary,
+): GlobalRow[] {
   return [...globals]
     .sort((a, b) => a.position - b.position)
     .map((g) => ({
@@ -135,7 +149,7 @@ function globalRowsFrom(globals: PlaybookGlobalRule[], rules: Rule[]): GlobalRow
       apply_to_all: !!g.apply_to_all,
       rule_id: g.rule_id ?? null,
       rule_ref_id: g.rule_ref_id ?? null,
-      rule_name: g.rule_ref_id ? (ruleNames.get(g.rule_ref_id) ?? null) : null,
+      rule_name: ruleLabel(g.rule_ref_id, library),
       rule_guidance: g.guidance,
     }));
 }
@@ -169,20 +183,22 @@ export default function PlaybookEditor({ playbook, onBack }: Props) {
     setLoading(true);
     setLoadError(null);
     try {
-      const [allPolicies, states, globals, rules] = await Promise.all([
+      const [allPolicies, states, globals, library] = await Promise.all([
         getPolicies(),
         getPlaybookStates(playbook.playbook_id),
         getPlaybookGlobals(playbook.playbook_id),
         // Cosmetic: rule names label the rows. A library that will not load
-        // must not take the whole editor down with it.
-        listRules().catch(() => []),
+        // must not take the whole editor down with it -- but it must not be
+        // mistaken for an empty one either, which is what `loadRuleLibrary`
+        // is for and what `.catch(() => [])` here used to get wrong.
+        loadRuleLibrary(),
       ]);
 
       setPolicies(allPolicies);
 
-      setMemberRows(rowsFrom(states.members, rules));
+      setMemberRows(rowsFrom(states.members, library));
 
-      setGlobalRows(globalRowsFrom(globals, rules));
+      setGlobalRows(globalRowsFrom(globals, library));
     } catch (err) {
       setLoadError(
         err instanceof Error ? err.message : "Failed to load playbook editor",
@@ -212,7 +228,9 @@ export default function PlaybookEditor({ playbook, onBack }: Props) {
         fires_on: member.fires_on,
         guidance: member.guidance,
         rule_id: member.rule_id,
-        rule_name: member.rule_name,
+        // The modal picked or created this rule, so its name is known
+        // first-hand -- no library lookup, and nothing to be unsure about.
+        rule_name: pickedRuleLabel(member.rule_name),
         rule_guidance: member.guidance,
       },
     ]);
@@ -248,11 +266,11 @@ export default function PlaybookEditor({ playbook, onBack }: Props) {
       // member onto a rule, and an edited row does not know which one it
       // landed on. Keeping the draft would leave the row warning about a
       // detach that has already happened.
-      const [saved, rules] = await Promise.all([
+      const [saved, library] = await Promise.all([
         getPlaybookStates(playbook.playbook_id),
-        listRules().catch(() => []),
+        loadRuleLibrary(),
       ]);
-      setMemberRows(rowsFrom(saved.members, rules));
+      setMemberRows(rowsFrom(saved.members, library));
       setStatesToken((n) => n + 1);
     } catch (err) {
       setMembersError(
@@ -314,11 +332,11 @@ export default function PlaybookEditor({ playbook, onBack }: Props) {
       // onto a rule and mints an id for each new one, and the draft knows
       // neither. Keeping it would leave a row warning about a detach that
       // has already happened, and a new row with no id to pin against.
-      const [saved, rules] = await Promise.all([
+      const [saved, library] = await Promise.all([
         getPlaybookGlobals(playbook.playbook_id),
-        listRules().catch(() => []),
+        loadRuleLibrary(),
       ]);
-      setGlobalRows(globalRowsFrom(saved, rules));
+      setGlobalRows(globalRowsFrom(saved, library));
     } catch (err) {
       setGlobalsError(
         err instanceof Error ? err.message : "Failed to save playbook-wide rules",
@@ -414,7 +432,7 @@ export default function PlaybookEditor({ playbook, onBack }: Props) {
                   className="font-mono text-xs text-accent"
                   data-testid={`member-rule-${row.policy_id}`}
                 >
-                  {row.rule_name ?? "(no rule)"}
+                  {ruleLabelText(row.rule_name)}
                 </span>
 
                 <label className="ml-auto flex items-center gap-2 text-xs text-terminal-dim">
@@ -454,7 +472,7 @@ export default function PlaybookEditor({ playbook, onBack }: Props) {
                   data-testid={`member-detached-${row.policy_id}`}
                 >
                   Saving moves this member onto its own rule, leaving{" "}
-                  {row.rule_name} unchanged.
+                  {leftBehindText(row.rule_name)} unchanged.
                 </p>
               )}
 
@@ -601,7 +619,7 @@ export default function PlaybookEditor({ playbook, onBack }: Props) {
                   className="shrink-0 font-mono text-xs text-accent"
                   data-testid={`global-rule-${index}`}
                 >
-                  {row.rule_name ?? "(no rule)"}
+                  {ruleLabelText(row.rule_name)}
                 </span>
                 <button
                   onClick={() => removeGlobalRow(index)}
@@ -630,7 +648,7 @@ export default function PlaybookEditor({ playbook, onBack }: Props) {
                   data-testid={`global-detached-${index}`}
                 >
                   Saving moves this rule onto one of its own, leaving{" "}
-                  {row.rule_name} unchanged.
+                  {leftBehindText(row.rule_name)} unchanged.
                 </p>
               )}
 

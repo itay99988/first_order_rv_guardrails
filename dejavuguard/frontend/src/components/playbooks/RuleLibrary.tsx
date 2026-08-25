@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Loader2 } from "lucide-react";
 
-import { deleteRule, listRules, updateRule } from "@/api/client";
+import { deleteRule, updateRule } from "@/api/client";
 import Modal from "@/components/shared/Modal";
 import type { Rule } from "@/types";
+import type { RuleLibrary as Library } from "./sharedRules";
+import { LOADING_LIBRARY, knownRules, loadRuleLibrary } from "./sharedRules";
 
 interface Props {
   /** Rendered as a "Back" control when the caller has somewhere to go back to. */
@@ -39,8 +41,13 @@ function message(err: unknown, fallback: string): string {
 }
 
 export default function RuleLibrary({ onBack }: Props) {
-  const [rules, setRules] = useState<Rule[] | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  /**
+   * Loading, loaded, or failed -- see `./sharedRules`. One value rather than
+   * a `Rule[] | null` beside an error string, so "empty" cannot be spelled
+   * two ways and no render below has to reconstruct which one it is looking
+   * at from the pair.
+   */
+  const [library, setLibrary] = useState<Library>(LOADING_LIBRARY);
   const [query, setQuery] = useState("");
 
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -54,14 +61,7 @@ export default function RuleLibrary({ onBack }: Props) {
   } | null>(null);
 
   const load = useCallback(async () => {
-    try {
-      const data = await listRules();
-      setRules(data);
-      setLoadError(null);
-    } catch (err) {
-      setRules(null);
-      setLoadError(message(err, "Failed to load the rule library"));
-    }
+    setLibrary(await loadRuleLibrary());
   }, []);
 
   useEffect(() => {
@@ -69,6 +69,7 @@ export default function RuleLibrary({ onBack }: Props) {
   }, [load]);
 
   const matches = useMemo(() => {
+    const rules = knownRules(library);
     if (!rules) return [];
     const needle = query.trim().toLowerCase();
     if (!needle) return rules;
@@ -79,7 +80,7 @@ export default function RuleLibrary({ onBack }: Props) {
         r.name.toLowerCase().includes(needle) ||
         r.guidance.toLowerCase().includes(needle),
     );
-  }, [rules, query]);
+  }, [library, query]);
 
   const sharedCount = draft?.rule.usage_count ?? 0;
   const isShared = sharedCount > 1;
@@ -164,7 +165,7 @@ export default function RuleLibrary({ onBack }: Props) {
         />
       </div>
 
-      {rules === null && loadError === null && (
+      {library.status === "loading" && (
         <div
           className="flex items-center justify-center py-8"
           data-testid="rule-library-loading"
@@ -173,20 +174,20 @@ export default function RuleLibrary({ onBack }: Props) {
         </div>
       )}
 
-      {loadError && (
+      {library.status === "failed" && (
         <p className="text-sm text-terminal-red" data-testid="rule-library-error">
-          {loadError}
+          {library.error}
         </p>
       )}
 
-      {rules !== null && rules.length === 0 && (
+      {library.status === "ready" && library.rules.length === 0 && (
         <p className="text-sm text-terminal-dim" data-testid="no-rules">
           The library is empty. Rules are created from a playbook's "+ Add
           policy" step.
         </p>
       )}
 
-      {rules !== null && rules.length > 0 && matches.length === 0 && (
+      {library.status === "ready" && library.rules.length > 0 && matches.length === 0 && (
         <p className="text-sm text-terminal-dim" data-testid="no-rules-match">
           No rule matches "{query.trim()}".
         </p>

@@ -507,4 +507,122 @@ describe("PlaybookEditor", () => {
       });
     });
   });
+
+  // The fifth recurrence of one defect: "the library holds nothing" and "the
+  // library did not answer" stored in the same value. The editor loaded the
+  // library three times, each with `.catch(() => [])`, so an unreachable
+  // library left every row that *does* draw from a rule labelled "(no rule)"
+  // and every detach warning reading "...leaving  unchanged". Nothing here
+  // rejected `listRules`, so nothing could see it.
+  //
+  // The rows are cosmetic and the save is not: `linkWhileUnedited` reads
+  // `rule_id`, never `rule_name`, so no link was ever lost. What was lost is
+  // that the linkage feature's own screen asserted the opposite of the truth.
+  describe("when the rule library cannot be loaded", () => {
+    const oneMember = {
+      playbook_id: "pb1",
+      state_count: 2,
+      members: [
+        { policy_id: "p1", position: 0, fires_on: true, guidance: "watch",
+          rule_id: "r_watch" },
+      ],
+      behaviours: [],
+      warnings: [],
+    };
+
+    const oneGlobal = [
+      { rule_id: "g1", playbook_id: "pb1", name: "Escalate", guidance: "Be warm.",
+        position: 0, apply_to_all: 1, rule_ref_id: "r_warm" },
+    ];
+
+    beforeEach(() => {
+      mockGetPolicies.mockResolvedValue([
+        { policy_id: "p1", name: "P1", formula_str: "a", propositions: [],
+          enabled: true },
+      ]);
+      mockGetPlaybookStates.mockResolvedValue(oneMember);
+      mockGetPlaybookGlobals.mockResolvedValue(oneGlobal);
+      mockSetPlaybookMembers.mockResolvedValue({
+        overrides_expanded: 0, conflicts: [], warnings: [],
+      });
+      mockSetPlaybookGlobals.mockResolvedValue(oneGlobal);
+      mockListRules.mockRejectedValue(new Error("library down"));
+    });
+
+    it("does not tell a member that draws from a rule it has none", async () => {
+      render(<PlaybookEditor playbook={playbook} onBack={vi.fn()} />);
+
+      const label = await screen.findByTestId("member-rule-p1");
+      expect(label).not.toHaveTextContent("(no rule)");
+      expect(label).toHaveTextContent("(rule unavailable)");
+    });
+
+    it("does not tell a playbook-wide row that draws from a rule it has none", async () => {
+      render(<PlaybookEditor playbook={playbook} onBack={vi.fn()} />);
+
+      const label = await screen.findByTestId("global-rule-0");
+      expect(label).not.toHaveTextContent("(no rule)");
+      expect(label).toHaveTextContent("(rule unavailable)");
+    });
+
+    it("names something in a detach warning rather than leaving a hole", async () => {
+      render(<PlaybookEditor playbook={playbook} onBack={vi.fn()} />);
+      await screen.findByTestId("member-guidance-p1");
+
+      await userEvent.type(screen.getByTestId("member-guidance-p1"), " harder");
+
+      const warning = screen.getByTestId("member-detached-p1");
+      // The sentence still reads: the name is missing, not the noun it was
+      // standing in for.
+      expect(warning).toHaveTextContent(/leaving the rule it draws from unchanged/);
+      expect(warning.textContent).not.toMatch(/leaving\s+unchanged/);
+    });
+
+    it("names something in a playbook-wide detach warning too", async () => {
+      render(<PlaybookEditor playbook={playbook} onBack={vi.fn()} />);
+      await screen.findByTestId("global-guidance-0");
+
+      await userEvent.type(screen.getByTestId("global-guidance-0"), " Be brief.");
+
+      const warning = screen.getByTestId("global-detached-0");
+      expect(warning).toHaveTextContent(/leaving the rule it draws from unchanged/);
+      expect(warning.textContent).not.toMatch(/leaving\s+unchanged/);
+    });
+
+    // The re-read after a save is the third of the three loads, and the one
+    // most likely to hit a library that has just gone away.
+    it("keeps the truth after a save whose re-read cannot reach the library", async () => {
+      mockListRules.mockResolvedValueOnce([
+        { rule_id: "r_watch", name: "Rule_watch", guidance: "watch", usage_count: 1 },
+      ]);
+      render(<PlaybookEditor playbook={playbook} onBack={vi.fn()} />);
+
+      await waitFor(() =>
+        expect(screen.getByTestId("member-rule-p1")).toHaveTextContent("Rule_watch"),
+      );
+
+      await userEvent.click(screen.getByTestId("save-members"));
+
+      await waitFor(() =>
+        expect(screen.getByTestId("member-rule-p1")).toHaveTextContent(
+          "(rule unavailable)",
+        ),
+      );
+      expect(screen.getByTestId("member-rule-p1")).not.toHaveTextContent("(no rule)");
+    });
+
+    // A member the user deliberately added with no guidance still says so:
+    // "unavailable" must not swallow the case the label was built for.
+    it("still says (no rule) for a member that draws from none", async () => {
+      mockGetPlaybookStates.mockResolvedValue({
+        ...oneMember,
+        members: [{ policy_id: "p1", position: 0, fires_on: true, guidance: "" }],
+      });
+      render(<PlaybookEditor playbook={playbook} onBack={vi.fn()} />);
+
+      const label = await screen.findByTestId("member-rule-p1");
+      expect(label).toHaveTextContent("(no rule)");
+      expect(screen.queryByTestId("member-detached-p1")).toBeNull();
+    });
+  });
 });

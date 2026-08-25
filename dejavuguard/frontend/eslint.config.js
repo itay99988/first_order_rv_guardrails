@@ -20,4 +20,30 @@ export default defineConfig([
       globals: globals.browser,
     },
   },
+  {
+    // `listRules` returns a bare `Rule[]`, and an empty one cannot say whether
+    // the library holds nothing or never answered. Collapsing those two has
+    // now been fixed five times on the playbooks panes -- as a name collision,
+    // a race, an error path, a loading window, and three
+    // `listRules().catch(() => [])` calls in the editor -- so it is no longer
+    // a thing to remember. `sharedRules.ts` wraps it in a three-state result
+    // and is the only file allowed to call it.
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: ['src/api/client.ts', 'src/components/playbooks/sharedRules.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '@/api/client',
+              importNames: ['listRules'],
+              message:
+                'Use loadRuleLibrary() from components/playbooks/sharedRules: listRules alone cannot say whether the library is empty or unreachable.',
+            },
+          ],
+        },
+      ],
+    },
+  },
 ])
