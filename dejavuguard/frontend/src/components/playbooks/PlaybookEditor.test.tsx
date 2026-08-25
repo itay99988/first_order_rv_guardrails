@@ -701,4 +701,109 @@ describe("PlaybookEditor", () => {
       expect(screen.queryByTestId("member-detached-p1")).toBeNull();
     });
   });
+
+  /**
+   * A policy has a name its owner gave it and a uuid4 the database gave it.
+   * The + Add policy modal has always listed policies by name; the moment
+   * one became a member, every pane switched to the uuid. These pin the
+   * member row -- the primary, bold, identity line -- to the name.
+   */
+  describe("naming the policy a member is", () => {
+    const namedMember = {
+      playbook_id: "pb1",
+      state_count: 2,
+      members: [
+        { policy_id: "8525fd4d-820c-4d23-b983-a054c7c3e211", name: "Budget cap",
+          position: 0, fires_on: true, guidance: "watch", rule_id: "r_watch" },
+      ],
+      behaviours: [],
+      warnings: [],
+    };
+
+    beforeEach(() => {
+      mockGetPolicies.mockResolvedValue([
+        { policy_id: "8525fd4d-820c-4d23-b983-a054c7c3e211", name: "Budget cap",
+          formula_str: "a", propositions: [], enabled: true },
+      ]);
+      mockGetPlaybookGlobals.mockResolvedValue([]);
+      mockSetPlaybookMembers.mockResolvedValue({
+        overrides_expanded: 0, conflicts: [], warnings: [],
+      });
+    });
+
+    it("labels a member row with the policy's name, not its id", async () => {
+      mockGetPlaybookStates.mockResolvedValue(namedMember);
+
+      render(<PlaybookEditor playbook={playbook} onBack={vi.fn()} />);
+
+      const row = await screen.findByTestId(
+        "member-row-8525fd4d-820c-4d23-b983-a054c7c3e211",
+      );
+      expect(row).toHaveTextContent("Budget cap");
+      // Not "as well as": the uuid is not something a person reads, so it
+      // is not drawn. The test id it is still addressed by is an attribute,
+      // not text, so this does not accidentally assert against that.
+      expect(row.textContent).not.toContain(
+        "8525fd4d-820c-4d23-b983-a054c7c3e211",
+      );
+    });
+
+    it("keeps the id reachable on the label rather than throwing it away", async () => {
+      // The id is what the API, the state keys and every test id are built
+      // from, so a user who needs it must still be able to get it.
+      mockGetPlaybookStates.mockResolvedValue(namedMember);
+
+      render(<PlaybookEditor playbook={playbook} onBack={vi.fn()} />);
+
+      const label = await screen.findByText("Budget cap");
+      expect(label).toHaveAttribute(
+        "title",
+        "8525fd4d-820c-4d23-b983-a054c7c3e211",
+      );
+    });
+
+    it("falls back to the id for a member whose policy is gone", async () => {
+      // A policy deleted out from under the playbook: the server can no
+      // longer name it, and says so with null rather than by omitting the
+      // member. The row must still say which member it is.
+      mockGetPlaybookStates.mockResolvedValue({
+        ...namedMember,
+        members: [{ ...namedMember.members[0], name: null }],
+      });
+
+      render(<PlaybookEditor playbook={playbook} onBack={vi.fn()} />);
+
+      const row = await screen.findByTestId(
+        "member-row-8525fd4d-820c-4d23-b983-a054c7c3e211",
+      );
+      expect(row).toHaveTextContent("8525fd4d-820c-4d23-b983-a054c7c3e211");
+    });
+
+    it("names a policy added through the modal before any save", async () => {
+      // The modal picked the policy out of a list it was showing by name,
+      // so the row it produces knows the name first-hand. Waiting for the
+      // save to fetch it back would leave the row a uuid for as long as the
+      // user was still deciding whether to save at all.
+      mockGetPlaybookStates.mockResolvedValue({
+        ...namedMember, state_count: 1, members: [],
+      });
+      mockGetPolicies.mockResolvedValue([
+        { policy_id: "p_tone", name: "Tone", formula_str: "b", propositions: [],
+          enabled: true },
+      ]);
+
+      render(<PlaybookEditor playbook={playbook} onBack={vi.fn()} />);
+      await screen.findByTestId("no-members");
+
+      await userEvent.click(screen.getByTestId("add-policy"));
+      await userEvent.click(await screen.findByTestId("policy-option-p_tone"));
+      await userEvent.click(await screen.findByTestId("fires-on-next"));
+      await userEvent.click(await screen.findByTestId("rule-mode-none"));
+      await userEvent.click(screen.getByTestId("add-policy-confirm"));
+
+      const row = await screen.findByTestId("member-row-p_tone");
+      expect(row).toHaveTextContent("Tone");
+      expect(row.textContent).not.toContain("p_tone");
+    });
+  });
 });

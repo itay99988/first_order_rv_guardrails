@@ -610,4 +610,39 @@ describe("PlaybookGraph", () => {
     // The behaviour name still ends it, as a disambiguator.
     expect(label).toContain("Over budget");
   });
+
+  // --- The legend is the only place the graph names a policy --------------
+
+  /**
+   * `M1`, `M2` are deliberately terse -- they have to fit inside a node --
+   * so the legend is the whole of what turns them back into something a
+   * person recognises. It was turning them into a uuid4.
+   */
+  it("expands each M-marker into the policy's name", async () => {
+    mockGet.mockResolvedValue({
+      ...trace,
+      members: [
+        { policy_id: "8525fd4d-820c-4d23-b983-a054c7c3e211", name: "Budget cap",
+          position: 0, fires_on: false, guidance: "R.", irrevocable: true },
+      ],
+    });
+    render(<PlaybookGraph playbookId="pb1" sessionId="s1" />);
+
+    const legend = await screen.findByTestId("graph-member-legend");
+    expect(legend).toHaveTextContent("M1 Budget cap");
+    expect(legend.textContent).not.toContain(
+      "8525fd4d-820c-4d23-b983-a054c7c3e211",
+    );
+  });
+
+  it("falls back to the id for a member the server cannot name", async () => {
+    mockGet.mockResolvedValue({
+      ...trace,
+      members: [{ ...members[0], name: null }],
+    });
+    render(<PlaybookGraph playbookId="pb1" sessionId="s1" />);
+
+    const legend = await screen.findByTestId("graph-member-legend");
+    expect(legend).toHaveTextContent("M1 p_a");
+  });
 });

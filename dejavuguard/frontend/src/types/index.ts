@@ -203,6 +203,15 @@ export interface Playbook {
 
 export interface PlaybookMember {
   policy_id: string;
+  /**
+   * The policy's name, as the server resolves it. Only present when read
+   * back (states/trace) -- absent when writing members, where the id is the
+   * whole identity. Null, never the id, when nothing can name the policy:
+   * it has been deleted, or its name is blank. The fallback to the id is
+   * the display layer's, in `policyNames.ts`, so a caller that needs to
+   * know whether there is a name at all can still tell.
+   */
+  name?: string | null;
   position: number;
   fires_on: boolean;
   guidance: string;

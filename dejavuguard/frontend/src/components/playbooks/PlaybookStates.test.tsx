@@ -616,4 +616,83 @@ describe("PlaybookStates", () => {
       );
     });
   });
+
+  /**
+   * The two places this pane still holds a bare policy id: the verdict
+   * badges, which are keyed by id because a state key is made of ids, and
+   * the pin list, whose checkboxes are wired to `member-<id>` keys. Both
+   * were drawing the uuid at the person reading them.
+   *
+   * The names come off the members payload this pane already loads, so
+   * there is no second fetch to be mid-flight or to fail on its own.
+   */
+  describe("naming the policies behind a state", () => {
+    const named = [
+      { policy_id: "p_a", name: "Budget cap", position: 0, fires_on: false,
+        guidance: "Stay within budget.", irrevocable: false },
+      { policy_id: "p_b", name: "Tone guard", position: 1, fires_on: true,
+        guidance: "Keep it polite.", irrevocable: false },
+    ];
+
+    it("shows each verdict badge under the policy's name", async () => {
+      mockGet.mockResolvedValue(editable({ members: named }));
+      render(<PlaybookStates playbookId="pb1" />);
+
+      const row = await screen.findByTestId(`state-row-${KEY}`);
+      expect(row).toHaveTextContent("Budget cap=F");
+      expect(row).toHaveTextContent("Tone guard=T");
+      // The canonical key still addresses the row -- it is the test id and
+      // what the override endpoint takes -- but it is not what is drawn.
+      expect(row.textContent).not.toContain("p_a=F");
+    });
+
+    it("falls back to the id on a badge whose member has no name", async () => {
+      mockGet.mockResolvedValue({
+        ...editable(),
+        members: [{ ...named[0], name: null }, named[1]],
+      });
+      render(<PlaybookStates playbookId="pb1" />);
+
+      const row = await screen.findByTestId(`state-row-${KEY}`);
+      expect(row).toHaveTextContent("p_a=F");
+      // One nameless member does not cost the other its name.
+      expect(row).toHaveTextContent("Tone guard=T");
+    });
+
+    it("names each pinnable rule after the policy, not the id", async () => {
+      mockGet.mockResolvedValue(editable({ members: named }));
+      render(<PlaybookStates playbookId="pb1" />);
+      await openEditor();
+
+      await userEvent.click(screen.getByTestId("override-source-pinned"));
+
+      const refs = await screen.findByTestId("override-refs");
+      expect(refs).toHaveTextContent("Budget cap");
+      expect(refs).toHaveTextContent("Tone guard");
+      expect(refs.textContent).not.toContain("p_a");
+      // The checkbox is still keyed by id: the pin it saves names the
+      // member, and renaming the key would orphan every stored pin.
+      expect(screen.getByTestId("override-ref-member-p_a")).toBeInTheDocument();
+    });
+
+    it("still saves pins keyed by policy id, whatever the label says", async () => {
+      mockGet.mockResolvedValue(editable({ members: named }));
+      render(<PlaybookStates playbookId="pb1" />);
+      await openEditor();
+
+      await userEvent.click(screen.getByTestId("override-source-pinned"));
+      await userEvent.click(screen.getByTestId("override-save"));
+
+      await waitFor(() =>
+        expect(mockSetOverride).toHaveBeenCalledWith("pb1", KEY, {
+          rule_refs: [
+            { type: "member", policy_id: "p_a" },
+            { type: "member", policy_id: "p_b" },
+          ],
+          flagged: false,
+          label: null,
+        }),
+      );
+    });
+  });
 });

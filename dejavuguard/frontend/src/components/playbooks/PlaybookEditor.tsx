@@ -16,6 +16,7 @@ import type {
 } from "@/types";
 import type { AddedMember } from "./AddPolicyModal";
 import AddPolicyModal from "./AddPolicyModal";
+import { policyDisplayName } from "./policyNames";
 import PlaybookGraph from "./PlaybookGraph";
 import PlaybookStates from "./PlaybookStates";
 import type { RuleLabel, RuleLibrary } from "./sharedRules";
@@ -35,6 +36,13 @@ interface Props {
 
 interface MemberRow {
   policy_id: string;
+  /**
+   * The policy's name, as it arrived beside the member -- null when nothing
+   * can name it. Kept raw rather than pre-resolved to the id so the row can
+   * still tell "called Budget cap" from "has no name any more"; the one
+   * place it is drawn decides that, through `policyDisplayName`.
+   */
+  policy_name: string | null;
   included: boolean;
   fires_on: boolean;
   guidance: string;
@@ -127,6 +135,7 @@ function rowsFrom(members: PlaybookMember[], library: RuleLibrary): MemberRow[] 
     .sort((a, b) => a.position - b.position)
     .map((m) => ({
       policy_id: m.policy_id,
+      policy_name: m.name ?? null,
       included: true,
       fires_on: m.fires_on,
       guidance: m.guidance,
@@ -224,6 +233,10 @@ export default function PlaybookEditor({ playbook, onBack }: Props) {
       ...prev,
       {
         policy_id: member.policy_id,
+        // The modal picked this policy out of the list it was showing, so
+        // its name is known first-hand -- the row is labelled correctly
+        // before the save that would fetch it back has even run.
+        policy_name: member.policy_name,
         included: true,
         fires_on: member.fires_on,
         guidance: member.guidance,
@@ -423,8 +436,14 @@ export default function PlaybookEditor({ playbook, onBack }: Props) {
                     className="accent-accent"
                     data-testid={`member-included-${row.policy_id}`}
                   />
-                  <span className="font-mono font-bold text-terminal-bright">
-                    {row.policy_id}
+                  <span
+                    className="font-mono font-bold text-terminal-bright"
+                    // The id is still what addresses this member in the API
+                    // and in every test id, so it stays one hover away
+                    // rather than being the thing the user has to read.
+                    title={row.policy_id}
+                  >
+                    {policyDisplayName(row.policy_id, row.policy_name)}
                   </span>
                 </label>
 

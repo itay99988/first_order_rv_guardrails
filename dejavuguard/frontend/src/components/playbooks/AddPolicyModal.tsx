@@ -4,12 +4,19 @@ import { Loader2 } from "lucide-react";
 import { createRule } from "@/api/client";
 import type { Policy, Rule } from "@/types";
 import Modal from "@/components/shared/Modal";
+import { policyDisplayName } from "./policyNames";
 import type { RuleLibrary } from "./sharedRules";
 import { LOADING_LIBRARY, knownRules, loadRuleLibrary } from "./sharedRules";
 
 /** One member, fully decided: which policy, when it fires, which rule. */
 export interface AddedMember {
   policy_id: string;
+  /**
+   * The chosen policy's name, known first-hand: the modal picked it out of
+   * the list it is showing, so the row it produces can be labelled without
+   * waiting for the save to come back and tell it what it just chose.
+   */
+  policy_name: string;
   fires_on: boolean;
   /** null when the user deliberately chose no guidance. */
   rule_id: string | null;
@@ -221,9 +228,16 @@ export default function AddPolicyModal({
     if (!policyId || !ruleMode) return;
     setError(null);
 
+    // What the list this modal is showing calls the policy, so the row it
+    // hands back is labelled the same way the user just chose it. `policy`
+    // is null only if the list changed under the selection, and the id is
+    // then the only honest label left.
+    const policyLabel = policyDisplayName(policyId, policy?.name);
+
     if (ruleMode === "none") {
       onAdd({
         policy_id: policyId,
+        policy_name: policyLabel,
         fires_on: firesOn,
         rule_id: null,
         rule_name: null,
@@ -236,6 +250,7 @@ export default function AddPolicyModal({
       if (!reusedRule) return;
       onAdd({
         policy_id: policyId,
+        policy_name: policyLabel,
         fires_on: firesOn,
         rule_id: reusedRule.rule_id,
         rule_name: reusedRule.name,
@@ -255,6 +270,7 @@ export default function AddPolicyModal({
       });
       onAdd({
         policy_id: policyId,
+        policy_name: policyLabel,
         fires_on: firesOn,
         rule_id: created.rule_id,
         rule_name: created.name,

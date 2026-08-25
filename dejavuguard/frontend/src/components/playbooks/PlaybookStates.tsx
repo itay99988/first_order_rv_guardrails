@@ -20,6 +20,7 @@ import type {
   PlaybookOverridePayload,
   PlaybookStates as PlaybookStatesData,
 } from "@/types";
+import { policyNamer } from "./policyNames";
 import StateOverrideEditor from "./StateOverrideEditor";
 import { draftForState, pinnableRules } from "./stateOverride";
 
@@ -109,6 +110,14 @@ export default function PlaybookStates({ playbookId, reloadToken = 0 }: Props) {
   const pinnable = useMemo(
     () =>
       loaded ? pinnableRules(loaded.states.members, loaded.globals) : [],
+    [loaded],
+  );
+  // The verdict badges are keyed by policy id -- that is what a state key
+  // is made of -- so they are the one place left holding an id with no
+  // member beside it. The members payload the table already loaded carries
+  // every name it needs, so this is a lookup, not a second load.
+  const nameOfPolicy = useMemo(
+    () => policyNamer(loaded ? loaded.states.members : []),
     [loaded],
   );
 
@@ -281,7 +290,7 @@ export default function PlaybookStates({ playbookId, reloadToken = 0 }: Props) {
                               key={policyId}
                               variant={verdict ? "success" : "neutral"}
                             >
-                              {policyId}={verdict ? "T" : "F"}
+                              {nameOfPolicy(policyId)}={verdict ? "T" : "F"}
                             </Badge>
                           ))}
 

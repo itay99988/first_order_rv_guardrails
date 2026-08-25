@@ -8,6 +8,7 @@ import type {
   PlaybookTrace,
   PlaybookTraceNode,
 } from "@/types";
+import { policyDisplayName } from "./policyNames";
 
 interface Props {
   playbookId: string;
@@ -530,8 +531,13 @@ export default function PlaybookGraph({ playbookId, sessionId }: Props) {
             Members (T satisfied · F violated · any either):
           </span>
           {members.map((member, i) => (
-            <span key={member.policy_id} className="font-mono">
-              <span className="text-terminal-amber">M{i + 1}</span> {member.policy_id}
+            <span
+              key={member.policy_id}
+              className="font-mono"
+              title={member.policy_id}
+            >
+              <span className="text-terminal-amber">M{i + 1}</span>{" "}
+              {policyDisplayName(member.policy_id, member.name)}
             </span>
           ))}
         </p>

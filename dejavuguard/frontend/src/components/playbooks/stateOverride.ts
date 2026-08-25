@@ -6,6 +6,7 @@ import type {
   PlaybookRuleRef,
   PlaybookStateRow,
 } from "@/types";
+import { policyDisplayName } from "./policyNames";
 
 /**
  * Which of the three `rule_refs` values a state currently holds.
@@ -47,7 +48,10 @@ export function pinnableRules(
     .map((m) => ({
       ref: { type: "member", policy_id: m.policy_id } as PlaybookRuleRef,
       key: `member-${m.policy_id}`,
-      name: m.policy_id,
+      // `key` and `ref` stay keyed by id -- they address the member. `name`
+      // is the only part a person reads, so it is the only part that says
+      // "Budget cap" rather than the uuid the checkbox is wired to.
+      name: policyDisplayName(m.policy_id, m.name),
       guidance: m.guidance,
     }));
   const globalRules = [...globals]

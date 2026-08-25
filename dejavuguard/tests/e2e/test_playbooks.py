@@ -189,6 +189,7 @@ def playbook_env():
 
         env = {
             "policy_id": policy_id,
+            "policy_name": f"{PREFIX} budget guard",
             "flagged_id": flagged_id,
             "open_id": open_id,
             "ui_id": ui_id,
@@ -371,6 +372,59 @@ class TestPlaybookList:
         assert name not in stored, "the deleted playbook is still stored"
 
 
+class TestMembersArePresentedByName:
+    """A policy is identified to a person by its name, not its uuid4.
+
+    The + Add policy modal always listed policies by name; every pane that
+    drew one afterwards drew the uuid instead, so adding "budget guard" and
+    then looking at the playbook showed a 36-character id nobody had chosen.
+    """
+
+    def test_a_member_row_leads_with_the_policys_name(
+        self, app_page: Page, playbook_env
+    ):
+        _open_editor(app_page, playbook_env, playbook_env["flagged_id"])
+
+        row = app_page.get_by_test_id(f"member-row-{playbook_env['policy_id']}")
+        expect(row).to_contain_text(playbook_env["policy_name"])
+        # Found by the id and drawn without it: the identity did not move,
+        # only what a reader is asked to read.
+        expect(row).not_to_contain_text(playbook_env["policy_id"])
+
+    def test_the_pin_list_offers_rules_by_the_policys_name(
+        self, app_page: Page, playbook_env
+    ):
+        """"Exactly these rules" is a checklist of members -- named ones."""
+        _open_editor(app_page, playbook_env, playbook_env["flagged_id"])
+
+        false_key = playbook_env["false_key"]
+        app_page.get_by_test_id(f"edit-{false_key}").click()
+        editor = app_page.get_by_test_id(f"state-override-{false_key}")
+        expect(editor).to_be_visible()
+        editor.get_by_test_id("override-source-pinned").check()
+
+        refs = editor.get_by_test_id("override-refs")
+        expect(refs).to_contain_text(playbook_env["policy_name"])
+        expect(refs).not_to_contain_text(playbook_env["policy_id"])
+        # The checkbox is still keyed by the id, because the pin it saves
+        # names the member; relabelling it would orphan every stored pin.
+        expect(
+            refs.get_by_test_id(f"override-ref-member-{playbook_env['policy_id']}")
+        ).to_be_visible()
+
+    def test_the_graph_legend_expands_its_markers_to_names(
+        self, app_page: Page, playbook_env
+    ):
+        """M1 is terse enough to fit in a node; the legend is what un-terses it."""
+        _open_editor(app_page, playbook_env, playbook_env["flagged_id"])
+        app_page.get_by_test_id("states-view-graph").click()
+        expect(app_page.get_by_test_id("playbook-graph")).to_be_visible()
+
+        legend = app_page.get_by_test_id("graph-member-legend")
+        expect(legend).to_contain_text(f"M1 {playbook_env['policy_name']}")
+        expect(legend).not_to_contain_text(playbook_env["policy_id"])
+
+
 class TestStatesTable:
     """The truth table, behaviour grouping, flagging, filters and revert."""
 
@@ -387,8 +441,15 @@ class TestStatesTable:
         false_row = app_page.get_by_test_id(f"state-row-{playbook_env['false_key']}")
         expect(true_row).to_be_visible()
         expect(false_row).to_be_visible()
-        expect(true_row).to_contain_text(f"{playbook_env['policy_id']}=T")
-        expect(false_row).to_contain_text(f"{playbook_env['policy_id']}=F")
+        # The badge is drawn by the name its owner gave the policy. The
+        # canonical `<uuid>=T` key still addresses the row -- it is the test
+        # id these two were just found by, and what the override endpoint
+        # takes -- so this asserts the label changed without the identity
+        # having moved.
+        name = playbook_env["policy_name"]
+        expect(true_row).to_contain_text(f"{name}=T")
+        expect(false_row).to_contain_text(f"{name}=F")
+        expect(true_row).not_to_contain_text(playbook_env["policy_id"])
 
     def test_flagged_state_is_its_own_labelled_behaviour(
         self, app_page: Page, playbook_env
@@ -504,6 +565,11 @@ class TestStatesTable:
 
         expect(app_page.get_by_test_id("members-warnings")).to_contain_text(
             "it can no longer block anything"
+        )
+        # And it says which member stopped enforcing, by the name the user
+        # chose it under -- this is the one sentence here they must act on.
+        expect(app_page.get_by_test_id("members-warnings")).to_contain_text(
+            f"{playbook_env['policy_name']} fires on F"
         )
         expect(app_page.get_by_test_id("playbook-states")).to_contain_text(
             "2 behaviours · 2 states"

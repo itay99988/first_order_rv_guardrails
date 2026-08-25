@@ -334,6 +334,7 @@ describe("AddPolicyModal", () => {
     await waitFor(() =>
       expect(onAdd).toHaveBeenCalledWith({
         policy_id: "p_tone",
+        policy_name: "Tone",
         fires_on: false,
         rule_id: "r_warm",
         rule_name: "Rule_Be_warm",
@@ -367,6 +368,7 @@ describe("AddPolicyModal", () => {
     );
     expect(onAdd).toHaveBeenCalledWith({
       policy_id: "p_budget",
+      policy_name: "Budget guard",
       fires_on: false,
       rule_id: "r_new",
       rule_name: "Rule_Budget_guard",
@@ -384,6 +386,7 @@ describe("AddPolicyModal", () => {
     await waitFor(() =>
       expect(onAdd).toHaveBeenCalledWith({
         policy_id: "p_budget",
+        policy_name: "Budget guard",
         fires_on: false,
         rule_id: null,
         rule_name: null,
