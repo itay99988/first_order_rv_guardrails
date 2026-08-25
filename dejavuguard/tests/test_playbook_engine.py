@@ -6,6 +6,8 @@ derived from its definition plus a verdict vector.
 
 from __future__ import annotations
 
+import re
+
 import pytest
 
 from backend.engine.playbook import (
@@ -250,3 +252,167 @@ def test_an_unedited_state_has_no_rule_refs():
 
     assert state.rule_refs is None
     assert state.customised is False
+
+
+# --------------------------------------------------------------------------
+# Three and four members.
+#
+# Every test above this line uses two members, and a two-member playbook
+# hides the things that only appear once a state space is big enough to have
+# structure: states that must merge, states that must not, and names that
+# have to stay distinct across sixteen of them.
+# --------------------------------------------------------------------------
+
+
+def _wide(guidances: dict[str, str], positions: dict[str, int] | None = None,
+          overrides: dict[str, StateOverride] | None = None) -> Playbook:
+    """A playbook of ``len(guidances)`` members, all firing on False.
+
+    ``positions`` defaults to the reverse of policy-id order, so a result that
+    happens to follow the policy id rather than the declared position is
+    visibly wrong rather than accidentally right.
+    """
+    ids = sorted(guidances)
+    positions = positions or {pid: len(ids) - 1 - i for i, pid in enumerate(ids)}
+    return Playbook(
+        playbook_id="pbw",
+        name="Wide",
+        members=tuple(
+            _member(pid, positions[pid], False, guidances[pid]) for pid in ids
+        ),
+        globals=(),
+        overrides=overrides or {},
+    )
+
+
+def _all_false(playbook: Playbook) -> dict[str, bool]:
+    return {m.policy_id: False for m in playbook.members}
+
+
+def test_three_members_enumerate_eight_distinct_states():
+    keys = all_state_keys(_wide({"p_a": "A.", "p_b": "B.", "p_c": "C."}).members)
+    assert len(keys) == 8
+    assert len(set(keys)) == 8
+
+
+def test_four_members_enumerate_sixteen_distinct_states():
+    keys = all_state_keys(
+        _wide({"p_a": "A.", "p_b": "B.", "p_c": "C.", "p_d": "D."}).members
+    )
+    assert len(keys) == 16
+    assert len(set(keys)) == 16
+
+
+def test_three_firing_members_compose_in_position_order_not_id_order():
+    """The whole point of a position column: it must beat the policy id.
+
+    Positions here are the exact reverse of id order, so guidance assembled
+    by id comes out backwards and this fails.
+    """
+    pb = _wide({"p_a": "third", "p_b": "second", "p_c": "first"})
+    assert [m.position for m in pb.members] == [2, 1, 0]
+    state = resolve_state(pb, _all_false(pb))
+    assert state.rules == ("first", "second", "third")
+
+
+def test_four_firing_members_compose_in_position_order():
+    pb = _wide({"p_a": "fourth", "p_b": "third", "p_c": "second", "p_d": "first"})
+    assert resolve_state(pb, _all_false(pb)).rules == (
+        "first", "second", "third", "fourth",
+    )
+
+
+def test_a_state_takes_guidance_only_from_the_members_that_fire():
+    """One member True out of four drops exactly that member's rule."""
+    pb = _wide({"p_a": "fourth", "p_b": "third", "p_c": "second", "p_d": "first"})
+    verdicts = _all_false(pb) | {"p_b": True}
+    assert resolve_state(pb, verdicts).rules == ("first", "second", "fourth")
+
+
+def test_every_subset_of_four_members_is_its_own_behaviour():
+    """Four members with distinct guidance: nothing merges, 16 nodes."""
+    pb = _wide({"p_a": "A.", "p_b": "B.", "p_c": "C.", "p_d": "D."})
+    behaviours = group_behaviours(pb)
+    assert len(behaviours) == 16
+    assert len({b.rules for b in behaviours}) == 16
+
+
+def test_sixteen_states_collapse_to_four_behaviours_when_two_members_are_silent():
+    """Members with no guidance change no behaviour, so their bits merge.
+
+    p_c and p_d contribute nothing, so the four combinations of their verdicts
+    are indistinguishable and each of the four (p_a, p_b) behaviours must own
+    exactly four states.
+    """
+    pb = _wide({"p_a": "A.", "p_b": "B.", "p_c": "", "p_d": ""})
+    behaviours = group_behaviours(pb)
+
+    assert len(all_state_keys(pb.members)) == 16
+    assert len(behaviours) == 4
+    assert sorted(len(b.states) for b in behaviours) == [4, 4, 4, 4]
+    assert {b.rules for b in behaviours} == {(), ("A.",), ("B.",), ("B.", "A.")}
+
+
+def test_flagging_one_state_splits_it_out_of_its_merged_behaviour():
+    """The inverse of merging: same guidance, different flag, different node.
+
+    The flagged state leaves a group of four and becomes a node of its own,
+    and the two nodes still carry byte-identical guidance -- so a grouping key
+    that dropped the flag would put them back together and lose the block.
+    """
+    silent = _wide({"p_a": "A.", "p_b": "B.", "p_c": "", "p_d": ""})
+    split_key = state_key(
+        {"p_a": False, "p_b": False, "p_c": True, "p_d": True}
+    )
+    flagged = _wide(
+        {"p_a": "A.", "p_b": "B.", "p_c": "", "p_d": ""},
+        overrides={split_key: StateOverride(split_key, None, True, "Escalate")},
+    )
+
+    before = group_behaviours(silent)
+    after = group_behaviours(flagged)
+    assert len(before) == 4
+    assert len(after) == 5
+
+    escalate = next(b for b in after if b.flagged)
+    assert [s.state_key for s in escalate.states] == [split_key]
+    twin = next(b for b in after if not b.flagged and b.rules == escalate.rules)
+    assert len(twin.states) == 3, "the other three states must stay merged"
+
+
+def test_behaviour_names_stay_distinct_across_sixteen_behaviours():
+    """Names are identity downstream -- the trace marks nodes visited by name.
+
+    With four members eight behaviours begin with the same first rule, so a
+    name taken from the first rule alone would collide eight ways and the
+    graph would report a behaviour visited because its namesake was.
+    """
+    pb = _wide({"p_a": "A.", "p_b": "B.", "p_c": "C.", "p_d": "D."})
+    names = [b.name for b in group_behaviours(pb)]
+    assert len(names) == 16
+    assert len(set(names)) == 16
+
+
+def test_two_behaviours_sharing_a_first_rule_are_named_apart():
+    """"A." alone and "A." with "B." are different behaviours, and read so."""
+    pb = _wide({"p_a": "A.", "p_b": "B."}, positions={"p_a": 0, "p_b": 1})
+    by_rules = {b.rules: b.name for b in group_behaviours(pb)}
+    assert by_rules[("A.",)] == "A."
+    assert by_rules[("A.", "B.")] == "A. + B."
+
+
+def test_indistinguishable_names_are_numbered_rather_than_shared():
+    """Truncation can still collide; uniqueness must not depend on luck.
+
+    Two behaviours whose guidance differs only past the truncation point get
+    the same base name, so the second is numbered.
+    """
+    long_a = "x" * 60 + "a"
+    long_b = "x" * 60 + "b"
+    pb = _wide({"p_a": long_a, "p_b": long_b}, positions={"p_a": 0, "p_b": 1})
+    names = [b.name for b in group_behaviours(pb)]
+
+    # "A", "B" and "A + B" all truncate to the same 40 characters.
+    assert len(names) == 4
+    assert len(set(names)) == 4
+    assert sum(1 for n in names if re.search(r" \(\d+\)$", n)) == 2

@@ -194,13 +194,39 @@ def resolve_state(playbook: Playbook, verdicts: Mapping[str, bool]) -> ResolvedS
 
 
 def _behaviour_name(rules: tuple[str, ...], states: Sequence[ResolvedState]) -> str:
+    """Display name for one behaviour: its label, else its guidance.
+
+    All the rules, not just the first: past one member several behaviours
+    share a first rule -- "stay within budget" alone and "stay within budget
+    and avoid the allergen" both start with the budget rule -- and naming
+    either by its first rule alone makes two different behaviours read as the
+    same one.
+    """
     for state in sorted(states, key=lambda s: s.state_key):
         if state.label:
             return state.label
     if not rules:
         return NO_GUIDANCE_NAME
-    first = rules[0]
-    return first if len(first) <= _LABEL_TRUNCATE else first[: _LABEL_TRUNCATE - 1] + "…"
+    joined = " + ".join(rules)
+    return joined if len(joined) <= _LABEL_TRUNCATE else joined[: _LABEL_TRUNCATE - 1] + "…"
+
+
+def _disambiguate(name: str, used: set[str]) -> str:
+    """A name not already taken, numbered from 2 upwards.
+
+    Names identify behaviours everywhere downstream -- as the node the trace
+    marks visited, as the React key, as the test id -- so two behaviours
+    sharing one is not a cosmetic clash: the trace marks a behaviour visited
+    because its namesake was. Guidance long enough to truncate, or the same
+    label typed onto two states, still collide after :func:`_behaviour_name`,
+    so uniqueness is enforced here rather than assumed.
+    """
+    if name not in used:
+        return name
+    ordinal = 2
+    while f"{name} ({ordinal})" in used:
+        ordinal += 1
+    return f"{name} ({ordinal})"
 
 
 def group_behaviours(playbook: Playbook) -> list[Behaviour]:
@@ -214,15 +240,24 @@ def group_behaviours(playbook: Playbook) -> list[Behaviour]:
         state = resolve_state(playbook, parse_state_key(key))
         grouped.setdefault((state.rules, state.flagged), []).append(state)
 
-    behaviours = [
-        Behaviour(
-            name=_behaviour_name(rules, states),
-            rules=rules,
-            flagged=flagged,
-            states=tuple(sorted(states, key=lambda s: s.state_key)),
+    # Named in state-key order, not in display order, so which of two clashing
+    # behaviours keeps the bare name does not change when a flag moves.
+    ordered = sorted(
+        (
+            (tuple(sorted(states, key=lambda s: s.state_key)), rules, flagged)
+            for (rules, flagged), states in grouped.items()
+        ),
+        key=lambda item: item[0][0].state_key,
+    )
+
+    used: set[str] = set()
+    behaviours = []
+    for states, rules, flagged in ordered:
+        name = _disambiguate(_behaviour_name(rules, states), used)
+        used.add(name)
+        behaviours.append(
+            Behaviour(name=name, rules=rules, flagged=flagged, states=states)
         )
-        for (rules, flagged), states in grouped.items()
-    ]
     return sorted(behaviours, key=lambda b: (not b.flagged, b.name))
 
 
