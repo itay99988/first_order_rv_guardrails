@@ -230,11 +230,23 @@ describe("PlaybookGraph", () => {
 
     const two = screen.getByTestId("node-A-rule + B-rule");
     const three = screen.getByTestId("node-A-rule + B-rule + C-rule");
-    expect(three).toHaveTextContent("C-rule");
-    expect(two).not.toHaveTextContent("C-rule");
-    expect(two).toHaveTextContent("2 rules");
-    expect(three).toHaveTextContent("3 rules");
-    expect(two.textContent).not.toEqual(three.textContent);
+    // `drawn`, not `textContent`: every name is also in the <title>, and the
+    // tooltip was never what collapsed. Asserting on textContent passed with
+    // `ruleLines` reverted to the very 14-character join this test is named
+    // after -- it could not fail on the defect it describes.
+    expect(drawn(three)).toContain("C-rule");
+    expect(drawn(two)).not.toContain("C-rule");
+    expect(drawn(two)).toContain("2 rules");
+    expect(drawn(three)).toContain("3 rules");
+    expect(drawn(two)).not.toEqual(drawn(three));
+    // Each name on its own line, which is what cannot collapse: a joined
+    // caption fits both of these into one <text>.
+    expect(drawn(two).split("|")).toEqual(
+      expect.arrayContaining(["\u00b7 A-rule", "\u00b7 B-rule"]),
+    );
+    expect(drawn(three).split("|")).toEqual(
+      expect.arrayContaining(["\u00b7 A-rule", "\u00b7 B-rule", "\u00b7 C-rule"]),
+    );
   });
 
   it("shows each node's verdict combination so it maps back to policies", async () => {

@@ -251,6 +251,35 @@ blocks nothing at all**, for the whole session. The editor warns when a member
 can no longer cause a block, and the playbook list shows the flagged-state
 count.
 
+### The rule library
+
+Guidance text is not stored on the member that uses it. It lives once in a
+shared **rule** — a named piece of text — and a member, or a playbook-wide
+row, records only which rule it draws from. Editing a rule therefore changes
+every playbook that names it, in one place, rather than leaving copies to be
+found and updated one at a time.
+
+The library has its own screen, reached from the playbooks list. Each rule
+shows how many playbooks it reaches, so an edit's blast radius is visible
+before the edit is made. A rule no playbook uses can be deleted; one still in
+use cannot, and the refusal says how many playbooks would be left pointing at
+nothing.
+
+Members are added through a guided dialog that asks three separate questions:
+which policy, when its guidance applies, and which rule carries that guidance
+— reuse an existing one, write a new one, or none at all. Rule names are
+unique, so the dialog suggests a free name rather than one that would be
+refused on save.
+
+Guidance can still be edited in place on a member. Doing so **detaches** that
+member onto a rule of its own rather than rewriting the shared one, and the
+row says so before you save. That is the difference between "this playbook
+needs different wording" and "this wording was wrong everywhere".
+
+Databases written before the library existed are migrated on startup:
+identical text converges on a single rule, nothing is rewritten, and a
+playbook resolves byte-identically either side of the migration.
+
 ### Guidance delivery
 
 Guidance is sent as a `system` message immediately before the current user

@@ -903,3 +903,46 @@ def test_resaving_the_globals_keeps_a_state_pinned_to_a_playbook_wide_rule(clien
             if any(s["state_key"] == f"{policy_id}=F" for s in b["states"])] == [
         ["Escalate to a human."]]
     assert pinned[0]["rule_refs"] == [{"type": "global", "rule_id": pinned_id}]
+
+
+def test_a_four_member_playbook_blocks_only_on_the_flagged_combination(client):
+    """Sixteen states, one flag, and nothing else blocks.
+
+    The e2e suite proves a combination means something on TWO members, and
+    proves at four members only that sixteen states exist and that the graph
+    draws them. Neither shows that at four members the flag still belongs to
+    the combination rather than leaking onto a member -- "one member fails"
+    is per-policy blocking wearing a playbook's name, and it would look
+    identical in a state count.
+
+    So: flag the all-failed state, then check every one of the sixteen. The
+    four single-failure states are named individually in the assertion
+    because they are the ones a leak would light up first.
+    """
+    ids = [_policy(client, f"p_{n}", n.upper()) for n in ("a", "b", "c", "d")]
+    pb = client.post("/api/playbooks", json={"name": "Four"}).json()["playbook_id"]
+    client.put(f"/api/playbooks/{pb}/members", json={"members": [
+        {"policy_id": pid, "position": i, "fires_on": False, "guidance": f"R{i}."}
+        for i, pid in enumerate(ids)]})
+
+    rows = _override_keys(client, pb)
+    assert len(rows) == 16, "four members should span sixteen states"
+
+    # A state key orders its members by policy id, not by position.
+    keyed = sorted(ids)
+    all_failed = ";".join(f"{pid}=F" for pid in keyed)
+    assert all_failed in rows
+    client.put(f"/api/playbooks/{pb}/states/{all_failed}",
+               json={"rule_refs": None, "flagged": True, "label": "All four"})
+
+    rows = _override_keys(client, pb)
+    assert [k for k, v in rows.items() if v["flagged"]] == [all_failed]
+
+    for pid in ids:
+        only_this_one = ";".join(
+            f"{other}=F" if other == pid else f"{other}=T" for other in keyed
+        )
+        assert rows[only_this_one]["flagged"] is False, (
+            f"{pid} failing on its own blocks -- the flag has leaked from the "
+            "combination onto a single member"
+        )
