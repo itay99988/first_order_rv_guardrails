@@ -123,32 +123,6 @@ export function createOpenRouterModelList(
   return models.slice(0, count);
 }
 
-// ── Local Model Mocks (for grounding providers) ──
-
-export const OLLAMA_MODELS = [
-  "mistral",
-  "llama3",
-  "llama3.1",
-  "gemma2",
-  "qwen2.5",
-  "phi3",
-  "codellama",
-  "deepseek-coder",
-  "nomic-embed-text",
-  "llava",
-];
-
-export const LMSTUDIO_MODELS = [
-  "lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF",
-  "TheBloke/Mistral-7B-Instruct-v0.2-GGUF",
-  "lmstudio-community/gemma-2-9b-it-GGUF",
-];
-
-export const VLLM_MODELS = [
-  "mistralai/Mistral-7B-Instruct-v0.2",
-  "meta-llama/Meta-Llama-3.1-8B-Instruct",
-];
-
 // ── Settings Mocks ──
 
 export function createGroundingSettings(

@@ -776,14 +776,6 @@ class DatabaseStore:
         )
         await self._db.commit()
 
-    async def delete_conversation_summary(self, session_id: str) -> None:
-        """Delete the persisted summary for a conversation session."""
-        await self._db.execute(
-            "DELETE FROM conversation_summaries WHERE session_id = ?",
-            (session_id,),
-        )
-        await self._db.commit()
-
     # Messages
 
     async def add_message(
