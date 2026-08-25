@@ -461,10 +461,16 @@ class TestStatesTable:
             "1 behaviours · 1 states"
         )
 
+        # Adding a policy now goes through the guided + Add policy flow; the
+        # old checkbox-per-policy wall it used to drive no longer exists.
         policy_id = playbook_env["policy_id"]
-        app_page.get_by_test_id(f"member-included-{policy_id}").check()
-        app_page.get_by_test_id(f"member-fires-on-{policy_id}").select_option("false")
-        app_page.get_by_test_id(f"member-guidance-{policy_id}").fill(MEMBER_GUIDANCE)
+        app_page.get_by_test_id("add-policy").click()
+        app_page.get_by_test_id(f"policy-option-{policy_id}").click()
+        app_page.get_by_test_id("fires-on-violated").click()
+        app_page.get_by_test_id("fires-on-next").click()
+        app_page.get_by_test_id("rule-mode-create").click()
+        app_page.get_by_test_id("new-rule-guidance").fill(MEMBER_GUIDANCE)
+        app_page.get_by_test_id("add-policy-confirm").click()
         app_page.get_by_test_id("save-members").click()
 
         expect(app_page.get_by_test_id("members-warnings")).to_contain_text(

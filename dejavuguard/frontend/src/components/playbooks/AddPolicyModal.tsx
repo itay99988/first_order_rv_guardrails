@@ -38,9 +38,31 @@ const RULE_MODE_LABELS: Record<RuleMode, string> = {
  * (`_rule_name_from` in `backend/store/db.py`), so the name the user is shown
  * before saving is the name the rule ends up with.
  */
-function defaultRuleName(policyName: string): string {
+function ruleNameBase(policyName: string): string {
   const slug = policyName.replace(/[^A-Za-z0-9_]+/g, "_").replace(/^_+|_+$/g, "");
   return slug ? `Rule_${slug}` : "Rule";
+}
+
+/**
+ * The base name, suffixed past whatever the library already holds.
+ *
+ * Every policy that had guidance before the rules library existed already
+ * owns a rule named `Rule_<POLICY_NAME>` -- the migration created it. Offering
+ * that name back is a dead end: rule names are UNIQUE, so the create 409s on
+ * a collision the product itself handed the user. `_rule_for_guidance` in
+ * `backend/store/db.py` resolves the same collision the same way, so a name
+ * offered here is one the server will accept.
+ */
+function firstFreeRuleName(policyName: string, rules: Rule[]): string {
+  const base = ruleNameBase(policyName);
+  const taken = new Set(rules.map((r) => r.name));
+  let name = base;
+  let suffix = 1;
+  while (taken.has(name)) {
+    suffix += 1;
+    name = `${base}_${suffix}`;
+  }
+  return name;
 }
 
 /**
@@ -74,7 +96,7 @@ export default function AddPolicyModal({
   const [search, setSearch] = useState("");
   const [reusedRuleId, setReusedRuleId] = useState<string | null>(null);
 
-  const [newRuleName, setNewRuleName] = useState("");
+  const [typedRuleName, setTypedRuleName] = useState<string | null>(null);
   const [newRuleGuidance, setNewRuleGuidance] = useState("");
 
   const [submitting, setSubmitting] = useState(false);
@@ -92,7 +114,7 @@ export default function AddPolicyModal({
     setRuleMode(null);
     setSearch("");
     setReusedRuleId(null);
-    setNewRuleName("");
+    setTypedRuleName(null);
     setNewRuleGuidance("");
     setSubmitting(false);
     setError(null);
@@ -124,9 +146,6 @@ export default function AddPolicyModal({
   const chooseMode = (mode: RuleMode) => {
     setRuleMode(mode);
     setError(null);
-    if (mode === "create" && policy) {
-      setNewRuleName((prev) => prev || defaultRuleName(policy.name));
-    }
   };
 
   const back = () => {
@@ -145,6 +164,14 @@ export default function AddPolicyModal({
   }, [rules, search]);
 
   const reusedRule = rules.find((r) => r.rule_id === reusedRuleId) ?? null;
+
+  // Recomputed from the library rather than frozen when "create" is picked:
+  // the library loads asynchronously, and a name computed before it arrives
+  // is a name computed against an empty library.
+  const baseName = policy ? ruleNameBase(policy.name) : "";
+  const suggestedName = policy ? firstFreeRuleName(policy.name, rules) : "";
+  const newRuleName = typedRuleName ?? suggestedName;
+  const ownedRule = rules.find((r) => r.name === baseName) ?? null;
 
   const canConfirm =
     !submitting &&
@@ -421,7 +448,7 @@ export default function AddPolicyModal({
                   <input
                     type="text"
                     value={newRuleName}
-                    onChange={(e) => setNewRuleName(e.target.value)}
+                    onChange={(e) => setTypedRuleName(e.target.value)}
                     className="mt-1 w-full rounded-none border border-border bg-dark-primary px-2 py-1 font-mono text-xs text-terminal-bright focus:border-accent/50 focus:outline-none"
                     data-testid="new-rule-name"
                   />
@@ -437,6 +464,16 @@ export default function AddPolicyModal({
                     data-testid="new-rule-guidance"
                   />
                 </label>
+                {ownedRule && (
+                  <p
+                    className="text-xs text-terminal-amber"
+                    data-testid="rule-name-taken"
+                  >
+                    The library already holds {ownedRule.name}. This one is
+                    named {suggestedName} instead — if {ownedRule.name} already
+                    says what you want, choose "Reuse an existing rule".
+                  </p>
+                )}
                 <p className="text-xs text-terminal-dim">
                   Saved to the shared library, so any other playbook can reuse it.
                 </p>

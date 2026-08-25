@@ -2,7 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { Policy } from "@/types";
+import type { Policy, Rule } from "@/types";
 import AddPolicyModal from "./AddPolicyModal";
 
 const mockListRules = vi.fn();
@@ -165,6 +165,91 @@ describe("AddPolicyModal", () => {
     await userEvent.click(screen.getByTestId("rule-mode-create"));
 
     expect(screen.getByTestId("new-rule-name")).toHaveValue("Rule_Budget_guard");
+    expect(screen.queryByTestId("rule-name-taken")).toBeNull();
+  });
+
+  // Every policy that already had guidance owns a rule named after it -- the
+  // Task 2 migration created it. Offering that name back is a dead end: the
+  // create 409s on a collision the product itself handed the user. The server
+  // suffixes to the first free name, so the name on offer has to as well.
+  it("suffixes past a rule the policy already owns", async () => {
+    mockListRules.mockResolvedValue([
+      { rule_id: "r_a", name: "Rule_Budget_guard", guidance: "Ask first.", usage_count: 1 },
+      { rule_id: "r_b", name: "Rule_Budget_guard_2", guidance: "Or this.", usage_count: 1 },
+    ]);
+    renderModal();
+    await reachRuleStep("p_budget");
+
+    await userEvent.click(screen.getByTestId("rule-mode-create"));
+
+    expect(screen.getByTestId("new-rule-name")).toHaveValue("Rule_Budget_guard_3");
+    // Named, not silently reused: the existing rule's text may say something
+    // else entirely, and attaching guidance the user never wrote is worse
+    // than the error this avoids.
+    expect(screen.getByTestId("rule-name-taken")).toHaveTextContent(
+      "Rule_Budget_guard",
+    );
+  });
+
+  it("creates under the free name rather than the colliding one", async () => {
+    mockListRules.mockResolvedValue([
+      { rule_id: "r_a", name: "Rule_Budget_guard", guidance: "Ask first.", usage_count: 1 },
+    ]);
+    mockCreateRule.mockResolvedValue({
+      rule_id: "r_new", name: "Rule_Budget_guard_2", guidance: "Something else.",
+    });
+    const { onAdd } = renderModal();
+    await reachRuleStep("p_budget");
+
+    await userEvent.click(screen.getByTestId("rule-mode-create"));
+    await userEvent.type(screen.getByTestId("new-rule-guidance"), "Something else.");
+    await userEvent.click(screen.getByTestId("add-policy-confirm"));
+
+    await waitFor(() =>
+      expect(mockCreateRule).toHaveBeenCalledWith({
+        name: "Rule_Budget_guard_2",
+        guidance: "Something else.",
+      }),
+    );
+    expect(onAdd).toHaveBeenCalledWith(
+      expect.objectContaining({ rule_id: "r_new" }),
+    );
+  });
+
+  // The library loads asynchronously. A name computed once, before it
+  // arrives, is computed against an empty library -- which is exactly the
+  // collision this avoids, reintroduced as a race.
+  it("re-suggests once the library has loaded", async () => {
+    let release: (rules: Rule[]) => void = () => {};
+    mockListRules.mockReturnValue(
+      new Promise<Rule[]>((resolve) => {
+        release = resolve;
+      }),
+    );
+    renderModal();
+    await reachRuleStep("p_budget");
+    await userEvent.click(screen.getByTestId("rule-mode-create"));
+
+    expect(screen.getByTestId("new-rule-name")).toHaveValue("Rule_Budget_guard");
+
+    release([
+      { rule_id: "r_a", name: "Rule_Budget_guard", guidance: "Ask first.", usage_count: 1 },
+    ]);
+
+    await waitFor(() =>
+      expect(screen.getByTestId("new-rule-name")).toHaveValue("Rule_Budget_guard_2"),
+    );
+  });
+
+  it("keeps a name the user typed instead of re-suggesting over it", async () => {
+    renderModal();
+    await reachRuleStep("p_budget");
+
+    await userEvent.click(screen.getByTestId("rule-mode-create"));
+    await userEvent.clear(screen.getByTestId("new-rule-name"));
+    await userEvent.type(screen.getByTestId("new-rule-name"), "Rule_My_own");
+
+    expect(screen.getByTestId("new-rule-name")).toHaveValue("Rule_My_own");
   });
 
   it("lists reusable rules with how many playbooks already use them", async () => {
