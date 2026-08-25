@@ -411,6 +411,17 @@ export interface Rule {
 - Create: `frontend/src/components/playbooks/RuleLibrary.tsx`
 - Test: `frontend/src/components/playbooks/RuleLibrary.test.tsx`
 
+**Two API facts this task must be built around (ruling R-20), both confirmed against the
+backend by Task 6's review:**
+- **`getRule` never returns `usage_count`** — only `listRules()` does, by design and matching
+  the backend. So the "editing this affects N playbooks" warning must carry the count forward
+  from the list row; a single-rule fetch to populate the editor will hand you `undefined`, and
+  a warning that reads "affects undefined playbooks" — or worse, silently doesn't fire — is a
+  guard reporting safety it has not earned.
+- **`Rule` omits `created_at` / `updated_at`** although all four API variants return them, and
+  `Policy` carries them as optional. That is a gap in my brief, not an implementer deviation.
+  Add them to the type if this UI wants "last edited"; do not invent them client-side.
+
 - [ ] **Step 1: Write the failing tests** — rules list with usage counts; searching filters; editing a rule used by **more than one** playbook shows a warning naming the count BEFORE saving; deleting a rule in use is refused with the 409 detail surfaced, not swallowed.
 
 - [ ] **Step 2: Watch them fail**
