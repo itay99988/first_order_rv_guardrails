@@ -573,6 +573,27 @@ def test_a_member_rule_id_wins_over_inline_guidance(client):
     assert member["guidance"] == "Stay within budget."
 
 
+def test_an_empty_rule_id_falls_through_to_the_text(client):
+    """`rule_id: ""` means absent, not "link to nothing".
+
+    Empty string is falsy, so it skips both the 422 validation and the
+    linked branch and lands on the text alias -- the same path as omitting
+    the field. Defensible, but nothing pinned it, so a refactor could turn
+    it into a 422 or a hard error with no test noticing.
+    """
+    policy_id = _policy(client, "p_a", "A")
+    pb = client.post("/api/playbooks", json={"name": "Budget"}).json()["playbook_id"]
+
+    response = client.put(f"/api/playbooks/{pb}/members", json={"members": [
+        {"policy_id": policy_id, "position": 0, "fires_on": False,
+         "rule_id": "", "guidance": "Stay within budget."}]})
+
+    assert response.status_code == 200
+    member = client.get(f"/api/playbooks/{pb}/states").json()["members"][0]
+    assert member["guidance"] == "Stay within budget."
+    assert member["rule_id"]  # resolved through the text alias, not left unlinked
+
+
 def test_editing_a_rule_changes_what_the_globals_endpoint_returns(client):
     """The inline guidance column is a stale display copy (R-17).
 
