@@ -573,6 +573,27 @@ def test_a_member_rule_id_wins_over_inline_guidance(client):
     assert member["guidance"] == "Stay within budget."
 
 
+def test_an_empty_rule_ref_id_falls_through_to_the_text(client):
+    """The playbook-wide twin of the member case below.
+
+    `rule_ref_id: ""` is falsy, so it skips both the 422 validation and the
+    linked branch and lands on the text alias -- the same path as omitting
+    the field. Task 10 made it behave that way deliberately, matching the
+    member side, but only the member side was pinned; a refactor to
+    `is not None` would turn one into a 422 and leave the other alone.
+    """
+    pb = client.post("/api/playbooks", json={"name": "Budget"}).json()["playbook_id"]
+
+    response = client.put(f"/api/playbooks/{pb}/globals", json={"globals": [
+        {"name": "House style", "guidance": "Be brief.", "position": 0,
+         "apply_to_all": True, "rule_ref_id": ""}]})
+
+    assert response.status_code == 200
+    row = client.get(f"/api/playbooks/{pb}/globals").json()[0]
+    assert row["guidance"] == "Be brief."
+    assert row["rule_ref_id"]  # resolved through the text alias, not left unlinked
+
+
 def test_an_empty_rule_id_falls_through_to_the_text(client):
     """`rule_id: ""` means absent, not "link to nothing".
 
