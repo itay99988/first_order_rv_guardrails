@@ -373,7 +373,7 @@ export default function PlaybookEditor({ playbook, onBack }: Props) {
                   data-testid={`member-detached-${row.policy_id}`}
                 >
                   Saving moves this member onto its own rule, leaving{" "}
-                  {row.rule_name} as other playbooks have it.
+                  {row.rule_name} unchanged.
                 </p>
               )}
 

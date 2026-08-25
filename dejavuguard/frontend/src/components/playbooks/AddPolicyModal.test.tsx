@@ -353,6 +353,106 @@ describe("AddPolicyModal", () => {
     expect(onAdd).not.toHaveBeenCalled();
   });
 
+  // A library that failed to load is not an empty library. The catch that
+  // sets `rules = []` makes the two indistinguishable, and everything the
+  // previous fix built rests on that list: the suffixing has nothing to
+  // suffix past, and the "already held" hint has nothing to match. The user
+  // is handed the migration-owned name as though it were verified free, and
+  // finds out at confirm, from a raw 409.
+  describe("when the rule library will not load", () => {
+    beforeEach(() => {
+      mockListRules.mockReset().mockRejectedValue(new Error("rules unavailable"));
+    });
+
+    it("reports the failure in every rule mode, not only in reuse", async () => {
+      renderModal();
+      await reachRuleStep("p_budget");
+
+      // Before any mode is chosen at all.
+      expect(await screen.findByTestId("rules-load-error")).toHaveTextContent(
+        "rules unavailable",
+      );
+
+      await userEvent.click(screen.getByTestId("rule-mode-create"));
+      expect(screen.getByTestId("rules-load-error")).toBeInTheDocument();
+
+      await userEvent.click(screen.getByTestId("rule-mode-none"));
+      expect(screen.getByTestId("rules-load-error")).toBeInTheDocument();
+    });
+
+    it("offers no name it cannot check, and says why", async () => {
+      renderModal();
+      await reachRuleStep("p_budget");
+      await userEvent.click(screen.getByTestId("rule-mode-create"));
+
+      // Emphatically not `Rule_Budget_guard`: against an unknown library that
+      // is a guess, and it is the one name the migration is known to own.
+      expect(screen.getByTestId("new-rule-name")).toHaveValue("");
+      expect(screen.getByTestId("rule-name-unverified")).toBeInTheDocument();
+      // Nothing to confirm until the user names it themselves.
+      expect(screen.getByTestId("add-policy-confirm")).toBeDisabled();
+    });
+
+    it("does not call the library empty when it does not know what is in it", async () => {
+      renderModal();
+      await reachRuleStep("p_budget");
+      await userEvent.click(screen.getByTestId("rule-mode-reuse"));
+
+      const message = await screen.findByTestId("no-rules-match");
+      expect(message.textContent).not.toMatch(/empty/i);
+      expect(message).toHaveTextContent(/could not be loaded/i);
+    });
+  });
+
+  // The suggestion is checked against the library; a hand-typed name is not.
+  // Both end at the same UNIQUE constraint, so both deserve the same warning.
+  it("warns when the typed name is one the library already holds", async () => {
+    mockListRules.mockResolvedValue([
+      { rule_id: "r_a", name: "Rule_Ask_first", guidance: "Ask first.", usage_count: 1 },
+    ]);
+    renderModal();
+    await reachRuleStep("p_budget");
+
+    await userEvent.click(screen.getByTestId("rule-mode-create"));
+    expect(screen.queryByTestId("rule-name-taken")).toBeNull();
+
+    await userEvent.clear(screen.getByTestId("new-rule-name"));
+    await userEvent.type(screen.getByTestId("new-rule-name"), "Rule_Ask_first");
+
+    expect(screen.getByTestId("rule-name-taken")).toHaveTextContent(
+      "Rule_Ask_first",
+    );
+  });
+
+  // A flow whose whole point is sequencing decisions has to tell a keyboard
+  // user that the sequence moved. Dropping focus to <body> tells them
+  // nothing, and the next Tab walks into the page behind the overlay.
+  it("moves focus into each step and announces the step change", async () => {
+    renderModal();
+
+    const stepLine = await screen.findByTestId("add-policy-step");
+    expect(stepLine).toHaveAttribute("aria-live", "polite");
+    await waitFor(() =>
+      expect(screen.getByTestId("policy-picker")).toHaveFocus(),
+    );
+
+    await userEvent.click(screen.getByTestId("policy-option-p_tone"));
+    await waitFor(() =>
+      expect(screen.getByTestId("fires-on-violated")).toHaveFocus(),
+    );
+
+    await userEvent.click(screen.getByTestId("fires-on-next"));
+    await waitFor(() =>
+      expect(screen.getByTestId("rule-mode-reuse")).toHaveFocus(),
+    );
+
+    // Back is a step change too.
+    await userEvent.click(screen.getByTestId("add-policy-back"));
+    await waitFor(() =>
+      expect(screen.getByTestId("fires-on-violated")).toHaveFocus(),
+    );
+  });
+
   it("lets the user step back and pick a different policy", async () => {
     renderModal();
     await reachRuleStep("p_budget");

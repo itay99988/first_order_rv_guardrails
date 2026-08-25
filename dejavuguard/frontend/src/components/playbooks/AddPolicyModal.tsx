@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 
 import { createRule, listRules } from "@/api/client";
@@ -26,6 +26,17 @@ interface Props {
 
 type Step = "policy" | "fires-on" | "rule";
 type RuleMode = "reuse" | "create" | "none";
+
+/**
+ * What the modal knows about the shared library.
+ *
+ * `failed` is deliberately not folded into an empty `rules` array. Every
+ * safeguard here -- the suffixing, the "already held" hint, the empty-library
+ * copy -- reads that array and treats what it does not find as free. An
+ * unknown library that presents itself as empty therefore turns every one of
+ * those safeguards into a confident wrong answer.
+ */
+type LibraryStatus = "loading" | "ready" | "failed";
 
 const RULE_MODE_LABELS: Record<RuleMode, string> = {
   reuse: "Reuse an existing rule",
@@ -92,6 +103,7 @@ export default function AddPolicyModal({
   const [ruleMode, setRuleMode] = useState<RuleMode | null>(null);
 
   const [rules, setRules] = useState<Rule[]>([]);
+  const [rulesStatus, setRulesStatus] = useState<LibraryStatus>("loading");
   const [rulesError, setRulesError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [reusedRuleId, setReusedRuleId] = useState<string | null>(null);
@@ -121,13 +133,17 @@ export default function AddPolicyModal({
 
     let cancelled = false;
     setRulesError(null);
+    setRulesStatus("loading");
     void listRules()
       .then((loaded) => {
-        if (!cancelled) setRules(loaded);
+        if (cancelled) return;
+        setRules(loaded);
+        setRulesStatus("ready");
       })
       .catch((err: unknown) => {
         if (cancelled) return;
         setRules([]);
+        setRulesStatus("failed");
         setRulesError(
           err instanceof Error ? err.message : "Failed to load the rule library",
         );
@@ -168,10 +184,22 @@ export default function AddPolicyModal({
   // Recomputed from the library rather than frozen when "create" is picked:
   // the library loads asynchronously, and a name computed before it arrives
   // is a name computed against an empty library.
+  //
+  // When the load FAILED there is nothing to compute against and no later
+  // arrival to correct it, so nothing is suggested at all. Offering
+  // `Rule_<POLICY_NAME>` here would be offering the one name every migrated
+  // policy already owns, with the confidence of a checked answer.
+  const libraryUnknown = rulesStatus === "failed";
   const baseName = policy ? ruleNameBase(policy.name) : "";
-  const suggestedName = policy ? firstFreeRuleName(policy.name, rules) : "";
+  const suggestedName =
+    policy && !libraryUnknown ? firstFreeRuleName(policy.name, rules) : "";
   const newRuleName = typedRuleName ?? suggestedName;
-  const ownedRule = rules.find((r) => r.name === baseName) ?? null;
+  // The suggestion is checked against the library on every keystroke; a name
+  // the user typed is not. Both land on the same UNIQUE constraint.
+  const collidingRule =
+    rules.find((r) => r.name === newRuleName.trim()) ?? null;
+  const ownedRule =
+    typedRuleName === null ? (rules.find((r) => r.name === baseName) ?? null) : null;
 
   const canConfirm =
     !submitting &&
@@ -232,10 +260,34 @@ export default function AddPolicyModal({
 
   const stepNumber = step === "policy" ? 1 : step === "fires-on" ? 2 : 3;
 
+  const policyPickerRef = useRef<HTMLDivElement>(null);
+  const firesOnRef = useRef<HTMLButtonElement>(null);
+  const ruleModeRef = useRef<HTMLInputElement>(null);
+
+  // Advancing a step replaces everything below the step line, so without this
+  // focus lands on <body>: the dialog has no focus trap, and the next Tab
+  // walks into the page behind the overlay. Landing on the new step's first
+  // control gives a keyboard user somewhere to be, and the step line is a
+  // live region so the move is announced rather than merely happening.
+  useEffect(() => {
+    if (!open) return;
+    const target =
+      step === "policy"
+        ? policyPickerRef.current
+        : step === "fires-on"
+          ? firesOnRef.current
+          : ruleModeRef.current;
+    target?.focus();
+  }, [open, step]);
+
   return (
     <Modal open={open} onClose={onClose} title="Add policy">
       <div className="space-y-4" data-testid="add-policy-modal">
-        <p className="text-xs text-terminal-dim" data-testid="add-policy-step">
+        <p
+          className="text-xs text-terminal-dim"
+          aria-live="polite"
+          data-testid="add-policy-step"
+        >
           Step {stepNumber} of 3
           {policy && step !== "policy" && (
             <span className="ml-2 font-mono text-terminal-bright">
@@ -251,9 +303,11 @@ export default function AddPolicyModal({
               listed but cannot be added twice.
             </p>
             <div
+              ref={policyPickerRef}
               role="listbox"
               aria-label="Policies"
-              className="max-h-64 space-y-1 overflow-y-auto border border-border p-1"
+              tabIndex={-1}
+              className="max-h-64 space-y-1 overflow-y-auto border border-border p-1 focus:outline-none"
               data-testid="policy-picker"
             >
               {policies.map((p) => {
@@ -327,6 +381,7 @@ export default function AddPolicyModal({
             ).map(([value, key, label, hint]) => (
               <button
                 key={key}
+                ref={key === "violated" ? firesOnRef : undefined}
                 onClick={() => setFiresOn(value)}
                 aria-pressed={firesOn === value}
                 className={`block w-full border px-3 py-2 text-left text-sm ${
@@ -352,6 +407,18 @@ export default function AddPolicyModal({
               Which rule carries the guidance for this member?
             </p>
 
+            {/* Every mode on this step is decided against the library --
+                reuse lists it, create is named around it, and "no guidance"
+                is a choice made knowing what the alternatives were. Reporting
+                the failure only inside the reuse branch left the two other
+                modes looking like they had answered from a library that had
+                simply come back empty. */}
+            {rulesError && (
+              <p className="text-xs text-terminal-red" data-testid="rules-load-error">
+                {rulesError}
+              </p>
+            )}
+
             <fieldset className="space-y-1.5">
               <legend className="sr-only">Rule</legend>
               {(["reuse", "create", "none"] as RuleMode[]).map((mode) => (
@@ -360,6 +427,7 @@ export default function AddPolicyModal({
                   className="flex items-center gap-2 text-sm text-terminal-text"
                 >
                   <input
+                    ref={mode === "reuse" ? ruleModeRef : undefined}
                     type="radio"
                     name="rule-mode"
                     checked={ruleMode === mode}
@@ -427,17 +495,16 @@ export default function AddPolicyModal({
                       className="px-2 py-1.5 text-xs text-terminal-dim"
                       data-testid="no-rules-match"
                     >
-                      {rules.length === 0
-                        ? "The rule library is empty. Create the first rule here."
-                        : "No rule matches that search."}
+                      {libraryUnknown
+                        ? "The rule library could not be loaded, so there is nothing here to reuse."
+                        : rulesStatus === "loading"
+                          ? "Loading the rule library..."
+                          : rules.length === 0
+                            ? "The rule library is empty. Create the first rule here."
+                            : "No rule matches that search."}
                     </p>
                   )}
                 </div>
-                {rulesError && (
-                  <p className="text-xs text-terminal-red" data-testid="rules-load-error">
-                    {rulesError}
-                  </p>
-                )}
               </div>
             )}
 
@@ -464,7 +531,17 @@ export default function AddPolicyModal({
                     data-testid="new-rule-guidance"
                   />
                 </label>
-                {ownedRule && (
+                {collidingRule ? (
+                  <p
+                    className="text-xs text-terminal-amber"
+                    data-testid="rule-name-taken"
+                  >
+                    The library already holds {collidingRule.name}. Rule names
+                    are unique, so saving under that name fails — rename it, or
+                    choose "Reuse an existing rule" to use the one that is
+                    already there.
+                  </p>
+                ) : ownedRule ? (
                   <p
                     className="text-xs text-terminal-amber"
                     data-testid="rule-name-taken"
@@ -472,6 +549,16 @@ export default function AddPolicyModal({
                     The library already holds {ownedRule.name}. This one is
                     named {suggestedName} instead — if {ownedRule.name} already
                     says what you want, choose "Reuse an existing rule".
+                  </p>
+                ) : null}
+                {libraryUnknown && (
+                  <p
+                    className="text-xs text-terminal-amber"
+                    data-testid="rule-name-unverified"
+                  >
+                    The rule library could not be loaded, so no name can be
+                    checked against it and none is suggested. Name this rule
+                    yourself; if that name is already taken, saving will say so.
                   </p>
                 )}
                 <p className="text-xs text-terminal-dim">

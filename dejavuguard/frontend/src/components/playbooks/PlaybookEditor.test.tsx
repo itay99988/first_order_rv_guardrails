@@ -210,7 +210,8 @@ describe("PlaybookEditor", () => {
     expect(mockGetPlaybookTrace).toHaveBeenCalledWith("pb1", "");
     expect(screen.queryByTestId("playbook-states")).toBeNull();
   });
-// The guided flow only exists if it is reachable from the editor. These
+
+  // The guided flow only exists if it is reachable from the editor. These
   // drive it through PlaybookEditor rather than the modal in isolation, so
   // a modal that is never mounted fails here rather than passing quietly in
   // its own file.
@@ -289,6 +290,33 @@ describe("PlaybookEditor", () => {
     // Guidance edited in a member row must not be sent alongside the rule id:
     // the server takes a named rule at its word and drops the text beside it,
     // so a save that sent both would report success and change nothing.
+    // Once a member has been added, this select is the only way to change
+    // when it fires -- the guided flow asks the question once, on the way in,
+    // and never again. Untested, the two option values and the string it is
+    // compared against can drift apart in silence: inverting the comparison
+    // to `!== "true"` changes nothing a user can see until a playbook starts
+    // firing on exactly the turns it should not.
+    it("changes when a member fires, and saves what was chosen", async () => {
+      render(<PlaybookEditor playbook={playbook} onBack={vi.fn()} />);
+      await screen.findByTestId("member-row-p1");
+
+      const firesOn = screen.getByTestId("member-fires-on-p1");
+      // The loaded member fires when satisfied, so the select reads that back.
+      expect(firesOn).toHaveValue("true");
+
+      await userEvent.selectOptions(firesOn, "false");
+      expect(firesOn).toHaveValue("false");
+
+      await userEvent.click(screen.getByTestId("save-members"));
+
+      await waitFor(() =>
+        expect(mockSetPlaybookMembers).toHaveBeenCalledWith("pb1", [
+          { policy_id: "p1", position: 0, fires_on: false, guidance: "watch",
+            rule_id: "r_watch" },
+        ]),
+      );
+    });
+
     it("detaches a member from its rule when its guidance is edited in place", async () => {
       render(<PlaybookEditor playbook={playbook} onBack={vi.fn()} />);
       await screen.findByTestId("member-guidance-p1");
@@ -314,7 +342,14 @@ describe("PlaybookEditor", () => {
 
       await userEvent.clear(screen.getByTestId("member-guidance-p1"));
       await userEvent.type(screen.getByTestId("member-guidance-p1"), "watch harder");
-      expect(screen.getByTestId("member-detached-p1")).toBeInTheDocument();
+      const detached = screen.getByTestId("member-detached-p1");
+      expect(detached).toBeInTheDocument();
+      // The row has no usage_count, so it cannot know any other playbook
+      // uses this rule. When none does, the detach strands it at zero usage
+      // and "as other playbooks have it" is simply false; "unchanged" holds
+      // either way.
+      expect(detached.textContent).not.toMatch(/other playbooks/i);
+      expect(detached).toHaveTextContent(/Rule_watch unchanged/);
 
       mockGetPlaybookStates.mockResolvedValue({
         ...oneMember,
