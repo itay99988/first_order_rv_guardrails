@@ -1,3 +1,4 @@
+import aiosqlite
 import pytest
 
 from backend.store.db import DatabaseStore
@@ -20,7 +21,7 @@ async def test_create_and_get_rule(db):
 
 async def test_rule_name_is_unique(db):
     await db.create_rule("r1", "Rule_Budget", "A")
-    with pytest.raises(Exception):
+    with pytest.raises(aiosqlite.IntegrityError, match="UNIQUE constraint failed"):
         await db.create_rule("r2", "Rule_Budget", "B")
 
 
