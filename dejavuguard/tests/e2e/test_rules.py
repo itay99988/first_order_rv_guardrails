@@ -4,9 +4,55 @@ E2E tests: Rules screen — propositions and policies CRUD.
 
 from __future__ import annotations
 
+import json
 import re
 
 from playwright.sync_api import Page, expect
+
+#: A predicate and a policy as the API serves them, for the halves of the
+#: empty-state contract that need a non-empty list.
+LISTED_PREDICATE = {
+    "prop_id": "e2e_rules_listed_u",
+    "description": "a predicate the view under test is given to list",
+    "role": "user",
+    "grounding_scope": "single_message",
+    "arity": 0,
+    "arg_descriptions": [],
+}
+
+LISTED_POLICY = {
+    "policy_id": "e2e-rules-listed",
+    "name": "e2e-rules listed policy",
+    "formula_str": f"! {LISTED_PREDICATE['prop_id']}",
+    "propositions": [LISTED_PREDICATE["prop_id"]],
+    "enabled": True,
+}
+
+
+def _serve(page: Page, collection: str, items: list[dict]) -> None:
+    """Serve a fixed list for one API collection, for this page only.
+
+    The contract is that the empty-state message shows *iff* the list is
+    empty, and its empty half cannot be asserted against a shared development
+    database without deleting whatever that database already holds. Handing
+    the view its list here pins both halves on any machine: the emptiness
+    under test is the view's input rather than the developer's data. The
+    latest registered handler wins, so calling this again switches the answer.
+    """
+    page.route(
+        f"**/api/{collection}",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps(items),
+        ),
+    )
+
+
+def _reopen_rules(page: Page) -> None:
+    """Leave the Rules screen and come back, so its lists are fetched again."""
+    page.click('[data-testid="nav-chat"]')
+    page.click('[data-testid="nav-rules"]')
 
 
 class TestRulesPageLoad:
@@ -41,15 +87,44 @@ class TestRulesPageLoad:
         app_page.click('[data-testid="nav-rules"]')
         expect(app_page.locator('[data-testid="add-policy"]')).to_be_visible()
 
-    def test_empty_propositions_message(self, app_page: Page):
-        """Shows empty message when no propositions exist."""
-        app_page.click('[data-testid="nav-rules"]')
-        expect(app_page.locator('[data-testid="no-propositions"]')).to_be_visible()
+    def test_propositions_empty_message_shows_iff_the_list_is_empty(
+        self, app_page: Page
+    ):
+        """No predicates listed, the message; one listed, no message.
 
-    def test_empty_policies_message(self, app_page: Page):
-        """Shows empty message when no policies exist."""
+        Asserting only the empty half would make the test a claim about the
+        developer's database rather than about the view, and it would fail on
+        every machine that has predicates in it.
+        """
+        message = app_page.locator('[data-testid="no-propositions"]')
+        cards = app_page.locator('[data-testid^="proposition-card-"]')
+
+        _serve(app_page, "propositions", [])
         app_page.click('[data-testid="nav-rules"]')
-        expect(app_page.locator('[data-testid="no-policies"]')).to_be_visible()
+        expect(cards).to_have_count(0)
+        expect(message).to_be_visible()
+
+        _serve(app_page, "propositions", [LISTED_PREDICATE])
+        _reopen_rules(app_page)
+        expect(cards).to_have_count(1)
+        expect(message).to_have_count(0)
+
+    def test_policies_empty_message_shows_iff_the_list_is_empty(
+        self, app_page: Page
+    ):
+        """No policies listed, the message; one listed, no message."""
+        message = app_page.locator('[data-testid="no-policies"]')
+        cards = app_page.locator('[data-testid^="policy-card-"]')
+
+        _serve(app_page, "policies", [])
+        app_page.click('[data-testid="nav-rules"]')
+        expect(cards).to_have_count(0)
+        expect(message).to_be_visible()
+
+        _serve(app_page, "policies", [LISTED_POLICY])
+        _reopen_rules(app_page)
+        expect(cards).to_have_count(1)
+        expect(message).to_have_count(0)
 
 
 class TestPropositionEditor:
@@ -139,13 +214,8 @@ class TestFormulaBuilder:
 
     def test_clicking_add_policy_opens_modal(self, app_page: Page):
         """Clicking Add policy opens the formula builder modal."""
-        # Note: policy add button may be disabled if no propositions exist
         app_page.click('[data-testid="nav-rules"]')
-        # The add-policy button might be disabled when no props exist
-        add_btn = app_page.locator('[data-testid="add-policy"]')
-        if add_btn.is_disabled():
-            return  # Can't test modal without props
-        add_btn.click()
+        app_page.locator('[data-testid="add-policy"]').click()
         expect(app_page.locator('[data-testid="modal"]')).to_be_visible()
         expect(
             app_page.get_by_role("heading", name="New Policy", exact=True)
@@ -154,65 +224,44 @@ class TestFormulaBuilder:
     def test_policy_name_input_present(self, app_page: Page):
         """Policy name input exists in formula builder."""
         app_page.click('[data-testid="nav-rules"]')
-        add_btn = app_page.locator('[data-testid="add-policy"]')
-        if add_btn.is_disabled():
-            return
-        add_btn.click()
+        app_page.locator('[data-testid="add-policy"]').click()
         expect(app_page.locator('[data-testid="policy-name-input"]')).to_be_visible()
 
     def test_formula_input_present(self, app_page: Page):
         """Formula input field exists."""
         app_page.click('[data-testid="nav-rules"]')
-        add_btn = app_page.locator('[data-testid="add-policy"]')
-        if add_btn.is_disabled():
-            return
-        add_btn.click()
+        app_page.locator('[data-testid="add-policy"]').click()
         expect(app_page.locator('[data-testid="formula-input"]')).to_be_visible()
 
     def test_operator_buttons_present(self, app_page: Page):
         """Operator buttons section is visible."""
         app_page.click('[data-testid="nav-rules"]')
-        add_btn = app_page.locator('[data-testid="add-policy"]')
-        if add_btn.is_disabled():
-            return
-        add_btn.click()
+        app_page.locator('[data-testid="add-policy"]').click()
         expect(app_page.locator('[data-testid="operator-buttons"]')).to_be_visible()
 
     def test_temporal_reference_panel(self, app_page: Page):
         """Temporal operators reference panel is visible."""
         app_page.click('[data-testid="nav-rules"]')
-        add_btn = app_page.locator('[data-testid="add-policy"]')
-        if add_btn.is_disabled():
-            return
-        add_btn.click()
+        app_page.locator('[data-testid="add-policy"]').click()
         expect(app_page.locator("text=DejaVu Operators Reference")).to_be_visible()
 
     def test_save_disabled_initially(self, app_page: Page):
         """Save button is disabled when formula is empty."""
         app_page.click('[data-testid="nav-rules"]')
-        add_btn = app_page.locator('[data-testid="add-policy"]')
-        if add_btn.is_disabled():
-            return
-        add_btn.click()
+        app_page.locator('[data-testid="add-policy"]').click()
         expect(app_page.locator('[data-testid="policy-save"]')).to_be_disabled()
 
     def test_cancel_closes_modal(self, app_page: Page):
         """Cancel button closes formula builder."""
         app_page.click('[data-testid="nav-rules"]')
-        add_btn = app_page.locator('[data-testid="add-policy"]')
-        if add_btn.is_disabled():
-            return
-        add_btn.click()
+        app_page.locator('[data-testid="add-policy"]').click()
         app_page.click('[data-testid="policy-cancel"]')
         expect(app_page.locator('[data-testid="modal"]')).not_to_be_visible()
 
     def test_formula_input_monospace(self, app_page: Page):
         """Formula input uses monospace font."""
         app_page.click('[data-testid="nav-rules"]')
-        add_btn = app_page.locator('[data-testid="add-policy"]')
-        if add_btn.is_disabled():
-            return
-        add_btn.click()
+        app_page.locator('[data-testid="add-policy"]').click()
         formula_input = app_page.locator('[data-testid="formula-input"]')
         expect(formula_input).to_have_class(re.compile(r"font-mono"))
 

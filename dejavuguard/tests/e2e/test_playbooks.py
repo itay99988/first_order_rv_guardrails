@@ -203,6 +203,34 @@ def session_factory():
             client.delete(f"/chat/sessions/{session_id}")
 
 
+@pytest.fixture()
+def only_this_modules_policies_enabled():
+    """Suspend every policy this module did not create, then restore them.
+
+    Policy mode monitors *every* enabled policy, so a policy that happens to
+    live in the developer's database can reach a verdict on the same message
+    and block the turn before this module's does. That is correct product
+    behaviour and a test that never said which policies it was testing; the
+    fixture says it. The previous enabled state is put back in a ``finally``,
+    because a fixture that leaves the database mutated after a failing test is
+    its own defect.
+    """
+    with _api() as client:
+        suspended = [
+            policy["policy_id"]
+            for policy in client.get("/policies").json()
+            if policy["enabled"] and not policy["name"].startswith(PREFIX)
+        ]
+        for policy_id in suspended:
+            response = client.put(f"/policies/{policy_id}", json={"enabled": False})
+            assert response.status_code == 200, response.text
+        try:
+            yield
+        finally:
+            for policy_id in suspended:
+                client.put(f"/policies/{policy_id}", json={"enabled": True})
+
+
 def _dismiss_intro(page: Page) -> None:
     """The intro overlay covers the app on a fresh page load."""
     overlay = page.locator('[data-testid="intro-overlay"]')
@@ -569,13 +597,21 @@ class TestFlaggedStateBlocks:
         expect(app_page.get_by_test_id("message-blocked")).to_have_count(0)
 
     def test_policy_mode_still_blocks_on_the_policy_verdict(
-        self, app_page: Page, playbook_env, session_factory
+        self,
+        app_page: Page,
+        playbook_env,
+        only_this_modules_policies_enabled,
+        session_factory,
     ):
         """The same message in policy mode blocks by policy, naming the formula.
 
         Together with the two above this pins each mode to its own rule: the
         playbook's flag decides in playbook mode, the policy verdict decides in
         policy mode, and the session's mode chooses between them.
+
+        Policy mode monitors every enabled policy, so which policy blocks is
+        only a fact about this one while no other policy is enabled -- hence
+        the fixture.
         """
         session_id = session_factory({"mode": "policies"})
         _open_session(app_page, session_id)
