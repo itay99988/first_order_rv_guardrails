@@ -72,6 +72,10 @@ class MemberSpec(BaseModel):
     policy_id: str
     position: int = 0
     fires_on: bool = False
+    #: The shared rule this member's guidance comes from. Naming it is the
+    #: direct way to attach a member; `guidance` below is the deprecated
+    #: alias kept for one release, resolved to a rule on the way in.
+    rule_id: str | None = None
     guidance: str = ""
 
 
@@ -98,17 +102,31 @@ class OverrideRequest(BaseModel):
 
 
 async def _linked_members(db: DatabaseStore, members: list[MemberSpec]) -> list[dict]:
-    """Attach each member to the rule its guidance names.
+    """Attach each member to the rule it names, or to the one its text names.
 
     Guidance is stored once, in the shared library, and a member only names
     the rule it uses -- so a save that wrote the text without the link would
     leave the member contributing nothing at all until the next startup
-    re-derived it. Members still arrive carrying text rather than a rule id;
-    resolving it here, exactly as the backfill does, is what keeps a save
-    through the current UI from silently dropping its own guidance.
+    re-derived it. A member that names a rule outright is taken at its word,
+    and that link wins over any text sent beside it. Members still arrive
+    carrying text rather than a rule id, though, so resolving it here,
+    exactly as the backfill does, is what keeps a save through the current
+    UI from silently dropping its own guidance.
+
+    A named rule that does not exist is refused rather than saved unlinked:
+    an unlinked member contributes nothing, and nothing downstream would
+    report that the id had been dropped. Every id is checked before the
+    first rule is minted, so a request that fails leaves no rule behind.
     """
+    for member in members:
+        if member.rule_id and not await db.get_rule(member.rule_id):
+            raise HTTPException(422, f"Rule '{member.rule_id}' not found.")
+
     out: list[dict] = []
     for member in members:
+        if member.rule_id:
+            out.append(member.model_dump())
+            continue
         policy = await db.get_policy(member.policy_id)
         out.append({
             **member.model_dump(),
@@ -117,6 +135,72 @@ async def _linked_members(db: DatabaseStore, members: list[MemberSpec]) -> list[
             ),
         })
     return out
+
+
+async def _resolved_globals(db: DatabaseStore, playbook_id: str) -> list[dict]:
+    """The playbook-wide rules, guidance resolved through the library.
+
+    The inline `guidance` column is a stale display copy: the loader reads
+    the text through `rule_ref_id`, so a rule edited through the rules API
+    already reaches the assistant, and returning the column here would show
+    the editor the old text -- an edit that looks as though it failed.
+
+    Resolved on the way out rather than written back: writing through would
+    make the column a second source of truth, exactly the denormalisation
+    that removing it later has to undo.
+    """
+    rule_text = {r["rule_id"]: r["guidance"] for r in await db.list_rules()}
+    return [
+        {**row, "guidance": rule_text.get(row["rule_ref_id"], "")}
+        for row in await db.list_playbook_globals(playbook_id)
+    ]
+
+
+async def _rule_names_by_text(db: DatabaseStore) -> dict[str, str]:
+    """Guidance text -> the name of the rule carrying it.
+
+    A behaviour arrives from the engine as resolved guidance text, and the
+    engine stays unaware that rules exist, so the name is recovered here.
+    Every string in a behaviour was resolved out of the library to begin
+    with, so the lookup is complete by construction; two rules with
+    byte-identical text are indistinguishable inside a behaviour anyway,
+    and the first by name wins so the answer is at least stable.
+    """
+    names: dict[str, str] = {}
+    for rule in await db.list_rules():
+        names.setdefault(rule["guidance"], rule["name"])
+    return names
+
+
+def _named(names: dict[str, str], rules: tuple[str, ...]) -> list[str]:
+    """Rule names for one behaviour, index-for-index with its guidance.
+
+    Text no rule holds any more labels itself rather than dropping out: a
+    shorter list would silently misalign the names against the rules.
+    """
+    return [names.get(text, text) for text in rules]
+
+
+async def _member_payload(
+    db: DatabaseStore, playbook: Playbook, irrevocable: dict[str, bool]
+) -> list[dict]:
+    """Members as the API reports them, in display order.
+
+    `rule_id` comes from the stored row rather than the engine's member,
+    which carries only the resolved text: a client that wants to re-attach
+    a member to a different rule needs to know which one it holds now.
+    """
+    rule_ids = {
+        row["policy_id"]: row["rule_id"]
+        for row in await db.list_playbook_members(playbook.playbook_id)
+    }
+    return [
+        {"policy_id": m.policy_id, "position": m.position,
+         "fires_on": m.fires_on, "guidance": m.guidance,
+         "rule_id": rule_ids.get(m.policy_id),
+         "irrevocable": irrevocable.get(m.policy_id, False)}
+        for m in sorted(playbook.members, key=lambda m: m.position)
+    ]
 
 
 async def _require(db: DatabaseStore, playbook_id: str) -> dict:
@@ -254,7 +338,7 @@ async def get_globals(request: Request, playbook_id: str):
     """
     db = _get_db(request)
     await _require(db, playbook_id)
-    return await db.list_playbook_globals(playbook_id)
+    return await _resolved_globals(db, playbook_id)
 
 
 @router.put("/playbooks/{playbook_id}/globals")
@@ -267,7 +351,7 @@ async def set_globals(request: Request, playbook_id: str, body: GlobalsRequest):
         for g in body.globals
     ])
     invalidate_monitors()
-    return await db.list_playbook_globals(playbook_id)
+    return await _resolved_globals(db, playbook_id)
 
 
 @router.get("/playbooks/{playbook_id}/states")
@@ -278,19 +362,18 @@ async def get_states(request: Request, playbook_id: str):
     playbook = await _load_playbook(db, playbook_id)
     behaviours = group_behaviours(playbook)
     irrevocable = await _member_irrevocability(db, playbook)
+    rule_names = await _rule_names_by_text(db)
     return {
         "playbook_id": playbook_id,
         "state_count": len(all_state_keys(playbook.members)),
-        "members": [
-            {"policy_id": m.policy_id, "position": m.position,
-             "fires_on": m.fires_on, "guidance": m.guidance,
-             "irrevocable": irrevocable.get(m.policy_id, False)}
-            for m in sorted(playbook.members, key=lambda m: m.position)
-        ],
+        "members": await _member_payload(db, playbook, irrevocable),
         "behaviours": [
             {
                 "name": b.name,
                 "rules": list(b.rules),
+                # The names beside the text, never instead of it: resolving
+                # a pinned state's rule_refs still reads the text itself.
+                "rule_names": _named(rule_names, b.rules),
                 "flagged": b.flagged,
                 "states": [
                     {"state_key": s.state_key, "verdicts": s.verdicts,
@@ -349,6 +432,7 @@ async def get_trace(request: Request, playbook_id: str, session_id: str = ""):
     playbook = await _load_playbook(db, playbook_id)
     behaviours = group_behaviours(playbook)
     irrevocable = await _member_irrevocability(db, playbook)
+    rule_names = await _rule_names_by_text(db)
 
     key_to_name = {
         state.state_key: behaviour.name
@@ -391,7 +475,8 @@ async def get_trace(request: Request, playbook_id: str, session_id: str = ""):
 
     return {
         "nodes": [
-            {"name": b.name, "rules": list(b.rules), "flagged": b.flagged,
+            {"name": b.name, "rules": list(b.rules),
+             "rule_names": _named(rule_names, b.rules), "flagged": b.flagged,
              "visited": b.name in visited, "state_count": len(b.states),
              "first_visit": first_visit.get(b.name),
              "reachable": current_verdicts is None or any(
@@ -404,10 +489,5 @@ async def get_trace(request: Request, playbook_id: str, session_id: str = ""):
             for (src, dst), count in edges.items()
         ],
         "current": visited[-1] if visited else None,
-        "members": [
-            {"policy_id": m.policy_id, "position": m.position,
-             "fires_on": m.fires_on, "guidance": m.guidance,
-             "irrevocable": irrevocable.get(m.policy_id, False)}
-            for m in sorted(playbook.members, key=lambda m: m.position)
-        ],
+        "members": await _member_payload(db, playbook, irrevocable),
     }

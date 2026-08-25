@@ -142,10 +142,9 @@ def test_deleting_a_playbook(client):
 async def _seed_traced_member(db_path: str) -> None:
     """One member, attached to a rule, and a session that never ran.
 
-    Seeded through the store rather than over HTTP because the members
-    endpoint cannot carry a rule yet (Task 5). The member's own guidance
-    column is left empty on purpose, so the node below can only be named
-    from the rule.
+    Seeded through the store rather than over HTTP so the row is exactly
+    what a migrated database holds: linked to a rule, with its own guidance
+    column left empty, so the node below can only be named from the rule.
     """
     db = DatabaseStore(db_path)
     await db.initialize()
@@ -517,3 +516,125 @@ def test_states_reports_the_members_resolved_rule_guidance(tmp_path, monkeypatch
 
     assert [m["guidance"] for m in body["members"]] == ["R."]
     assert {b["name"] for b in body["behaviours"]} == {"(no guidance)", "R."}
+
+
+def _rule(client: TestClient, name: str, guidance: str) -> str:
+    resp = client.post("/api/rules", json={"name": name, "guidance": guidance})
+    assert resp.status_code == 201
+    return resp.json()["rule_id"]
+
+
+def test_members_can_name_an_existing_rule_by_id(client):
+    """A member attaches to a rule it names, without re-sending the text.
+
+    The library is the one copy of the text, so a caller that already has a
+    rule should be able to point at it; re-sending the words would mint a
+    second rule saying the same thing.
+    """
+    policy_id = _policy(client, "p_a", "A")
+    rule_id = _rule(client, "Budget", "Stay within budget.")
+    pb = client.post("/api/playbooks", json={"name": "Budget"}).json()["playbook_id"]
+
+    resp = client.put(f"/api/playbooks/{pb}/members", json={"members": [
+        {"policy_id": policy_id, "position": 0, "fires_on": False,
+         "rule_id": rule_id}]})
+    assert resp.status_code == 200
+
+    member = client.get(f"/api/playbooks/{pb}/states").json()["members"][0]
+    assert member["rule_id"] == rule_id
+    assert member["guidance"] == "Stay within budget."
+
+
+def test_a_member_naming_an_unknown_rule_is_rejected(client):
+    """422, not a silent drop: the member would contribute nothing at all."""
+    policy_id = _policy(client, "p_a", "A")
+    pb = client.post("/api/playbooks", json={"name": "Budget"}).json()["playbook_id"]
+
+    resp = client.put(f"/api/playbooks/{pb}/members", json={"members": [
+        {"policy_id": policy_id, "position": 0, "fires_on": False,
+         "rule_id": "no-such-rule"}]})
+
+    assert resp.status_code == 422
+    assert "no-such-rule" in resp.json()["detail"]
+
+
+def test_a_member_rule_id_wins_over_inline_guidance(client):
+    """The explicit link is the statement of intent; the text is legacy."""
+    policy_id = _policy(client, "p_a", "A")
+    rule_id = _rule(client, "Budget", "Stay within budget.")
+    pb = client.post("/api/playbooks", json={"name": "Budget"}).json()["playbook_id"]
+
+    client.put(f"/api/playbooks/{pb}/members", json={"members": [
+        {"policy_id": policy_id, "position": 0, "fires_on": False,
+         "rule_id": rule_id, "guidance": "Something else entirely."}]})
+
+    member = client.get(f"/api/playbooks/{pb}/states").json()["members"][0]
+    assert member["rule_id"] == rule_id
+    assert member["guidance"] == "Stay within budget."
+
+
+def test_editing_a_rule_changes_what_the_globals_endpoint_returns(client):
+    """The inline guidance column is a stale display copy (R-17).
+
+    A rule edited through the rules API reaches the assistant, because the
+    loader resolves through the link. If the editor kept showing the old
+    text, a user would reasonably conclude the edit had failed.
+    """
+    pb = client.post("/api/playbooks", json={"name": "Budget"}).json()["playbook_id"]
+    client.put(f"/api/playbooks/{pb}/globals", json={"globals": [
+        {"name": "Escalate", "guidance": "Call it out.", "position": 0,
+         "apply_to_all": True}]})
+
+    rule_id = client.get(f"/api/playbooks/{pb}/globals").json()[0]["rule_ref_id"]
+    assert client.put(f"/api/rules/{rule_id}",
+                      json={"guidance": "Escalate to a human."}).status_code == 200
+
+    got = client.get(f"/api/playbooks/{pb}/globals").json()
+    assert got[0]["guidance"] == "Escalate to a human."
+
+
+def test_setting_globals_returns_the_resolved_text(client):
+    """The PUT's own reply resolves the same way its GET does."""
+    pb = client.post("/api/playbooks", json={"name": "Budget"}).json()["playbook_id"]
+    rule_id = _rule(client, "Escalate", "Escalate to a human.")
+
+    body = client.put(f"/api/playbooks/{pb}/globals", json={"globals": [
+        {"name": "Escalate", "guidance": "Escalate to a human.", "position": 0,
+         "apply_to_all": True}]}).json()
+
+    assert body[0]["guidance"] == "Escalate to a human."
+    assert body[0]["rule_ref_id"] == rule_id
+
+
+def test_states_reports_rule_names_alongside_the_guidance(client):
+    """Nodes are labelled by rule name, which only the API can supply."""
+    first = _policy(client, "p_a", "A")
+    second = _policy(client, "p_b", "B")
+    rule_a = _rule(client, "Rule_A", "Stay within budget.")
+    rule_b = _rule(client, "Rule_B", "Avoid the allergen.")
+    pb = client.post("/api/playbooks", json={"name": "Budget"}).json()["playbook_id"]
+    client.put(f"/api/playbooks/{pb}/members", json={"members": [
+        {"policy_id": first, "position": 0, "fires_on": False, "rule_id": rule_a},
+        {"policy_id": second, "position": 1, "fires_on": False, "rule_id": rule_b}]})
+
+    behaviours = client.get(f"/api/playbooks/{pb}/states").json()["behaviours"]
+    by_rules = {tuple(b["rules"]): b["rule_names"] for b in behaviours}
+
+    assert by_rules[("Stay within budget.", "Avoid the allergen.")] == [
+        "Rule_A", "Rule_B"]
+    assert by_rules[("Stay within budget.",)] == ["Rule_A"]
+    assert by_rules[()] == []
+
+
+def test_trace_nodes_report_rule_names(tmp_path, monkeypatch):
+    """The trace graph labels the same nodes, so it needs the same names."""
+    db_path = str(tmp_path / "trace_names.db")
+    monkeypatch.setenv("DATABASE_PATH", db_path)
+    asyncio.run(_seed_traced_member(db_path))
+
+    with TestClient(create_app()) as client:
+        nodes = client.get("/api/playbooks/pb1/trace?session_id=none").json()["nodes"]
+
+    by_name = {n["name"]: n for n in nodes}
+    assert by_name["R."]["rule_names"] == ["R"]
+    assert by_name["(no guidance)"]["rule_names"] == []
