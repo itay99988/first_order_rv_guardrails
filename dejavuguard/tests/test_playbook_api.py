@@ -558,6 +558,92 @@ def test_a_member_naming_an_unknown_rule_is_rejected(client):
     assert "no-such-rule" in resp.json()["detail"]
 
 
+def test_a_member_naming_an_unknown_policy_is_rejected(client):
+    """422, not a 500 (R-27).
+
+    The row is written against a foreign key, so an unknown policy reached
+    the client as `sqlite3.IntegrityError: FOREIGN KEY constraint failed`
+    wrapped in a 500 -- while the globals path three functions away already
+    answered the same class of mistake with a clean 422. `POST /policies`
+    ignores a client-supplied `policy_id` and generates its own, which is
+    how a caller ends up naming one that does not exist.
+    """
+    pb = client.post("/api/playbooks", json={"name": "Budget"}).json()["playbook_id"]
+
+    resp = client.put(f"/api/playbooks/{pb}/members", json={"members": [
+        {"policy_id": "no-such-policy", "position": 0, "fires_on": False,
+         "guidance": "Stay within budget."}]})
+
+    assert resp.status_code == 422
+    assert "no-such-policy" in resp.json()["detail"]
+
+
+def test_a_refused_member_save_leaves_no_rule_behind(client):
+    """The refusal has to come before the first rule is minted (R-28).
+
+    Guidance with no `rule_id` is resolved onto a library rule on the way
+    in, and each mint commits. A save that validated afterwards therefore
+    left one orphan rule per failed request -- invisible, permanent, and
+    growing every time the 500 above fired.
+    """
+    good = _policy(client, "p_a", "A")
+    pb = client.post("/api/playbooks", json={"name": "Budget"}).json()["playbook_id"]
+    before = {r["rule_id"] for r in client.get("/api/rules").json()}
+
+    resp = client.put(f"/api/playbooks/{pb}/members", json={"members": [
+        {"policy_id": good, "position": 0, "fires_on": False,
+         "guidance": "This text would mint a rule."},
+        {"policy_id": "no-such-policy", "position": 1, "fires_on": False,
+         "guidance": "So would this one."}]})
+
+    assert resp.status_code == 422
+    assert {r["rule_id"] for r in client.get("/api/rules").json()} == before
+    assert client.get(f"/api/playbooks/{pb}/states").json()["members"] == []
+
+
+def test_naming_one_policy_twice_is_rejected(client):
+    """The member table is keyed on (playbook, policy), so this was a 500.
+
+    Same shape as the unknown policy above and the same cost: the request
+    reaches the INSERT, trips PRIMARY KEY, and leaves behind the rules its
+    two guidance strings had already minted. The current UI greys out a
+    policy the playbook already holds, so this arrives over the API rather
+    than through the editor -- which is precisely why nothing caught it.
+    """
+    policy_id = _policy(client, "p_a", "A")
+    pb = client.post("/api/playbooks", json={"name": "Budget"}).json()["playbook_id"]
+    before = {r["rule_id"] for r in client.get("/api/rules").json()}
+
+    resp = client.put(f"/api/playbooks/{pb}/members", json={"members": [
+        {"policy_id": policy_id, "position": 0, "fires_on": False, "guidance": "One."},
+        {"policy_id": policy_id, "position": 1, "fires_on": True, "guidance": "Two."}]})
+
+    assert resp.status_code == 422
+    assert policy_id in resp.json()["detail"]
+    assert {r["rule_id"] for r in client.get("/api/rules").json()} == before
+
+
+def test_naming_one_global_row_id_twice_is_rejected(client):
+    """`rule_id` is that table's primary key, so a repeat was a 500.
+
+    The playbook-wide twin of the member case above, minting the same way
+    before it failed. A row's id is what a `{type: "global"}` pin names, so
+    two rows claiming one id are not merely a duplicate -- they are two
+    different rules answering to one pin.
+    """
+    pb = client.post("/api/playbooks", json={"name": "Budget"}).json()["playbook_id"]
+    before = {r["rule_id"] for r in client.get("/api/rules").json()}
+
+    resp = client.put(f"/api/playbooks/{pb}/globals", json={"globals": [
+        {"rule_id": "same-row", "name": "A", "guidance": "One.", "position": 0},
+        {"rule_id": "same-row", "name": "B", "guidance": "Two.", "position": 1}]})
+
+    assert resp.status_code == 422
+    assert "same-row" in resp.json()["detail"]
+    assert {r["rule_id"] for r in client.get("/api/rules").json()} == before
+    assert client.get(f"/api/playbooks/{pb}/globals").json() == []
+
+
 def test_a_member_rule_id_wins_over_inline_guidance(client):
     """The explicit link is the statement of intent; the text is legacy."""
     policy_id = _policy(client, "p_a", "A")

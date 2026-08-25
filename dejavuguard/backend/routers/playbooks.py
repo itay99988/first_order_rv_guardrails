@@ -72,10 +72,17 @@ class MemberSpec(BaseModel):
     policy_id: str
     position: int = 0
     fires_on: bool = False
-    #: The shared rule this member's guidance comes from. Naming it is the
-    #: direct way to attach a member; `guidance` below is the deprecated
-    #: alias kept for one release, resolved to a rule on the way in.
+    #: The shared rule this member's guidance comes from, and the direct way
+    #: to attach a member.
     rule_id: str | None = None
+    #: The text-addressed alternative: guidance with no `rule_id` is resolved
+    #: onto the rule already carrying that text, or onto a new one.
+    #:
+    #: Not a deprecated shim, though Task 5 introduced it as one. It is how
+    #: the editor detaches a member whose guidance was edited in place --
+    #: withholding `rule_id` is what tells the server "this text is the
+    #: instruction now, do not rewrite the rule other playbooks share".
+    #: Deleting it removes that feature, not a compatibility path.
     guidance: str = ""
 
 
@@ -91,10 +98,14 @@ class GlobalSpec(BaseModel):
     rule_id: str | None = None
     #: The shared rule this row's guidance comes from -- a member's
     #: `rule_id` under a different name, because `rule_id` above is already
-    #: taken by this table's own key. `guidance` below is the deprecated
-    #: alias kept for one release, resolved to a rule on the way in.
+    #: taken by this table's own key.
     rule_ref_id: str | None = None
     name: str
+    #: The text-addressed alternative, exactly as on a member: text with no
+    #: `rule_ref_id` resolves onto the rule carrying it, or onto a new one,
+    #: and withholding the link is how the editor detaches a row whose text
+    #: was edited in place. Required rather than defaulted because a
+    #: playbook-wide row with neither a link nor text says nothing at all.
     guidance: str
     position: int = 0
     apply_to_all: bool = False
@@ -124,23 +135,42 @@ async def _linked_members(db: DatabaseStore, members: list[MemberSpec]) -> list[
 
     A named rule that does not exist is refused rather than saved unlinked:
     an unlinked member contributes nothing, and nothing downstream would
-    report that the id had been dropped. Every id is checked before the
-    first rule is minted, so a request that fails leaves no rule behind.
+    report that the id had been dropped. An unknown `policy_id` is refused
+    the same way: the row is written against a foreign key, so it used to
+    surface as `IntegrityError` in a 500 (R-27), and `POST /policies`
+    ignores a client-supplied id and mints its own, which is exactly how a
+    caller ends up naming one that does not exist.
+
+    Naming one policy twice is refused for the same reason: the row is
+    keyed on (playbook, policy), so the repeat tripped PRIMARY KEY and
+    landed in the same 500.
+
+    All three checks run before the first rule is minted. Minting commits,
+    so a request that failed afterwards left one orphan rule per guidance
+    string it carried -- invisible, and growing every time a 500 fired
+    (R-28).
     """
+    policies: dict[str, dict | None] = {}
     for member in members:
         if member.rule_id and not await db.get_rule(member.rule_id):
             raise HTTPException(422, f"Rule '{member.rule_id}' not found.")
+        if member.policy_id in policies:
+            raise HTTPException(
+                422, f"Policy '{member.policy_id}' is named more than once."
+            )
+        policies[member.policy_id] = await db.get_policy(member.policy_id)
+        if policies[member.policy_id] is None:
+            raise HTTPException(422, f"Policy '{member.policy_id}' not found.")
 
     out: list[dict] = []
     for member in members:
         if member.rule_id:
             out.append(member.model_dump())
             continue
-        policy = await db.get_policy(member.policy_id)
         out.append({
             **member.model_dump(),
             "rule_id": await db.resolve_or_create_rule(
-                member.guidance, policy["name"] if policy else None
+                member.guidance, policies[member.policy_id]["name"]
             ),
         })
     return out
@@ -166,12 +196,24 @@ async def _linked_globals(db: DatabaseStore, specs: list[GlobalSpec]) -> list[di
 
     A named rule that does not exist is refused rather than saved unlinked:
     an unlinked row contributes no guidance, and nothing downstream would
-    report that the id had been dropped. Every id is checked before the
-    first rule is minted, so a request that fails leaves no rule behind.
+    report that the id had been dropped. Two rows claiming one `rule_id`
+    are refused too -- that field is this table's primary key, so the
+    repeat tripped IntegrityError and reached the client as a 500, and it
+    would in any case leave one pin naming two different rules (R-27).
+
+    Every id is checked before the first rule is minted, so a request that
+    fails leaves no rule behind (R-28).
     """
+    seen: set[str] = set()
     for spec in specs:
         if spec.rule_ref_id and not await db.get_rule(spec.rule_ref_id):
             raise HTTPException(422, f"Rule '{spec.rule_ref_id}' not found.")
+        if spec.rule_id:
+            if spec.rule_id in seen:
+                raise HTTPException(
+                    422, f"Row id '{spec.rule_id}' is named more than once."
+                )
+            seen.add(spec.rule_id)
 
     out: list[dict] = []
     for spec in specs:
