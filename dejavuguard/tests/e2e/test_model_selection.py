@@ -132,8 +132,13 @@ class TestGroundingModelProviderCoupling:
     """Verify grounding model selector changes based on provider."""
 
     def test_ollama_uses_native_select(self, app_page: Page):
-        """Default Ollama provider renders a native <select> element."""
+        """The Ollama provider renders a native <select> element.
+
+        Selected here rather than taken as the default: the saved provider is
+        whatever the developer last chose, and for OpenRouter it is a combobox.
+        """
         app_page.click('[data-testid="nav-settings"]')
+        app_page.click('[data-testid="provider-ollama"]')
         select = app_page.locator('select[data-testid="grounding-model-select"]')
         expect(select).to_be_visible()
 
@@ -150,7 +155,8 @@ class TestGroundingModelProviderCoupling:
     def test_switching_ollama_to_openrouter_swaps_selector(self, app_page: Page):
         """Switching from Ollama to OpenRouter swaps <select> to combobox."""
         app_page.click('[data-testid="nav-settings"]')
-        # Start with Ollama
+        # Start with Ollama -- chosen here, not inherited from saved settings.
+        app_page.click('[data-testid="provider-ollama"]')
         expect(app_page.locator('select[data-testid="grounding-model-select"]')).to_be_visible()
         # Switch to OpenRouter
         app_page.click('[data-testid="provider-openrouter"]')

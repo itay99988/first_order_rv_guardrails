@@ -233,9 +233,14 @@ class TestCustomModelConfig:
         app_page.click('[data-testid="nav-settings"]')
         expect(app_page.locator('[data-testid="custom-model-checkbox"]')).to_be_visible()
 
-    def test_custom_model_input_hidden_by_default(self, app_page: Page):
-        """Custom model text input is not visible when checkbox is unchecked."""
+    def test_custom_model_input_hidden_when_unchecked(self, app_page: Page):
+        """Custom model text input is not visible when checkbox is unchecked.
+
+        The box is cleared first rather than assumed clear: a developer with a
+        custom model ID saved arrives with it ticked and the input on screen.
+        """
         app_page.click('[data-testid="nav-settings"]')
+        app_page.locator('[data-testid="custom-model-checkbox"]').uncheck()
         expect(app_page.locator('[data-testid="custom-model-input"]')).not_to_be_visible()
 
     def test_custom_model_input_shown_when_checked(self, app_page: Page):
@@ -280,7 +285,8 @@ class TestOpenRouterGroundingProvider:
     def test_selecting_openrouter_hides_base_url(self, app_page: Page):
         """Selecting OpenRouter hides the base URL input."""
         app_page.click('[data-testid="nav-settings"]')
-        # Base URL visible with default provider (ollama)
+        # Start from a local provider rather than from whichever one is saved.
+        app_page.click('[data-testid="provider-ollama"]')
         expect(app_page.locator('[data-testid="grounding-base-url"]')).to_be_visible()
         # Switch to OpenRouter
         app_page.click('[data-testid="provider-openrouter"]')
@@ -289,7 +295,8 @@ class TestOpenRouterGroundingProvider:
     def test_selecting_openrouter_shows_api_key_mode(self, app_page: Page):
         """Selecting OpenRouter shows the API key mode radio buttons."""
         app_page.click('[data-testid="nav-settings"]')
-        # API key mode not visible with default provider
+        # Start from a local provider rather than from whichever one is saved.
+        app_page.click('[data-testid="provider-ollama"]')
         expect(app_page.locator('[data-testid="api-key-mode"]')).not_to_be_visible()
         # Switch to OpenRouter
         app_page.click('[data-testid="provider-openrouter"]')
@@ -367,17 +374,32 @@ class TestApiKeyModeRadios:
         expect(app_page.locator('[data-testid="api-key-mode-same"]')).to_be_visible()
         expect(app_page.locator('[data-testid="api-key-mode-separate"]')).to_be_visible()
 
-    def test_same_as_chat_selected_by_default(self, app_page: Page):
-        """'Same as Chat Model' radio is selected by default."""
+    def test_the_two_key_modes_exclude_each_other(self, app_page: Page):
+        """Choosing either key mode unchecks the other.
+
+        Which one is selected on arrival is whatever the developer has saved,
+        so the pair is driven from both ends instead: that is the contract a
+        radio group owes, and it holds on any machine.
+        """
         app_page.click('[data-testid="nav-settings"]')
         app_page.click('[data-testid="provider-openrouter"]')
-        expect(app_page.locator('[data-testid="api-key-mode-same"]')).to_be_checked()
-        expect(app_page.locator('[data-testid="api-key-mode-separate"]')).not_to_be_checked()
+        same = app_page.locator('[data-testid="api-key-mode-same"]')
+        separate = app_page.locator('[data-testid="api-key-mode-separate"]')
+
+        separate.click()
+        expect(separate).to_be_checked()
+        expect(same).not_to_be_checked()
+
+        same.click()
+        expect(same).to_be_checked()
+        expect(separate).not_to_be_checked()
 
     def test_separate_key_shows_input(self, app_page: Page):
         """Selecting 'Use separate key' reveals the API key input."""
         app_page.click('[data-testid="nav-settings"]')
         app_page.click('[data-testid="provider-openrouter"]')
+        # A saved grounding key would already have the input on screen.
+        app_page.locator('[data-testid="api-key-mode-same"]').click()
         expect(app_page.locator('[data-testid="grounding-api-key"]')).not_to_be_visible()
         app_page.locator('[data-testid="api-key-mode-separate"]').click()
         expect(app_page.locator('[data-testid="grounding-api-key"]')).to_be_visible()
@@ -407,7 +429,8 @@ class TestProviderCoupledModelSelector:
     def test_ollama_shows_select(self, app_page: Page):
         """Ollama provider shows a basic select for models."""
         app_page.click('[data-testid="nav-settings"]')
-        # Default is Ollama — grounding-model-select should be a <select> element
+        # Selected rather than assumed: the saved provider may be any of five.
+        app_page.click('[data-testid="provider-ollama"]')
         select = app_page.locator('select[data-testid="grounding-model-select"]')
         expect(select).to_be_visible()
 
@@ -422,7 +445,8 @@ class TestProviderCoupledModelSelector:
     def test_switching_provider_changes_selector(self, app_page: Page):
         """Switching between providers swaps the model selector type."""
         app_page.click('[data-testid="nav-settings"]')
-        # Start with Ollama (select)
+        # Start with Ollama (select) -- chosen here, not inherited from settings.
+        app_page.click('[data-testid="provider-ollama"]')
         select = app_page.locator('select[data-testid="grounding-model-select"]')
         expect(select).to_be_visible()
         # Switch to OpenRouter (combobox)

@@ -4,7 +4,45 @@ E2E tests: Chat screen — sessions, messages, input.
 
 from __future__ import annotations
 
+import json
+
 from playwright.sync_api import Page, expect
+
+#: One session as the API serves it, for the half of the sidebar's empty-state
+#: contract that needs a non-empty list.
+LISTED_SESSION = {
+    "session_id": "e2e-chat-listed",
+    "name": "e2e-chat listed session",
+    "created_at": "2026-01-01T00:00:00Z",
+    "updated_at": "2026-01-01T00:00:00Z",
+    "message_count": 0,
+    "monitoring_mode": "policies",
+    "playbook_id": None,
+}
+
+
+def _serve_sessions(page: Page, sessions: list[dict]) -> None:
+    """Serve a fixed session list to this page.
+
+    The sidebar's empty state cannot be reached on a shared development
+    database without deleting the sessions it already holds, so the list the
+    view renders is supplied here instead. The latest registered handler wins,
+    so calling this again switches the answer.
+    """
+    page.route(
+        "**/api/chat/sessions",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps(sessions),
+        ),
+    )
+
+
+def _reopen_chat(page: Page) -> None:
+    """Leave the Chat screen and come back, so the session list is refetched."""
+    page.click('[data-testid="nav-rules"]')
+    page.click('[data-testid="nav-chat"]')
 
 
 class TestChatPageLoad:
@@ -36,12 +74,26 @@ class TestChatPageLoad:
 class TestSessionManagement:
     """Verify session CRUD operations."""
 
-    def test_create_first_session_link(self, app_page: Page):
-        """Start chatting link is visible when no sessions exist."""
-        # This depends on whether sessions exist
-        cta = app_page.locator('[data-testid="create-first-session"]')
-        if cta.is_visible():
-            expect(cta).to_be_visible()
+    def test_start_chatting_link_shows_iff_no_session_exists(self, app_page: Page):
+        """No sessions, the link; one session, the row and no link.
+
+        Asserting the link only when it happened to be there made this a
+        claim no machine could fail. Both halves are asserted now, and the
+        list is served to the page so neither half turns on what the
+        developer's database holds.
+        """
+        link = app_page.locator('[data-testid="create-first-session"]')
+
+        _serve_sessions(app_page, [])
+        _reopen_chat(app_page)
+        expect(link).to_be_visible()
+
+        _serve_sessions(app_page, [LISTED_SESSION])
+        _reopen_chat(app_page)
+        expect(
+            app_page.get_by_test_id(f"session-{LISTED_SESSION['session_id']}")
+        ).to_be_visible()
+        expect(link).to_have_count(0)
 
     def test_new_session_button_clickable(self, app_page: Page):
         """New session button is clickable."""
