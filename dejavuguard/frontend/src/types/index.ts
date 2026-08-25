@@ -260,6 +260,12 @@ export interface PlaybookBehaviour {
    * index. Resolved by the server, which owns the text -> name mapping;
    * recovering names from the guidance text on the client would make the UI
    * a second source of truth for them.
+   *
+   * Always the same length as `rules` and never absent: guidance no rule
+   * holds any more labels itself, so the entry is the guidance text rather
+   * than a gap, which would misalign every name after it. An entry can
+   * therefore be a whole sentence -- longer, and far more prefix-similar,
+   * than a rule name -- which is what any renderer clipping it must assume.
    */
   rule_names: string[];
   flagged: boolean;
@@ -278,7 +284,10 @@ export interface PlaybookStates {
 export interface PlaybookTraceNode {
   name: string;
   rules: string[];
-  /** Rule names for `rules`, index for index -- see `PlaybookBehaviour`. */
+  /**
+   * Rule names for `rules`, index for index -- see `PlaybookBehaviour`,
+   * including that an entry falls back to the guidance text itself.
+   */
   rule_names: string[];
   flagged: boolean;
   visited: boolean;

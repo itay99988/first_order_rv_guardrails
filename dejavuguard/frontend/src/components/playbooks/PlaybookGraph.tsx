@@ -70,8 +70,21 @@ function spineOrder(nodes: PlaybookTraceNode[]): PlaybookTraceNode[] {
     .sort((a, b) => (a.first_visit ?? 0) - (b.first_visit ?? 0));
 }
 
+/**
+ * Shorten a name to `chars`, eliding the middle rather than the tail.
+ *
+ * Two rules may share a long prefix -- "Never disclose internal pricing
+ * tables" and "...formulas" agree on 32 characters -- and rule names have no
+ * length limit while uniqueness is on the full name, so that pair is legal and
+ * creatable through the UI. Cutting the tail renders both identically; cutting
+ * the middle keeps the half that tells them apart. It is a mitigation, not a
+ * proof: two names agreeing on both ends still collapse, which is what the
+ * node's `<title>` is for.
+ */
 function clip(text: string, chars: number): string {
-  return text.length <= chars ? text : `${text.slice(0, chars - 1)}…`;
+  if (text.length <= chars) return text;
+  const head = Math.ceil((chars - 1) / 2);
+  return `${text.slice(0, head)}…${text.slice(text.length - (chars - 1 - head))}`;
 }
 
 /**
@@ -82,9 +95,13 @@ function clip(text: string, chars: number): string {
  * C-rule" identically, so two different behaviours read as one. A line per
  * rule cannot collapse that way, and the count above them separates two nodes
  * before the reader has read a single name.
+ *
+ * What it does not do is make two captions unconditionally distinct: two
+ * six-rule nodes agreeing on their first three render the same lines with the
+ * rest behind "+3 more". Every name is in the node's `<title>` for that.
  */
 function ruleLines(node: PlaybookTraceNode): string[] {
-  const names = node.rule_names ?? node.rules;
+  const names = node.rule_names;
   if (names.length === 0) return ["No guidance"];
   if (names.length <= MAX_RULE_LINES) return names;
   return [
@@ -102,13 +119,25 @@ function ruleLines(node: PlaybookTraceNode): string[] {
  * of a four-member playbook on a node would be unreadable. Members are
  * numbered rather than named because a member is identified by a uuid policy
  * id; the legend above the graph maps the numbers back.
+ *
+ * Empty -- no subtitle at all -- whenever the rows cannot be trusted to belong
+ * to this node. The trace and the truth table are fetched in parallel, and a
+ * write landing between them regroups behaviours while a name survives, so the
+ * rows reached by name can describe a behaviour that no longer exists. Two
+ * signs of that: the node's own `state_count` disagreeing with the number of
+ * rows, and a member no row mentions, which would otherwise draw a bare "?".
+ * The window is small and the graph already renders without a subtitle when
+ * the truth table fails to load; wrong verdicts on a state machine are worse
+ * than absent ones.
  */
 function verdictTokens(
   members: PlaybookMember[],
   rows: Record<string, boolean>[] | undefined,
+  stateCount: number,
 ): string[] {
   if (!rows || rows.length === 0) return [];
-  return members.map((member, index) => {
+  if (rows.length !== stateCount) return [];
+  const tokens = members.map((member, index) => {
     let sawTrue = false;
     let sawFalse = false;
     for (const row of rows) {
@@ -118,6 +147,7 @@ function verdictTokens(
     const verdict = sawTrue && sawFalse ? "any" : sawTrue ? "T" : sawFalse ? "F" : "?";
     return `M${index + 1}=${verdict}`;
   });
+  return tokens.some((token) => token.endsWith("=?")) ? [] : tokens;
 }
 
 function chunk(tokens: string[], size: number): string[][] {
@@ -160,23 +190,51 @@ function boxClasses(node: PlaybookTraceNode, isCurrent: boolean): string {
   return parts.join(" ");
 }
 
+/**
+ * The accessible name, rules first.
+ *
+ * `node.name` is the server's 40-character truncated join of the guidance
+ * text, plus a "(2)" where two behaviours would otherwise collide -- so
+ * leading with it makes a screen reader read half a sentence of prose before
+ * anything actionable. It still ends the label, where it disambiguates two
+ * nodes that would otherwise sound alike.
+ */
 function describe(
   node: PlaybookTraceNode,
   status: Status,
   tokens: string[],
 ): string {
-  const names = node.rule_names ?? node.rules;
+  const names = node.rule_names;
   const parts = [
-    `${node.name}. ${status.word}`,
+    names.length > 0 ? `Rules applied: ${names.join(", ")}` : "No guidance applies",
+    status.word,
     node.flagged
       ? "Flagged: this state blocks the message"
       : "Not flagged: this state allows the message",
-    names.length > 0 ? `Rules applied: ${names.join(", ")}` : "No guidance applies",
   ];
   if (tokens.length > 0) parts.push(`Verdicts: ${tokens.join(", ")}`);
   parts.push(`Covers ${node.state_count} state${node.state_count === 1 ? "" : "s"}`);
   if (!node.reachable) parts.push("Possibly unreachable");
+  parts.push(`Behaviour ${node.name}`);
   return `${parts.join(". ")}.`;
+}
+
+/**
+ * The hover tooltip: every name in full, nothing clipped.
+ *
+ * A drawn caption has a fixed width and a fixed number of lines, so a long
+ * name loses its middle and a sixth rule hides behind "+N more" -- both of
+ * which can render two different nodes identically. A native SVG `<title>`
+ * costs nothing, needs no state, and puts the full list one hover away. It is
+ * not an accessibility path: `aria-label` already carries the same names, and
+ * it wins over `<title>` for the accessible name.
+ */
+function tooltipOf(node: PlaybookTraceNode): string {
+  const names = node.rule_names;
+  return [
+    node.name,
+    ...(names.length > 0 ? names.map((name) => `· ${name}`) : ["· No guidance"]),
+  ].join("\n");
 }
 
 interface NodeProps {
@@ -201,7 +259,7 @@ function GraphNode({
 }: NodeProps) {
   const status = statusOf(node, isCurrent);
   const lines = ruleLines(node);
-  const names = node.rule_names ?? node.rules;
+  const names = node.rule_names;
   const top = -height / 2;
   const left = -NODE_W / 2 + PAD_X;
   const right = NODE_W / 2 - PAD_X;
@@ -218,6 +276,9 @@ function GraphNode({
       aria-label={describe(node, status, verdictRows.flat())}
       transform={`translate(${x}, ${y})`}
     >
+      {/* Hover for the names in full -- see `tooltipOf`. First child, which is
+          where SVG expects a title. */}
+      <title>{tooltipOf(node)}</title>
       {/* "You are here", outside the box so it survives the flagged node's
           own red border -- a green ring around a red box reads as both at
           once, which is exactly the state it is. */}
@@ -408,7 +469,10 @@ export default function PlaybookGraph({ playbookId, sessionId }: Props) {
   const verdictsFor = new Map(
     nodes.map((n) => [
       n.name,
-      chunk(verdictTokens(members, state.data.verdicts.get(n.name)), VERDICTS_PER_LINE),
+      chunk(
+        verdictTokens(members, state.data.verdicts.get(n.name), n.state_count),
+        VERDICTS_PER_LINE,
+      ),
     ]),
   );
   const verdictRowCount = Math.max(

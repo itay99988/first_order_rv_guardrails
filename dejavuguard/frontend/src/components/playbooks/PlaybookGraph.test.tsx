@@ -55,6 +55,18 @@ const states = {
   warnings: [],
 };
 
+/** A node's drawn caption -- every <text> in it, tooltip excluded. */
+function drawn(node: HTMLElement): string {
+  return Array.from(node.querySelectorAll("text"))
+    .map((t) => t.textContent)
+    .join("|");
+}
+
+/** A node's hover tooltip -- the <title> a pointer reveals. */
+function tooltip(node: HTMLElement): string {
+  return node.querySelector("title")?.textContent ?? "";
+}
+
 describe("PlaybookGraph", () => {
   // vi.clearAllMocks() rather than mockGet.mockReset(): resetting this
   // particular mock directly, in a file with only one mocked function, races
@@ -171,9 +183,12 @@ describe("PlaybookGraph", () => {
     await waitFor(() =>
       expect(screen.getByTestId("node-Over budget")).toHaveTextContent("Budget cap"),
     );
-    // The name, not the guidance text: re-deriving names from the text on the
-    // client would make the graph a second source of truth for them.
-    expect(screen.getByTestId("node-Over budget")).not.toHaveTextContent(
+    // The server resolves text -> name, and the node draws whatever it is
+    // handed: re-deriving names from the guidance on the client would make
+    // the graph a second source of truth for them. Here a rule holds the
+    // text, so the name comes back -- where none does, `_named` hands back
+    // the guidance text itself and the node draws that instead.
+    expect(drawn(screen.getByTestId("node-Over budget"))).not.toContain(
       "Stay within budget.",
     );
   });
@@ -302,5 +317,214 @@ describe("PlaybookGraph", () => {
     render(<PlaybookGraph playbookId="pb1" sessionId="s1" />);
     await waitFor(() => expect(screen.getByTestId("node-Clear")).toBeInTheDocument());
     expect(screen.getByTestId("node-Clear")).toHaveTextContent("No guidance");
+  });
+
+  // --- M1: no two nodes may render the same caption ----------------------
+
+  it("keeps two rule names sharing a 28-character prefix apart", async () => {
+    // Rule names have no length limit and uniqueness is on the full name, so
+    // this pair is legal and creatable through the product's own UI. On the
+    // degraded /states path there is no verdict line either, and both nodes
+    // apply one rule, so the count discriminates nothing.
+    const TABLES = "Never disclose internal pricing tables";
+    const FORMULAS = "Never disclose internal pricing formulas";
+    mockGet.mockResolvedValue({
+      current: null,
+      members,
+      nodes: [
+        {
+          name: "Pricing tables", rules: [TABLES], rule_names: [TABLES],
+          flagged: false, visited: false, state_count: 1, reachable: true,
+          first_visit: null,
+        },
+        {
+          name: "Pricing formulas", rules: [FORMULAS], rule_names: [FORMULAS],
+          flagged: false, visited: false, state_count: 1, reachable: true,
+          first_visit: null,
+        },
+      ],
+      edges: [],
+    });
+    mockStates.mockRejectedValue(new Error("nope"));
+
+    render(<PlaybookGraph playbookId="pb1" sessionId="s1" />);
+    await waitFor(() =>
+      expect(screen.getByTestId("node-Pricing tables")).toBeInTheDocument(),
+    );
+
+    const tables = screen.getByTestId("node-Pricing tables");
+    const formulas = screen.getByTestId("node-Pricing formulas");
+    // The drawn caption itself, tooltip excluded: eliding the middle keeps
+    // the discriminating tail on screen.
+    expect(drawn(tables)).not.toEqual(drawn(formulas));
+    // And the full name is one hover away regardless.
+    expect(tooltip(tables)).toContain(TABLES);
+    expect(tooltip(formulas)).toContain(FORMULAS);
+  });
+
+  it("keeps two nodes apart when guidance text stands in for a rule name", async () => {
+    // `_named` falls back to the guidance text where no rule holds it, and a
+    // sentence shares far more than a rule name does -- these two agree on
+    // both ends, so eliding the middle collapses them as surely as eliding
+    // the tail would. Only the tooltip separates them.
+    const REFUSE = "Stay within the stated budget and refuse anything over it.";
+    const ESCALATE = "Stay within the stated budget and escalate anything over it.";
+    mockGet.mockResolvedValue({
+      current: null,
+      members,
+      nodes: [
+        {
+          name: "Refuse", rules: [REFUSE], rule_names: [REFUSE], flagged: false,
+          visited: false, state_count: 1, reachable: true, first_visit: null,
+        },
+        {
+          name: "Escalate", rules: [ESCALATE], rule_names: [ESCALATE], flagged: false,
+          visited: false, state_count: 1, reachable: true, first_visit: null,
+        },
+      ],
+      edges: [],
+    });
+    mockStates.mockRejectedValue(new Error("nope"));
+
+    render(<PlaybookGraph playbookId="pb1" sessionId="s1" />);
+    await waitFor(() => expect(screen.getByTestId("node-Refuse")).toBeInTheDocument());
+
+    const refuse = screen.getByTestId("node-Refuse");
+    const escalate = screen.getByTestId("node-Escalate");
+    expect(refuse.textContent).not.toEqual(escalate.textContent);
+    expect(tooltip(refuse)).toContain(REFUSE);
+    expect(tooltip(escalate)).toContain(ESCALATE);
+  });
+
+  it("keeps two nodes apart when +N more elides the rules that differ", async () => {
+    // Six rules each -- five members plus one playbook-wide rule, which
+    // appends to every behaviour -- sharing their first three. The count is
+    // equal and the tail is behind "+3 more", so nothing drawn separates them.
+    const shared = ["Budget cap", "Allergen check", "Tone guard"];
+    mockGet.mockResolvedValue({
+      current: null,
+      members,
+      nodes: [
+        {
+          name: "Refunds", rules: [],
+          rule_names: [...shared, "Refund window", "Refund proof", "House style"],
+          flagged: false, visited: false, state_count: 1, reachable: true,
+          first_visit: null,
+        },
+        {
+          name: "Escalations", rules: [],
+          rule_names: [...shared, "Escalate to human", "Escalation log", "House style"],
+          flagged: false, visited: false, state_count: 1, reachable: true,
+          first_visit: null,
+        },
+      ],
+      edges: [],
+    });
+    mockStates.mockRejectedValue(new Error("nope"));
+
+    render(<PlaybookGraph playbookId="pb1" sessionId="s1" />);
+    await waitFor(() => expect(screen.getByTestId("node-Refunds")).toBeInTheDocument());
+
+    const refunds = screen.getByTestId("node-Refunds");
+    const escalations = screen.getByTestId("node-Escalations");
+    expect(refunds.textContent).not.toEqual(escalations.textContent);
+    expect(tooltip(refunds)).toContain("Refund window");
+    expect(tooltip(escalations)).toContain("Escalate to human");
+  });
+
+  // --- M2: a stale truth table drops the subtitle, never fakes it --------
+
+  it("drops the verdict subtitle of a node whose state count has moved", async () => {
+    // /trace and /states go out in parallel; a write landing between them can
+    // leave a behaviour name intact while the states behind it change.
+    mockGet.mockResolvedValue({
+      current: null,
+      members,
+      nodes: [
+        {
+          name: "Skewed", rules: [], rule_names: ["Budget cap"], flagged: false,
+          visited: false, state_count: 2, reachable: true, first_visit: null,
+        },
+        {
+          name: "Fresh", rules: [], rule_names: ["Tone guard"], flagged: false,
+          visited: false, state_count: 1, reachable: true, first_visit: null,
+        },
+      ],
+      edges: [],
+    });
+    mockStates.mockResolvedValue({
+      ...states,
+      behaviours: [
+        {
+          name: "Skewed", rules: [], rule_names: ["Budget cap"], flagged: false,
+          states: [
+            { state_key: "p_a=T", verdicts: { p_a: true }, customised: false, label: null, rule_refs: null },
+          ],
+        },
+        {
+          name: "Fresh", rules: [], rule_names: ["Tone guard"], flagged: false,
+          states: [
+            { state_key: "p_a=F", verdicts: { p_a: false }, customised: false, label: null, rule_refs: null },
+          ],
+        },
+      ],
+    });
+
+    render(<PlaybookGraph playbookId="pb1" sessionId="s1" />);
+    await waitFor(() => expect(screen.getByTestId("node-Fresh")).toHaveTextContent("M1=F"));
+    expect(screen.getByTestId("node-Skewed")).not.toHaveTextContent("M1=");
+  });
+
+  it("drops the verdict subtitle rather than render an unexplained ?", async () => {
+    const two = [
+      { policy_id: "p_a", position: 0, fires_on: false, guidance: "R.", irrevocable: false },
+      { policy_id: "p_b", position: 1, fires_on: false, guidance: "S.", irrevocable: false },
+    ];
+    mockGet.mockResolvedValue({
+      current: null,
+      members: two,
+      nodes: [
+        {
+          name: "Half known", rules: [], rule_names: ["Budget cap"], flagged: false,
+          visited: false, state_count: 1, reachable: true, first_visit: null,
+        },
+      ],
+      edges: [],
+    });
+    mockStates.mockResolvedValue({
+      ...states,
+      members: two,
+      behaviours: [
+        {
+          name: "Half known", rules: [], rule_names: ["Budget cap"], flagged: false,
+          // A member the rows say nothing about: the truth table predates it.
+          states: [
+            { state_key: "p_a=T", verdicts: { p_a: true }, customised: false, label: null, rule_refs: null },
+          ],
+        },
+      ],
+    });
+
+    render(<PlaybookGraph playbookId="pb1" sessionId="s1" />);
+    await waitFor(() =>
+      expect(screen.getByTestId("node-Half known")).toBeInTheDocument(),
+    );
+    const node = screen.getByTestId("node-Half known");
+    expect(node).not.toHaveTextContent("=?");
+    expect(node).not.toHaveTextContent("M1=");
+  });
+
+  // --- Minor 3: the accessible name leads with something actionable ------
+
+  it("leads the accessible name with the rules, not the behaviour name", async () => {
+    mockGet.mockResolvedValue(trace);
+    render(<PlaybookGraph playbookId="pb1" sessionId="s1" />);
+    await waitFor(() => expect(screen.getByTestId("node-Over budget")).toBeInTheDocument());
+
+    const label =
+      screen.getByTestId("node-Over budget").getAttribute("aria-label") ?? "";
+    expect(label.startsWith("Rules applied: Budget cap")).toBe(true);
+    // The behaviour name still ends it, as a disambiguator.
+    expect(label).toContain("Over budget");
   });
 });
