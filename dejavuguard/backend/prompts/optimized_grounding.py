@@ -28,6 +28,10 @@ Step 2 - if found=true, extract instances. Each instance is one complete predica
 - Reuse a canonical_form from related_object_history when the current mention denotes or implies the same value in the related-object context, even if the surface words differ.
 - canonical_source = {"type": "history", "matched_history_index": N} for history matches, {"type": "new"} otherwise
 
+Step 3 - report the verdict you already reached. These two fields describe that decision and never change it:
+- reasoning = ONE short sentence naming or quoting the words in this message that decided it. When found=true, quote the span that performs the predicate. When found=false, name what is missing or which rule above excluded it. Never leave it empty and never merely restate the predicate.
+- confidence = how sure you are of this verdict, as a number between 0 and 1, capped by what you had to do to reach it: at most 0.6 when the message could reasonably be read the other way, at most 0.8 when you had to infer rather than read the predicate off the words, above 0.9 only when the words settle it outright.
+
 Output valid JSON only. No markdown."""
 
 
@@ -66,9 +70,9 @@ Reminder: return {"found": false} unless this message actively and exactly expre
 Message text:
 {text}
 
-Return JSON only.
-If not found: {"found": false}
-If found: {"found": true, "instances": [...]}"""
+Return JSON only. Decide found first, then report "reasoning" and "confidence" for it, on a found=false answer as much as a found=true one.
+If not found: {"found": false, "reasoning": "<one sentence naming what is missing>", "confidence": <number between 0 and 1>}
+If found: {"found": true, "instances": [...], "reasoning": "<one sentence quoting what decided it>", "confidence": <number between 0 and 1>}"""
 
 
 HISTORY_ASSISTANT_MESSAGE_PROMPT = """You are grounding an ASSISTANT message.
@@ -95,9 +99,9 @@ Reminder: return {"found": false} unless this message actively and exactly expre
 Message text:
 {text}
 
-Return JSON only.
-If not found: {"found": false}
-If found: {"found": true, "instances": [...]}"""
+Return JSON only. Decide found first, then report "reasoning" and "confidence" for it, on a found=false answer as much as a found=true one.
+If not found: {"found": false, "reasoning": "<one sentence naming what is missing>", "confidence": <number between 0 and 1>}
+If found: {"found": true, "instances": [...], "reasoning": "<one sentence quoting what decided it>", "confidence": <number between 0 and 1>}"""
 
 
 SINGLE_SYSTEM_PROMPT = HISTORY_SYSTEM_PROMPT.replace(

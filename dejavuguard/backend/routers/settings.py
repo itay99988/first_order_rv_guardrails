@@ -28,12 +28,43 @@ from backend.models.settings import (
     GroundingProvider,
     GroundingSettings,
 )
+from backend.prompts.superseded_grounding_prompts import is_superseded_default
 from backend.services.grounding_client import create_grounding_client
 from backend.services.openrouter import OpenRouterClient, OpenRouterError
 from backend.store.db import DatabaseStore
 
 router = APIRouter(tags=["settings"])
-GROUNDING_PROMPT_VERSION = "grounding_scope_split_v1"
+GROUNDING_PROMPT_VERSION = "grounding_justified_verdicts_v2"
+# Prompt generations whose stored templates the engine can still parse, so an
+# upgrade from one of them may keep a prompt the user customised.
+COMPATIBLE_GROUNDING_PROMPT_VERSIONS = frozenset({"grounding_scope_split_v1"})
+
+# Every stored prompt setting and the default it holds today. The legacy
+# aliases keep older frontend builds working; new code reads the explicit
+# single/history keys.
+GROUNDING_PROMPT_DEFAULTS: dict[str, str] = {
+    "grounding_single_system_prompt": DEFAULT_GROUNDING_SINGLE_SYSTEM_PROMPT,
+    "grounding_single_user_prompt_template_user": (
+        DEFAULT_GROUNDING_SINGLE_USER_PROMPT_TEMPLATE_USER
+    ),
+    "grounding_single_user_prompt_template_assistant": (
+        DEFAULT_GROUNDING_SINGLE_USER_PROMPT_TEMPLATE_ASSISTANT
+    ),
+    "grounding_history_system_prompt": DEFAULT_GROUNDING_HISTORY_SYSTEM_PROMPT,
+    "grounding_history_user_prompt_template_user": (
+        DEFAULT_GROUNDING_HISTORY_USER_PROMPT_TEMPLATE_USER
+    ),
+    "grounding_history_user_prompt_template_assistant": (
+        DEFAULT_GROUNDING_HISTORY_USER_PROMPT_TEMPLATE_ASSISTANT
+    ),
+    "grounding_system_prompt": DEFAULT_GROUNDING_SYSTEM_PROMPT,
+    "grounding_user_prompt_template_user": DEFAULT_GROUNDING_USER_PROMPT_TEMPLATE_USER,
+    "grounding_user_prompt_template_assistant": (
+        DEFAULT_GROUNDING_USER_PROMPT_TEMPLATE_ASSISTANT
+    ),
+    "grounding_summary_system_prompt": DEFAULT_GROUNDING_SUMMARY_SYSTEM_PROMPT,
+    "grounding_summary_user_prompt_template": DEFAULT_GROUNDING_SUMMARY_USER_PROMPT_TEMPLATE,
+}
 
 
 def _get_db(request: Request) -> DatabaseStore:
@@ -121,97 +152,66 @@ async def _upgrade_grounding_prompts_if_needed(
     db: DatabaseStore,
     all_settings: dict[str, str],
 ) -> dict[str, str]:
-    """Move existing installations to the active optimized prompt defaults.
+    """Move an existing installation on to the active prompt defaults.
 
     Older Docker volumes can persist previous prompt templates indefinitely.
-    Prompt optimization and structured few-shot support change both input and
-    output formats, so stale prompts are overwritten once and versioned.
+    Installations from before the scope split predate structured few-shot
+    support and are reset outright, because their prompts ask for an output
+    format the engine no longer parses. From the scope split onwards only a
+    stored prompt still byte-identical to a shipped default is replaced, so a
+    prompt the user wrote or edited survives the upgrade untouched.
     """
-    if all_settings.get("grounding_prompt_version") == GROUNDING_PROMPT_VERSION:
+    stored_version = all_settings.get("grounding_prompt_version")
+    if stored_version == GROUNDING_PROMPT_VERSION:
         return all_settings
 
-    await db.set_setting(
-        "grounding_single_system_prompt",
-        DEFAULT_GROUNDING_SINGLE_SYSTEM_PROMPT,
-    )
-    await db.set_setting(
-        "grounding_single_user_prompt_template_user",
-        DEFAULT_GROUNDING_SINGLE_USER_PROMPT_TEMPLATE_USER,
-    )
-    await db.set_setting(
-        "grounding_single_user_prompt_template_assistant",
-        DEFAULT_GROUNDING_SINGLE_USER_PROMPT_TEMPLATE_ASSISTANT,
-    )
-    await db.set_setting(
-        "grounding_history_system_prompt",
-        DEFAULT_GROUNDING_HISTORY_SYSTEM_PROMPT,
-    )
-    await db.set_setting(
-        "grounding_history_user_prompt_template_user",
-        DEFAULT_GROUNDING_HISTORY_USER_PROMPT_TEMPLATE_USER,
-    )
-    await db.set_setting(
-        "grounding_history_user_prompt_template_assistant",
-        DEFAULT_GROUNDING_HISTORY_USER_PROMPT_TEMPLATE_ASSISTANT,
-    )
-    # Legacy aliases keep older frontend builds functional. New code reads
-    # the explicit single/history keys above.
-    await db.set_setting("grounding_system_prompt", DEFAULT_GROUNDING_SYSTEM_PROMPT)
-    await db.set_setting(
-        "grounding_user_prompt_template_user",
-        DEFAULT_GROUNDING_USER_PROMPT_TEMPLATE_USER,
-    )
-    await db.set_setting(
-        "grounding_user_prompt_template_assistant",
-        DEFAULT_GROUNDING_USER_PROMPT_TEMPLATE_ASSISTANT,
-    )
-    await db.set_setting(
-        "grounding_summary_system_prompt",
-        DEFAULT_GROUNDING_SUMMARY_SYSTEM_PROMPT,
-    )
-    await db.set_setting(
-        "grounding_summary_user_prompt_template",
-        DEFAULT_GROUNDING_SUMMARY_USER_PROMPT_TEMPLATE,
-    )
-    # Remove stale pre-split prompt keys so settings cannot silently keep
-    # single-instance templates from an older Docker volume.
-    await db.delete_setting("grounding_user_prompt_template")
-    await db.delete_setting("grounding_system_prompt_user")
-    await db.delete_setting("grounding_system_prompt_assistant")
-    await db.set_setting("grounding_prompt_version", GROUNDING_PROMPT_VERSION)
+    if stored_version in COMPATIBLE_GROUNDING_PROMPT_VERSIONS:
+        await _adopt_defaults_for_untouched_prompts(db, all_settings)
+    else:
+        await _reset_grounding_prompts(db, all_settings)
 
-    all_settings["grounding_system_prompt"] = DEFAULT_GROUNDING_SYSTEM_PROMPT
-    all_settings["grounding_single_system_prompt"] = DEFAULT_GROUNDING_SINGLE_SYSTEM_PROMPT
-    all_settings["grounding_single_user_prompt_template_user"] = (
-        DEFAULT_GROUNDING_SINGLE_USER_PROMPT_TEMPLATE_USER
-    )
-    all_settings["grounding_single_user_prompt_template_assistant"] = (
-        DEFAULT_GROUNDING_SINGLE_USER_PROMPT_TEMPLATE_ASSISTANT
-    )
-    all_settings["grounding_history_system_prompt"] = DEFAULT_GROUNDING_HISTORY_SYSTEM_PROMPT
-    all_settings["grounding_history_user_prompt_template_user"] = (
-        DEFAULT_GROUNDING_HISTORY_USER_PROMPT_TEMPLATE_USER
-    )
-    all_settings["grounding_history_user_prompt_template_assistant"] = (
-        DEFAULT_GROUNDING_HISTORY_USER_PROMPT_TEMPLATE_ASSISTANT
-    )
-    all_settings["grounding_user_prompt_template_user"] = (
-        DEFAULT_GROUNDING_USER_PROMPT_TEMPLATE_USER
-    )
-    all_settings["grounding_user_prompt_template_assistant"] = (
-        DEFAULT_GROUNDING_USER_PROMPT_TEMPLATE_ASSISTANT
-    )
-    all_settings["grounding_summary_system_prompt"] = (
-        DEFAULT_GROUNDING_SUMMARY_SYSTEM_PROMPT
-    )
-    all_settings["grounding_summary_user_prompt_template"] = (
-        DEFAULT_GROUNDING_SUMMARY_USER_PROMPT_TEMPLATE
-    )
-    all_settings.pop("grounding_user_prompt_template", None)
-    all_settings.pop("grounding_system_prompt_user", None)
-    all_settings.pop("grounding_system_prompt_assistant", None)
+    await db.set_setting("grounding_prompt_version", GROUNDING_PROMPT_VERSION)
     all_settings["grounding_prompt_version"] = GROUNDING_PROMPT_VERSION
     return all_settings
+
+
+async def _adopt_defaults_for_untouched_prompts(
+    db: DatabaseStore,
+    all_settings: dict[str, str],
+) -> None:
+    """Replace only those stored prompts that are a superseded default."""
+    for key, default_prompt in GROUNDING_PROMPT_DEFAULTS.items():
+        stored_prompt = all_settings.get(key)
+        if stored_prompt is None or stored_prompt == default_prompt:
+            continue
+        if not is_superseded_default(key, stored_prompt):
+            continue
+        await db.set_setting(key, default_prompt)
+        all_settings[key] = default_prompt
+
+
+async def _reset_grounding_prompts(
+    db: DatabaseStore,
+    all_settings: dict[str, str],
+) -> None:
+    """Overwrite every stored prompt with the active default.
+
+    Reserved for installations predating the scope split, whose prompts and
+    few-shot examples use an output format the engine cannot read.
+    """
+    for key, default_prompt in GROUNDING_PROMPT_DEFAULTS.items():
+        await db.set_setting(key, default_prompt)
+        all_settings[key] = default_prompt
+
+    # Remove stale pre-split prompt keys so settings cannot silently keep
+    # single-instance templates from an older Docker volume.
+    for stale_key in (
+        "grounding_user_prompt_template",
+        "grounding_system_prompt_user",
+        "grounding_system_prompt_assistant",
+    ):
+        await db.delete_setting(stale_key)
+        all_settings.pop(stale_key, None)
 
 
 async def _save_settings(db: DatabaseStore, settings: AppSettings) -> None:

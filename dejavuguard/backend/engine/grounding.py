@@ -60,6 +60,10 @@ SUMMARY_NEW_MESSAGE_HEADER = "New delivered message:"
 # predicate is grounded — i.e. once, for the whole batch.
 _PROMPT_SEEN: set[str] = set()
 
+# Recorded in place of the justification when a grounding answer arrives
+# without one, so the gap is visible rather than silent.
+MISSING_REASONING = "The grounding model gave no reasoning for this verdict."
+
 
 def _save_grounding_prompt(prop_id: str, system_prompt: str, user_prompt: str) -> None:
     """If GROUNDING_PROMPT_DIR is set (the runner points it at the batch log
@@ -195,6 +199,32 @@ def _extract_json(text: str) -> dict | None:
             pass
 
     return None
+
+
+def _parse_confidence(raw: object) -> float:
+    """Read the model's confidence in its own verdict, clamped to 0..1.
+
+    A missing or non-numeric confidence becomes 0.0. The model told us nothing
+    about how sure it is, which is not the same as being certain, and a
+    fabricated 1.0 is exactly what made past grounding records unreadable.
+    """
+    if isinstance(raw, bool) or not isinstance(raw, int | float):
+        return 0.0
+    return max(0.0, min(1.0, float(raw)))
+
+
+def _parse_reasoning(raw: object) -> str:
+    """Read the one-sentence justification the grounding prompt asks for.
+
+    An answer that arrives without one is labelled as such, so a person
+    auditing a blocked message can tell an unexplained verdict from an
+    explained one instead of reading a blank line.
+    """
+    if raw is None:
+        return MISSING_REASONING
+    if isinstance(raw, str):
+        return raw.strip() or MISSING_REASONING
+    return str(raw)
 
 
 class LLMGrounding(GroundingMethod):
@@ -361,15 +391,8 @@ class LLMGrounding(GroundingMethod):
                 prop_id=prop_id,
             )
 
-        confidence_raw = data.get("confidence")
-        if isinstance(confidence_raw, int | float):
-            confidence = float(confidence_raw)
-        else:
-            confidence = 1.0 if match_val else 0.0
-
-        reasoning = data.get("reasoning", "")
-        if not isinstance(reasoning, str):
-            reasoning = str(reasoning)
+        confidence = _parse_confidence(data.get("confidence"))
+        reasoning = _parse_reasoning(data.get("reasoning"))
 
         # Parse instances when found=True. Legacy flat object_mentions responses
         # are normalized to a single instance so old test doubles still work.
