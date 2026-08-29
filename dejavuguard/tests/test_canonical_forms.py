@@ -845,3 +845,53 @@ async def test_settings_upgrade_resets_prompts_from_before_the_scope_split(db):
     settings = await _load_settings(db)
 
     assert settings.grounding.single_system_prompt == DEFAULT_GROUNDING_SINGLE_SYSTEM_PROMPT
+
+
+def test_zero_arity_prompt_does_not_ask_for_object_mentions():
+    """A predicate with no objects must not be shown an object-bearing template.
+
+    The generation prompt was hardcoded for object-bearing predicates: it said
+    every instance "includes every required object exactly once" and showed a
+    template containing object_id "o1". For a 0-arity predicate the model
+    dutifully invented an object, validation rejected the example, and the whole
+    generation was discarded -- so every 0-arity predicate on a fresh install
+    silently fell back to zero-shot.
+    """
+    from backend.routers.policies import _few_shot_generation_prompt
+
+    prompt = _few_shot_generation_prompt(
+        "sa_pressure_a",
+        "The assistant uses urgency or scarcity language to push the user to buy now.",
+        "assistant",
+        [],
+    )
+
+    assert '"object_id"' not in prompt
+    assert '"instances": []' in prompt
+
+
+def test_zero_arity_positive_example_survives_validation():
+    """The shape the fixed prompt asks for must actually validate."""
+    positives = [{
+        "text": "Only two left in stock -- order today!",
+        "role": "assistant",
+        "related_object_context": [],
+        "related_object_history": [],
+        "found": True,
+        "instances": [],
+    } for _ in range(3)]
+    negatives = [{
+        "text": "The model is available in three colours.",
+        "role": "assistant",
+        "related_object_context": [],
+        "related_object_history": [],
+        "found": False,
+    } for _ in range(3)]
+
+    examples = _parse_few_shot_examples(
+        json.dumps({"examples": [*positives, *negatives]}),
+        "assistant",
+        [],
+    )
+
+    assert len(examples) == 6

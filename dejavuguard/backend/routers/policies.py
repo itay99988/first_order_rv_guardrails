@@ -426,6 +426,13 @@ def _few_shot_generation_prompt(
     role: str,
     objects: list[dict[str, str]],
 ) -> str:
+    # A 0-arity predicate has nothing to extract, so a positive example carries
+    # an empty instances array. Showing it the object-bearing template instead
+    # made the model invent an object id, which validation then rejected -- and
+    # one rejected example discards the whole generation, so every 0-arity
+    # predicate silently fell back to zero-shot.
+    if not objects:
+        return _few_shot_generation_prompt_no_objects(prop_id, prop_description, role)
     return f"""Generate six structured few-shot examples for the extended grounding task.
 
 Predicate:
@@ -464,6 +471,52 @@ Return only this JSON form:
           ]
         }}
       ]
+    }},
+    {{
+      "text": "...",
+      "role": "{role}",
+      "related_object_context": [],
+      "related_object_history": [],
+      "found": false
+    }}
+  ]
+}}"""
+
+
+def _few_shot_generation_prompt_no_objects(
+    prop_id: str,
+    prop_description: str,
+    role: str,
+) -> str:
+    """The generation prompt for a predicate that takes no objects."""
+    return f"""Generate six structured few-shot examples for the extended grounding task.
+
+Predicate:
+{json.dumps({"predicate_id": prop_id, "predicate_description": prop_description, "predicate_role": role, "objects": []}, indent=2)}
+
+This predicate takes NO objects. It is either expressed by the message or it is
+not, and there is nothing to extract from it.
+
+Generate exactly three positive and three negative examples.
+- Every example must use role "{role}".
+- Positive examples must directly express this predicate, with found=true and an
+  empty instances array. Never invent an object id, a mention or a canonical
+  form: this predicate has no objects, and an example that carries one is
+  discarded.
+- Negative examples must be challenging near-misses using similar domain
+  vocabulary, with found=false and no instances field.
+- related_object_context and related_object_history are arrays; use [].
+
+Return only this JSON form:
+{{
+  "examples": [
+    {{
+      "text": "...",
+      "role": "{role}",
+      "related_object_context": [],
+      "related_object_history": [],
+      "found": true,
+      "instances": []
     }},
     {{
       "text": "...",
