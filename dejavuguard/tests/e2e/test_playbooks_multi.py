@@ -293,7 +293,11 @@ def multi_env():
             yield env
         finally:
             _sweep(client)
-            client.put("/settings", json=original_settings)
+            restored = client.put("/settings", json=original_settings)
+            # An unchecked restore is how a killed run leaves the developer's
+            # install pointed at the stub grounder: every predicate then reads
+            # false, so the guardrail passes everything and looks healthy.
+            assert restored.status_code == 200, restored.text
 
 
 @pytest.fixture()
