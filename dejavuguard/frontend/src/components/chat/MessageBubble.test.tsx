@@ -390,3 +390,57 @@ describe("MessageBubble", () => {
     ).toBeInTheDocument();
   });
 });
+
+describe("MessageBubble monitoring availability", () => {
+  it("says monitoring was unavailable rather than blaming a policy", () => {
+    render(
+      <MessageBubble
+        role="user"
+        content="Hello"
+        blocked={true}
+        violationInfo={null}
+        groundingDetails={null}
+        monitorState={null}
+        monitorError="grounding unavailable: 2/2 predicate checks failed (p1, p2)"
+      />,
+    );
+    // A turn refused because the guardrail could not run must never be
+    // presented as the user having violated something.
+    expect(screen.getByTestId("monitor-unavailable")).toBeInTheDocument();
+    expect(screen.getByText(/could not be verified/i)).toBeInTheDocument();
+    expect(screen.queryByText("Blocked")).not.toBeInTheDocument();
+  });
+
+  it("shows the underlying reason so the operator can fix it", () => {
+    render(
+      <MessageBubble
+        role="user"
+        content="Hello"
+        blocked={true}
+        violationInfo={null}
+        groundingDetails={null}
+        monitorState={null}
+        monitorError="grounding unavailable: 2/2 predicate checks failed (p1, p2)"
+      />,
+    );
+    expect(
+      screen.getByText(/2\/2 predicate checks failed/),
+    ).toBeInTheDocument();
+  });
+
+  it("leaves an ordinary policy block untouched", () => {
+    render(
+      <MessageBubble
+        role="assistant"
+        content="Dangerous response"
+        blocked={true}
+        violationInfo={createViolation()}
+        groundingDetails={null}
+        monitorState={null}
+        monitorError={null}
+      />,
+    );
+    expect(screen.getByText("Blocked")).toBeInTheDocument();
+    expect(screen.queryByTestId("monitor-unavailable")).not.toBeInTheDocument();
+  });
+});

@@ -71,6 +71,18 @@ async def sample_props(client):
 # Chat Router — Input Validation
 
 
+
+# The chat router wraps the grounding *client* in LLMGrounding, so a double has
+# to answer `chat()` with raw model text -- not `evaluate()` with a result. An
+# AsyncMock left unconfigured returns a Mock from chat(), which fails JSON
+# parsing, and an unparseable reply now correctly reads as "could not evaluate"
+# and refuses the turn. These tests passed before only because grounding failed
+# and the monitor failed open.
+_CLEAN_GROUNDING_REPLY = (
+    '{"found": false, "reasoning": "the message does not perform this '
+    'predicate", "confidence": 0.9}'
+)
+
 class TestChatInputValidation:
     """Validate chat endpoint input constraints."""
 
@@ -700,6 +712,7 @@ class TestChatWithMockedLLM:
 
         grounding_inst = AsyncMock()
         grounding_inst.health_check.return_value = True
+        grounding_inst.chat.return_value = _CLEAN_GROUNDING_REPLY
         mock_grounding.return_value = grounding_inst
 
         resp = await configured_client.post(
@@ -723,6 +736,7 @@ class TestChatWithMockedLLM:
         mock_or.return_value = mock_client
 
         grounding_inst = AsyncMock()
+        grounding_inst.chat.return_value = _CLEAN_GROUNDING_REPLY
         mock_grounding.return_value = grounding_inst
 
         resp = await configured_client.post(

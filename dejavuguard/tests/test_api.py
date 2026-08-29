@@ -1267,8 +1267,14 @@ class TestChatViolation:
             assert resp2.json()["blocked"] is True
 
     @pytest.mark.asyncio
-    async def test_chat_grounding_failure_failopen(self, client, db):
-        """Grounding failure is fail-open (no false blocks)."""
+    async def test_chat_grounding_failure_fails_closed(self, client, db):
+        """Grounding failure refuses the turn instead of waving it through.
+
+        This test asserted the opposite until the fail-open was fixed. A
+        predicate that could not be evaluated is not a predicate that did not
+        fire: treating the two alike let a dead grounding provider report every
+        policy as satisfied, so breaking the guardrail bypassed it.
+        """
         await self._setup_with_key(client, db)
 
         with (
@@ -1287,9 +1293,11 @@ class TestChatViolation:
                 "/api/chat",
                 json={"message": "Hello", "session_id": "sess-failopen"},
             )
-            # Should not block — fail-open
+            # Cannot verify -> refuse the turn, and say why.
             assert resp.status_code == 200
-            assert resp.json()["blocked"] is False
+            body = resp.json()
+            assert body["blocked"] is True
+            assert "grounding" in (body.get("monitor_error") or "").lower()
 
     @pytest.mark.asyncio
     async def test_blocked_response_not_user_blocked(self, client, db):

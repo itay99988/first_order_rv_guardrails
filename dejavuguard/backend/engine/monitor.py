@@ -251,6 +251,36 @@ class ConversationMonitor:
             if prop_id not in labeling:
                 labeling[prop_id] = False
 
+        # 4b. A predicate we could not evaluate is not a predicate that did not
+        # fire. Grounding failure used to collapse into match=False, so a dead
+        # provider, a refused key or an exhausted quota made every policy read
+        # as satisfied and the guardrail passed everything while checking
+        # nothing. Refuse the turn instead: a guardrail must not be bypassable
+        # by breaking it.
+        ungrounded = [
+            detail.get("prop_id") or "?"
+            for detail in grounding_details
+            if detail.get("unavailable")
+        ]
+        if ungrounded:
+            reason = (
+                f"grounding unavailable: {len(ungrounded)}/{len(grounding_details)} "
+                f"predicate checks failed ({', '.join(sorted(ungrounded))})"
+            )
+            logger.error("Failing closed for event %s: %s", event.index, reason)
+            return MonitorVerdict(
+                passed=False,
+                per_policy={},
+                labeling=labeling,
+                grounding_details=grounding_details,
+                trace_index=event.index,
+                violations=[],
+                verified=False,
+                monitor_error=reason,
+                playbook_state=None,
+                guidance=[],
+            )
+
         # 5. Send composite events to DejaVu
         per_policy: dict[str, bool] = {}
         violations: list[ViolationInfo] = []
@@ -442,7 +472,7 @@ class ConversationMonitor:
         )
 
     async def _safe_ground(self, event, prop: Proposition) -> GroundingResult:
-        """Ground a predicate with fail-open error handling."""
+        """Ground a predicate, marking the result unavailable if it cannot run."""
         try:
             context_block, history_block = self._build_related_object_blocks(prop)
             summary_block = self._conversation_summary or "NONE"
@@ -471,11 +501,12 @@ class ConversationMonitor:
                     if "unexpected" not in str(nested) and "positional" not in str(nested):
                         raise
                     return await self._grounding.evaluate(event, prop)
-        except Exception:
+        except Exception as e:
             return GroundingResult(
                 match=False,
                 confidence=0.0,
-                reasoning="Grounding error (fail-open)",
+                unavailable=True,
+                reasoning=f"Grounding error: {e}",
                 method="error",
                 prop_id=prop.prop_id,
             )

@@ -33,6 +33,13 @@ interface MessageBubbleProps {
    * R-22.
    */
   playbookState?: PlaybookStateInfo | null;
+  /**
+   * Why monitoring could not run for this turn, when it could not. A turn
+   * refused because the guardrail was unavailable is not a turn that violated
+   * a policy, and must never be shown as one -- the operator needs to know the
+   * checker is down, not think the user misbehaved.
+   */
+  monitorError?: string | null;
 }
 
 export default function MessageBubble({
@@ -43,7 +50,9 @@ export default function MessageBubble({
   groundingDetails,
   monitorState,
   playbookState,
+  monitorError,
 }: MessageBubbleProps) {
+  const unverified = Boolean(monitorError);
   const [expanded, setExpanded] = useState(false);
   const isUser = role === "user";
 
@@ -87,10 +96,29 @@ export default function MessageBubble({
             )}
           </div>
 
-          {blocked && (
+          {blocked && !unverified && (
             <div className="mb-2 flex items-center gap-1.5 text-xs font-mono uppercase tracking-wider text-terminal-red font-bold">
               <ShieldAlert size={14} />
               BLOCKED
+            </div>
+          )}
+
+          {unverified && (
+            <div
+              data-testid="monitor-unavailable"
+              className="mb-2 border border-terminal-amber/40 bg-terminal-amber/5 px-2 py-1.5"
+            >
+              <div className="flex items-center gap-1.5 text-xs font-mono uppercase tracking-wider text-terminal-amber font-bold">
+                <ShieldAlert size={14} />
+                MONITORING UNAVAILABLE
+              </div>
+              <p className="mt-1 text-xs font-mono text-terminal-amber/80">
+                This turn could not be verified against policy, so it was
+                refused.
+              </p>
+              <p className="mt-1 break-words text-[11px] font-mono text-terminal-dim">
+                {monitorError}
+              </p>
             </div>
           )}
 
@@ -109,7 +137,12 @@ export default function MessageBubble({
           {/* Monitor verdict tag */}
           <div className="mt-2 flex items-center justify-between">
             <div className="flex items-center gap-1 text-xs font-mono">
-              {blocked ? (
+              {unverified ? (
+                <>
+                  <ShieldAlert size={12} className="text-terminal-amber" />
+                  <span className="text-terminal-amber font-bold">Unverified</span>
+                </>
+              ) : blocked ? (
                 <>
                   <XCircle size={12} className="text-terminal-red" />
                   <span className="text-terminal-red font-bold">Blocked</span>

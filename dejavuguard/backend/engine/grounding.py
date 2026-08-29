@@ -111,6 +111,11 @@ class GroundingResult:
     reasoning: str
     method: str  # "llm" | "cosine" | "nli" | "hybrid"
     prop_id: str = ""
+    # True when the predicate could not be evaluated at all -- a dead provider,
+    # a refused key, an unparseable reply. Distinct from match=False, which
+    # asserts the predicate genuinely did not occur. Collapsing the two lets a
+    # broken grounder report every policy as satisfied.
+    unavailable: bool = False
     instances: list[dict] = field(default_factory=list)
     object_mentions: list[dict] = field(default_factory=list)
 
@@ -138,6 +143,7 @@ class GroundingResult:
             "confidence": self.confidence,
             "reasoning": self.reasoning,
             "method": self.method,
+            "unavailable": self.unavailable,
             "prop_id": self.prop_id,
             "instances": self.instances,
             "object_mentions": self.object_mentions,
@@ -352,6 +358,7 @@ class LLMGrounding(GroundingMethod):
             return GroundingResult(
                 match=False,
                 confidence=0.0,
+                unavailable=True,
                 reasoning=f"Grounding failed with error: {e}",
                 method="llm",
                 prop_id=proposition.prop_id,
@@ -369,6 +376,7 @@ class LLMGrounding(GroundingMethod):
             return GroundingResult(
                 match=False,
                 confidence=0.0,
+                unavailable=True,
                 reasoning=f"Failed to parse LLM response as JSON: {response_text[:200]}",
                 method="llm",
                 prop_id=prop_id,
@@ -386,6 +394,7 @@ class LLMGrounding(GroundingMethod):
             return GroundingResult(
                 match=False,
                 confidence=0.0,
+                unavailable=True,
                 reasoning=f"'found'/'match' field is not a boolean: {match_val}",
                 method="llm",
                 prop_id=prop_id,

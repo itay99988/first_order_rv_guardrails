@@ -373,6 +373,14 @@ export default function ChatView() {
                   playbookState={
                     i === messagesList.length - 1 ? activePlaybookState : null
                   }
+                  // Same reasoning as playbookState: monitor_error describes
+                  // the turn that just ran and is not persisted per message,
+                  // so it belongs only on the newest one.
+                  monitorError={
+                    i === messagesList.length - 1
+                      ? (lastResponse?.monitor_error ?? null)
+                      : null
+                  }
                 />
               ))}
             </div>

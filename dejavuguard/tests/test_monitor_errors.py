@@ -153,3 +153,103 @@ async def test_successful_step_is_reported_as_verified():
 
     assert verdict.verified is True
     assert verdict.monitor_error is None
+
+
+class _FailingGrounding(GroundingMethod):
+    """Grounding stub whose every call raises, as a dead provider does."""
+
+    async def evaluate(
+        self,
+        message: MessageEvent,
+        proposition: Proposition,
+        related_object_context_block: str = "NONE",
+        related_object_history_block: str = "NONE",
+        conversation_summary_block: str = "NONE",
+        grounding_scope: str | None = None,
+    ) -> GroundingResult:
+        raise RuntimeError("grounding provider is unreachable")
+
+
+class _AcceptingDejaVuClient:
+    """DejaVu stub that verifies every step cleanly."""
+
+    async def create_session(self, spec: str) -> tuple[str, list[str]]:
+        return "session-1", ["pol_pol_1"]
+
+    async def send_events(self, session_id: str, events: list[dict]) -> DejaVuVerdict:
+        return DejaVuVerdict(event_number=1, verdicts={"pol_pol_1": True}, violations=[])
+
+    async def delete_session(self, session_id: str) -> None:
+        return None
+
+
+def _monitor_with_grounding(grounding: GroundingMethod) -> ConversationMonitor:
+    """A monitor whose DejaVu is healthy, so only grounding can fail."""
+    proposition = Proposition(
+        prop_id="p1",
+        description="a predicate",
+        role="user",
+        arity=1,
+        arg_descriptions=["an amount"],
+    )
+    policy = Policy(
+        policy_id="pol-1",
+        name="a policy",
+        formula_str="forall a . ! p1(a)",
+        propositions=["p1"],
+    )
+    return ConversationMonitor(
+        policies=[policy],
+        propositions=[proposition],
+        grounding=grounding,
+        dejavu_client=_AcceptingDejaVuClient(),
+    )
+
+
+@pytest.mark.asyncio
+async def test_failed_grounding_is_not_reported_as_verified():
+    """A predicate that could not be evaluated must not read as evaluated.
+
+    Grounding failure used to become ``match=False``, which is the same value
+    the engine uses for "this predicate genuinely did not occur". A guardrail
+    that cannot tell those apart reports a clean pass while monitoring nothing.
+    """
+    monitor = _monitor_with_grounding(_FailingGrounding())
+
+    verdict = await monitor.process_message("user", "I can spend $12,000")
+
+    assert verdict.verified is False
+    assert "grounding" in (verdict.monitor_error or "").lower()
+
+
+@pytest.mark.asyncio
+async def test_failed_grounding_blocks_the_turn():
+    """Unverifiable turns fail closed: the guardrail cannot be bypassed by breaking it."""
+    monitor = _monitor_with_grounding(_FailingGrounding())
+
+    verdict = await monitor.process_message("user", "I can spend $12,000")
+
+    assert verdict.passed is False
+
+
+@pytest.mark.asyncio
+async def test_working_grounding_still_passes_a_clean_turn():
+    """The happy path must be untouched -- this is the regression that matters."""
+
+    class _NeverMatchGrounding(GroundingMethod):
+        async def evaluate(self, message, proposition, **kwargs) -> GroundingResult:
+            return GroundingResult(
+                match=False,
+                confidence=0.9,
+                reasoning="the message does not do this",
+                method="test",
+                prop_id=proposition.prop_id,
+            )
+
+    monitor = _monitor_with_grounding(_NeverMatchGrounding())
+
+    verdict = await monitor.process_message("user", "hello there")
+
+    assert verdict.passed is True
+    assert verdict.verified is True
+    assert verdict.monitor_error is None
