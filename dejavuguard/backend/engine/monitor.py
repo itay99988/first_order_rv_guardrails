@@ -23,7 +23,6 @@ import uuid
 from dataclasses import dataclass
 
 from backend.engine.dejavu_client import DejaVuClient, DejaVuError
-from backend.engine.formula_analysis import numeric_object_positions
 from backend.engine.grounding import (
     ConversationSummaryUpdater,
     GroundingMethod,
@@ -107,11 +106,6 @@ class ConversationMonitor:
         self._dejavu_properties: list[str] = []
         self._all_policies = policies
         self._all_propositions = propositions
-        # Object positions the active policies order with <, <=, > or >=.
-        # DejaVu compares those numerically, so they must carry bare numbers.
-        self._numeric_positions = self._collect_numeric_positions(
-            policies, propositions
-        )
         self.trace = ConversationTrace(session_id=session_id or str(uuid.uuid4()))
 
         # Track per-policy verdicts (updated from DejaVu responses)
@@ -550,20 +544,6 @@ class ConversationMonitor:
         self._summary_last_trace_index = event.index
 
     @staticmethod
-    def _collect_numeric_positions(
-        policies: list[Policy],
-        propositions: list[Proposition],
-    ) -> set[tuple[str, str]]:
-        """Union the numeric object positions implied by all enabled policies."""
-        arities = {p.prop_id: p.arity for p in propositions}
-        positions: set[tuple[str, str]] = set()
-        for policy in policies:
-            if not policy.enabled:
-                continue
-            positions |= numeric_object_positions(policy.formula_str, arities)
-        return positions
-
-    @staticmethod
     def _event_args(sorted_mentions: list[dict]) -> list[str]:
         """Build DejaVu args from canonical forms, verbatim.
 
@@ -657,30 +637,8 @@ class ConversationMonitor:
                     f"{policy_suffix}"
                 )
 
-        # Slots an active policy orders numerically. Stating the required form
-        # here fixes the cause: the model emits a comparable value in the first
-        # place, instead of a unit-carrying one that has to be repaired later.
-        numeric_lines: list[str] = []
-        for idx in range(prop.arity):
-            object_id = f"o{idx + 1}"
-            if (prop.prop_id, object_id) not in self._numeric_positions:
-                continue
-            numeric_lines.append(
-                f"- Object {prop.prop_id}.{object_id} "
-                f"({self._object_description(prop.prop_id, object_id)}) is compared "
-                "numerically by an active policy. Its canonical_form MUST be a bare "
-                "number: digits only, optionally with a leading '-' and a single "
-                "'.' as the decimal separator. No units, currency symbols, letters, "
-                "spaces or thousands separators, and never a ',' -- a comma is "
-                "rejected outright, so write 12000 not 12,000, and 1234.56 not "
-                '1.234,56. Examples: "12000", "12000.5", "-500". Never "$12,000", '
-                '"12000 USD", "USD 12000" or "12.000,50".'
-            )
-
-        if not context_lines and not numeric_lines:
+        if not context_lines:
             return "NONE", "[]"
-
-        context_lines.extend(numeric_lines)
 
         history_entries: list[dict[str, str]] = []
         for item in self._canonical_history:

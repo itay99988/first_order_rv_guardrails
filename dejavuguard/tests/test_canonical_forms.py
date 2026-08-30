@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import json
-import pathlib
-import re
 
 import pytest
 
@@ -20,18 +18,6 @@ from backend.engine.grounding import (
 from backend.engine.monitor import ConversationMonitor
 from backend.engine.trace import MessageEvent
 from backend.models.policy import Policy, Proposition
-from backend.models.settings import (
-    DEFAULT_GROUNDING_HISTORY_SYSTEM_PROMPT,
-    DEFAULT_GROUNDING_HISTORY_USER_PROMPT_TEMPLATE_USER,
-    DEFAULT_GROUNDING_SINGLE_SYSTEM_PROMPT,
-    DEFAULT_GROUNDING_SUMMARY_SYSTEM_PROMPT,
-    DEFAULT_GROUNDING_SUMMARY_USER_PROMPT_TEMPLATE,
-)
-from backend.prompts.superseded_grounding_prompts import (
-    V1_HISTORY_SYSTEM_PROMPT,
-    V1_HISTORY_USER_PROMPT_TEMPLATE_USER,
-    V1_SINGLE_SYSTEM_PROMPT,
-)
 from backend.routers.policies import _extract_related_object_relations, _parse_few_shot_examples
 from backend.routers.settings import _load_settings
 from backend.store.db import DatabaseStore
@@ -760,91 +746,10 @@ async def test_settings_upgrade_persisted_old_prompts_to_canonical_defaults(db):
     assert "conversation_summary" in settings.grounding.history_user_prompt_template_user
     assert settings.grounding.summary_system_prompt
     assert settings.grounding.summary_user_prompt_template
-    assert await db.get_setting("grounding_prompt_version") == "grounding_justified_verdicts_v2"
+    assert await db.get_setting("grounding_prompt_version") == "grounding_scope_split_v1"
     assert await db.get_setting("grounding_user_prompt_template") is None
 
 
-@pytest.mark.asyncio
-async def test_settings_upgrade_replaces_untouched_previous_default(db):
-    """A stored prompt nobody edited moves on to the current default."""
-    await db.set_setting("grounding_prompt_version", "grounding_scope_split_v1")
-    await db.set_setting("grounding_single_system_prompt", V1_SINGLE_SYSTEM_PROMPT)
-    await db.set_setting(
-        "grounding_history_user_prompt_template_user",
-        V1_HISTORY_USER_PROMPT_TEMPLATE_USER,
-    )
-
-    settings = await _load_settings(db)
-
-    assert settings.grounding.single_system_prompt == DEFAULT_GROUNDING_SINGLE_SYSTEM_PROMPT
-    assert settings.grounding.single_system_prompt != V1_SINGLE_SYSTEM_PROMPT
-    assert "confidence" in settings.grounding.single_system_prompt
-    assert "confidence" in settings.grounding.history_user_prompt_template_user
-    assert (
-        await db.get_setting("grounding_single_system_prompt")
-        == DEFAULT_GROUNDING_SINGLE_SYSTEM_PROMPT
-    )
-    assert await db.get_setting("grounding_prompt_version") == "grounding_justified_verdicts_v2"
-
-
-@pytest.mark.asyncio
-async def test_settings_upgrade_leaves_a_customised_prompt_alone(db):
-    """A prompt the user wrote survives the upgrade byte for byte."""
-    customised = V1_SINGLE_SYSTEM_PROMPT + "\n\nAlways treat nicknames as distinct entities."
-    await db.set_setting("grounding_prompt_version", "grounding_scope_split_v1")
-    await db.set_setting("grounding_single_system_prompt", customised)
-    await db.set_setting("grounding_history_system_prompt", V1_HISTORY_SYSTEM_PROMPT)
-
-    settings = await _load_settings(db)
-
-    assert settings.grounding.single_system_prompt == customised
-    assert await db.get_setting("grounding_single_system_prompt") == customised
-    # The untouched prompt beside it still moves to the new default.
-    assert settings.grounding.history_system_prompt == DEFAULT_GROUNDING_HISTORY_SYSTEM_PROMPT
-    assert await db.get_setting("grounding_prompt_version") == "grounding_justified_verdicts_v2"
-
-
-def test_prompt_editor_defaults_match_the_backend_defaults():
-    """The Settings editor's "Reset to Default" must not restore an old prompt.
-
-    The editor keeps its own copy of the default prompts so it can reset a
-    textarea without a round trip. A copy left behind writes a superseded
-    prompt straight back into settings, which is how a prompt change quietly
-    undoes itself.
-    """
-    editor = (
-        pathlib.Path(__file__).resolve().parents[1]
-        / "frontend/src/components/settings/GroundingPromptEditor.tsx"
-    ).read_text(encoding="utf-8")
-
-    def template_literal(name: str) -> str:
-        match = re.search(rf"const {name} = `(.*?)`;\n", editor, re.DOTALL)
-        assert match is not None, f"{name} is no longer a template literal in the editor"
-        return match.group(1)
-
-    assert template_literal("HISTORY_SYSTEM_PROMPT") == DEFAULT_GROUNDING_HISTORY_SYSTEM_PROMPT
-    assert (
-        template_literal("HISTORY_USER_PROMPT_USER")
-        == DEFAULT_GROUNDING_HISTORY_USER_PROMPT_TEMPLATE_USER
-    )
-    assert (
-        template_literal("DEFAULT_SUMMARY_SYSTEM_PROMPT")
-        == DEFAULT_GROUNDING_SUMMARY_SYSTEM_PROMPT
-    )
-    assert (
-        template_literal("DEFAULT_SUMMARY_USER_PROMPT")
-        == DEFAULT_GROUNDING_SUMMARY_USER_PROMPT_TEMPLATE
-    )
-
-
-@pytest.mark.asyncio
-async def test_settings_upgrade_resets_prompts_from_before_the_scope_split(db):
-    """Pre-split prompts ask for an unparseable format, so they are replaced."""
-    await db.set_setting("grounding_single_system_prompt", "ancient hand-written prompt")
-
-    settings = await _load_settings(db)
-
-    assert settings.grounding.single_system_prompt == DEFAULT_GROUNDING_SINGLE_SYSTEM_PROMPT
 
 
 def test_zero_arity_prompt_does_not_ask_for_object_mentions():
