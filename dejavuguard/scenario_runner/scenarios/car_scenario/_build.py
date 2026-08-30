@@ -202,7 +202,6 @@ def _write_all():
     seen: dict[str, str] = {}
     for s in SCENARIOS:
         sid = s["scenario_id"]
-        label = s["_label"]
         out = {k: v for k, v in s.items() if k != "_label"}  # scenario_runner schema only
         (HERE / f"{sid}.json").write_text(json.dumps(out, indent=2, ensure_ascii=False) + "\n")
         counts.append(len(s["messages"]))
